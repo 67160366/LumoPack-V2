@@ -64,6 +64,7 @@ export function ChatbotProvider({ children }) {
   const [collectedData, setCollectedData] = useState({});
   const [boxDimensions, setBoxDimensions] = useState(DEFAULT_DIMENSIONS);
   const [hasChatbotDimensions, setHasChatbotDimensions] = useState(false); // [Bug #1 fix]
+  const [quickReplies, setQuickReplies] = useState([]);  // [Sprint3-B] ปุ่มเลือกตอบ
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isComplete, setIsComplete] = useState(false);
@@ -91,6 +92,7 @@ export function ChatbotProvider({ children }) {
     if (sendingRef.current || !text.trim()) return;
     sendingRef.current = true;
     setError(null);
+    setQuickReplies([]);  // [Sprint3-B] ล้างปุ่มเมื่อ user ส่ง
 
     // 1. เพิ่ม user message ลง state ทันที (optimistic)
     const userMsg = {
@@ -111,6 +113,11 @@ export function ChatbotProvider({ children }) {
       setCollectedData(data.collected_data);
       setIsComplete(data.is_complete);
 
+      // [Sprint3-B] Set quick reply buttons
+      setQuickReplies(
+        Array.isArray(data.quick_replies) ? data.quick_replies : []
+      );
+
       // 4. เพิ่ม bot message
       const botMsg = {
         role: 'assistant',
@@ -123,6 +130,7 @@ export function ChatbotProvider({ children }) {
     } catch (err) {
       console.error('Chat error:', err);
       setError(err.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง');
+      setQuickReplies([]);  // [Sprint3-B] ล้างปุ่มเมื่อ error
 
       const errorMsg = {
         role: 'assistant',
@@ -155,6 +163,7 @@ export function ChatbotProvider({ children }) {
     setCollectedData({});
     setBoxDimensions(DEFAULT_DIMENSIONS);
     setHasChatbotDimensions(false); // [Bug #1 fix]
+    setQuickReplies([]);  // [Sprint3-B]
     setIsLoading(false);
     setError(null);
     setIsComplete(false);
@@ -175,6 +184,7 @@ export function ChatbotProvider({ children }) {
     collectedData,
     boxDimensions,
     hasChatbotDimensions,
+    quickReplies,
     isLoading,
     error,
     isComplete,
@@ -185,7 +195,8 @@ export function ChatbotProvider({ children }) {
     clearError,
   }), [
     messages, sessionId, currentStep, collectedData,
-    boxDimensions, hasChatbotDimensions, isLoading, error, isComplete,
+    boxDimensions, hasChatbotDimensions, quickReplies,
+    isLoading, error, isComplete,
     sendMessage, resetChat, clearError,
   ]);
 

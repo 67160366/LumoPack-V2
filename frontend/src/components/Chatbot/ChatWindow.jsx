@@ -25,6 +25,8 @@ export default function ChatWindow() {
     currentStep,
     isLoading,
     isComplete,
+    quickReplies,
+    sendMessage,
     resetChat,
   } = useChatbot();
 
@@ -33,7 +35,7 @@ export default function ChatWindow() {
   // Auto-scroll เมื่อมีข้อความใหม่
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isLoading]);
+  }, [messages, isLoading, quickReplies]);
 
   // Progress bar width
   const progress = Math.min(((currentStep - 1) / 13) * 100, 100);
@@ -119,6 +121,28 @@ export default function ChatWindow() {
                 <div className="w-1.5 h-1.5 bg-zinc-400 rounded-full typing-dot" />
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ===== Quick Reply Buttons [Sprint3-B] ===== */}
+        {!isLoading && quickReplies.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-1 mb-3 ml-9 chat-enter">
+            {quickReplies.map((text, idx) => (
+              <button
+                key={idx}
+                onClick={() => sendMessage(text)}
+                className="
+                  px-3.5 py-2 rounded-xl text-xs font-body
+                  bg-panel-surface border border-panel-border
+                  text-zinc-300 hover:text-lumo-400
+                  hover:border-lumo-400/50 hover:bg-lumo-400/5
+                  active:scale-95
+                  transition-all duration-200
+                "
+              >
+                {text}
+              </button>
+            ))}
           </div>
         )}
 

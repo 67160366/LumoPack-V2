@@ -10,6 +10,7 @@ import uuid
 
 from services.chatbot_flow import ChatbotFlowManager
 from models.chat_state import session_storage, ConversationState
+from utils.quick_replies import get_quick_replies
 
 
 # ===================================
@@ -40,6 +41,7 @@ class ChatMessageResponse(BaseModel):
     collected_data: Dict[str, Any] = Field(default_factory=dict, description="ข้อมูลที่เก็บได้")
     is_waiting_confirmation: bool = Field(default=False, description="กำลังรอการยืนยันหรือไม่")
     is_complete: bool = Field(default=False, description="สนทนาเสร็จสมบูรณ์แล้วหรือไม่")
+    quick_replies: List[str] = Field(default_factory=list, description="ปุ่มเลือกตอบสำหรับลูกค้า")
     
     class Config:
         json_schema_extra = {
@@ -127,6 +129,14 @@ async def send_message(request: ChatMessageRequest):
         # บันทึก state กลับเข้า storage
         session_storage.update_session(request.session_id, state)
         
+        # คำนวณ quick replies ตาม step ปัจจุบัน
+        replies = get_quick_replies(
+            current_step=int(state.current_step),
+            sub_step=getattr(state, 'sub_step', 0),
+            collected_data=state.collected_data,
+            is_waiting_confirmation=getattr(state, 'is_waiting_for_confirmation', False),
+        )
+        
         # Return response
         return ChatMessageResponse(
             response=response_text,
@@ -134,7 +144,8 @@ async def send_message(request: ChatMessageRequest):
             current_step=int(state.current_step),
             collected_data=state.collected_data,
             is_waiting_confirmation=getattr(state, 'is_waiting_for_confirmation', False),
-            is_complete=int(state.current_step) >= 14
+            is_complete=int(state.current_step) >= 14,
+            quick_replies=replies
         )
         
     except Exception as e:
