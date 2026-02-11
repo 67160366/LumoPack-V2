@@ -14,7 +14,7 @@ import React, { useRef, Suspense } from 'react';
 import { Canvas, useFrame, useLoader } from '@react-three/fiber';
 import { OrbitControls, ContactShadows } from '@react-three/drei';
 import { TextureLoader } from 'three';
-import HeatmapBox from '../../HeatmapBox';
+import HeatmapBox from './HeatmapBox';
 
 // --- PlainBox ---
 function PlainBox({ width, height, depth, color }) {

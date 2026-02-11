@@ -11,6 +11,7 @@ import time
 
 from api.chat import router as chat_router
 from api.pricing import router as pricing_router
+from api.analyze import router as analyze_router
 
 
 # ===================================
@@ -115,6 +116,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 # Register API routers
 app.include_router(chat_router, prefix="/api")
 app.include_router(pricing_router, prefix="/api")
+app.include_router(analyze_router)  # /analyze — root level ตาม frontend
 
 
 # ===================================
