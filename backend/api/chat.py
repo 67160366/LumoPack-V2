@@ -134,7 +134,9 @@ async def send_message(request: ChatMessageRequest):
             current_step=int(state.current_step),
             sub_step=getattr(state, 'sub_step', 0),
             collected_data=state.collected_data,
+            partial_data=getattr(state, 'partial_data', {}),
             is_waiting_confirmation=getattr(state, 'is_waiting_for_confirmation', False),
+            is_edit_mode=getattr(state, 'edit_mode', False),
         )
         
         # Return response

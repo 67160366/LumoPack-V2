@@ -41,10 +41,19 @@ class DesignStepHandlers:
             conversation_history=state.get_conversation_history(limit=5)
         )
 
+        # Transition ไปถามโลโก้
+        logo_transition = (
+            "\n\nคุณมีโลโก้ที่อยากใส่บนกล่องไหมคะ? 🎨\n"
+            "(หรือพิมพ์ 'ข้าม' ถ้ายังไม่มี)"
+        )
+
         if is_skip_response(user_message):
+            if not state.edit_mode:
+                response += logo_transition
             result = _make_result(response=response, advance=True)
         else:
-            # เก็บ mood_tone เป็น free text (ตาม Requirement: แล้วแต่จินตนาการลูกค้า)
+            if not state.edit_mode:
+                response += logo_transition
             result = _make_result(
                 response=response, advance=True,
                 update_data={"mood_tone": user_message.strip()}
@@ -89,7 +98,13 @@ class DesignStepHandlers:
             )
 
         if has_logo is False:
-            # ไม่มี → ข้ามไป step 9
+            # ไม่มี → ข้ามไป step 9 พร้อม transition ถามลูกเล่นพิเศษ
+            if not state.edit_mode:
+                response += (
+                    "\n\nสุดท้ายก่อนสรุป: คุณต้องการลูกเล่นพิเศษบนกล่องไหมคะ? ✨\n"
+                    "เช่น: เคลือบเงา / เคลือบด้าน / ป๊ัมนูน / ป๊ัมฟอยล์\n"
+                    "(หรือพิมพ์ 'ข้าม' ถ้าไม่ต้องการ)"
+                )
             result = _make_result(
                 response=response, advance=True,
                 update_data={"has_logo": False}
@@ -106,8 +121,18 @@ class DesignStepHandlers:
         positions = extract_logo_positions(user_message)
 
         if positions:
+            response = f"รับทราบค่ะ! จะใส่โลโก้ที่ตำแหน่ง: {', '.join(positions)} ✨"
+
+            # เพิ่ม transition ไปถามลูกเล่นพิเศษ
+            if not state.edit_mode:
+                response += (
+                    "\n\nคุณต้องการลูกเล่นพิเศษบนกล่องไหมคะ? ✨\n"
+                    "เช่น: เคลือบเงา / เคลือบด้าน / ป๊ัมนูน / ป๊ัมฟอยล์\n"
+                    "(หรือพิมพ์ 'ข้าม' ถ้าไม่ต้องการ)"
+                )
+
             result = _make_result(
-                response=f"รับทราบค่ะ! จะใส่โลโก้ที่ตำแหน่ง: {', '.join(positions)} ✨",
+                response=response,
                 advance=True,
                 update_data={"logo_positions": positions}
             )
@@ -200,8 +225,13 @@ class DesignStepHandlers:
             state.commit_partial_data()
 
             block_text = "มีบล็อกเดิม" if has_block else "ต้องทำบล็อกใหม่"
+            response = f"รับทราบค่ะ ({block_text}) 📝"
+
+            if not state.edit_mode:
+                response += "\n\nเดี๋ยวสรุปข้อมูลทั้งหมดให้ตรวจสอบนะคะ ✅"
+
             result = _make_result(
-                response=f"รับทราบค่ะ ({block_text}) 📝",
+                response=response,
                 advance=True,
                 update_data={"special_effects": effects}
             )
