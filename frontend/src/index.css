@@ -1,0 +1,167 @@
+/* Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* Tailwind v4 — single import replaces @tailwind base/components/utilities */
+@import "tailwindcss";
+
+/* ===================================
+   Theme Configuration (replaces tailwind.config.js)
+   =================================== */
+@theme {
+  /* --- LumoPack Brand Colors --- */
+  --color-lumo-50:  #fdf8f0;
+  --color-lumo-100: #f9eddb;
+  --color-lumo-200: #f2d8b4;
+  --color-lumo-300: #e8be84;
+  --color-lumo-400: #d4a373;
+  --color-lumo-500: #c4884c;
+  --color-lumo-600: #b67040;
+  --color-lumo-700: #975836;
+  --color-lumo-800: #7b4831;
+  --color-lumo-900: #65392a;
+
+  /* --- Dark Panel Colors --- */
+  --color-panel-dark:    #1a1d23;
+  --color-panel-darker:  #13151a;
+  --color-panel-surface: #22252d;
+  --color-panel-border:  #2e3139;
+  --color-panel-hover:   #2a2d35;
+
+  /* --- Chat Colors --- */
+  --color-chat-bg:    #f5f0ea;
+  --color-chat-user:  #d4a373;
+  --color-chat-bot:   #22252d;
+  --color-chat-input: #1a1d23;
+
+  /* --- Fonts --- */
+  --font-display: 'Plus Jakarta Sans', sans-serif;
+  --font-body:    'DM Sans', sans-serif;
+  --font-mono:    'JetBrains Mono', monospace;
+
+  /* --- Animations --- */
+  --animate-fade-in:     fadeIn 0.3s ease-out;
+  --animate-slide-up:    slideUp 0.3s ease-out;
+  --animate-slide-right: slideRight 0.3s ease-out;
+  --animate-pulse-soft:  pulseSoft 2s ease-in-out infinite;
+  --animate-typing:      typing 1.2s ease-in-out infinite;
+
+  @keyframes fadeIn {
+    0%   { opacity: 0; }
+    100% { opacity: 1; }
+  }
+
+  @keyframes slideUp {
+    0%   { opacity: 0; transform: translateY(10px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes slideRight {
+    0%   { opacity: 0; transform: translateX(-10px); }
+    100% { opacity: 1; transform: translateX(0); }
+  }
+
+  @keyframes pulseSoft {
+    0%, 100% { opacity: 0.6; }
+    50%      { opacity: 1; }
+  }
+
+  @keyframes typing {
+    0%   { opacity: 0.3; }
+    50%  { opacity: 1; }
+    100% { opacity: 0.3; }
+  }
+}
+
+
+/* ===================================
+   Base Styles
+   =================================== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: #0f1115;
+  color: #e4e4e7;
+  overflow: hidden;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+}
+
+
+/* ===================================
+   Custom Scrollbar
+   =================================== */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #3f3f46 transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 5px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 10px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: #52525b;
+}
+
+
+/* ===================================
+   Chat Animations
+   =================================== */
+.chat-enter {
+  animation: slideUp 0.3s ease-out forwards;
+}
+
+.typing-dot {
+  animation: typing 1.2s ease-in-out infinite;
+}
+.typing-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.typing-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+
+/* ===================================
+   Tab Active Indicator
+   =================================== */
+.tab-active {
+  position: relative;
+}
+.tab-active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #d4a373;
+  border-radius: 1px 1px 0 0;
+}
+
+
+/* ===================================
+   Gradient Text Utility
+   =================================== */
+.text-gradient-lumo {
+  background: linear-gradient(135deg, #d4a373 0%, #e8be84 50%, #d4a373 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
