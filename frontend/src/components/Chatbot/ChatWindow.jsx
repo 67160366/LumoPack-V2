@@ -18,6 +18,7 @@ import React, { useRef, useEffect } from 'react';
 import { useChatbot } from '../../contexts/ChatbotContext';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
+import DimensionsForm from './DimensionsForm';
 
 export default function ChatWindow() {
   const {
@@ -125,25 +126,30 @@ export default function ChatWindow() {
         )}
 
         {/* ===== Quick Reply Buttons [Sprint3-B] ===== */}
+        {/* ถ้า quick_replies มี __FORM_DIMENSIONS__ → แสดง form แทนปุ่ม */}
         {!isLoading && quickReplies.length > 0 && (
-          <div className="flex flex-wrap gap-2 mt-1 mb-3 ml-9 chat-enter">
-            {quickReplies.map((text, idx) => (
-              <button
-                key={idx}
-                onClick={() => sendMessage(text)}
-                className="
-                  px-3.5 py-2 rounded-xl text-xs font-body
-                  bg-panel-surface border border-panel-border
-                  text-zinc-300 hover:text-lumo-400
-                  hover:border-lumo-400/50 hover:bg-lumo-400/5
-                  active:scale-95
-                  transition-all duration-200
-                "
-              >
-                {text}
-              </button>
-            ))}
-          </div>
+          quickReplies.includes('__FORM_DIMENSIONS__') ? (
+            <DimensionsForm onSubmit={(text) => sendMessage(text)} />
+          ) : (
+            <div className="flex flex-wrap gap-2 mt-1 mb-3 ml-9 chat-enter">
+              {quickReplies.map((text, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => sendMessage(text)}
+                  className="
+                    px-3.5 py-2 rounded-xl text-xs font-body
+                    bg-panel-surface border border-panel-border
+                    text-zinc-300 hover:text-lumo-400
+                    hover:border-lumo-400/50 hover:bg-lumo-400/5
+                    active:scale-95
+                    transition-all duration-200
+                  "
+                >
+                  {text}
+                </button>
+              ))}
+            </div>
+          )
         )}
 
         {/* Scroll anchor */}

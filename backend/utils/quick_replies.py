@@ -56,10 +56,13 @@ def get_quick_replies(
     # ===================================
     # Step 2: Product Type
     # structure_steps: extract_product_type(user_message)
-    # Greeting ถามประเภทสินค้า → ต้องมีปุ่มให้เลือก
+    # system_prompt: ถาม "ต้องการบรรจุสินค้าอะไร" → พิมพ์เอง
+    #
+    # ไม่ใส่ปุ่มเพราะชื่อสินค้าเป็น free text
+    # แต่ใส่ตัวอย่างเพื่อช่วยให้ลูกค้าเข้าใจว่าต้องตอบอะไร
     # ===================================
     if current_step == 2:
-        return ["สินค้าทั่วไป", "Non-food", "Food-grade", "เครื่องสำอาง"]
+        return []
 
     # ===================================
     # Step 3: Box Type + Material (มี sub_step)
@@ -90,18 +93,21 @@ def get_quick_replies(
     # ===================================
     # Step 4: Inner (Optional)
     # structure_steps: extract_inner → "skip" | inner_type | None
-    # ต้อง match กับ transition text ใน _handle_material_selection (die-cut path)
+    # ถามเฉพาะ Die-cut (RSC ข้ามไปเอง แต่ปุ่มแสดงทั้งคู่ไม่เสียหาย)
     # ===================================
     if current_step == 4:
-        return ["กระดาษฝอย", "บับเบิ้ล", "ถุงลม", "ไม่ต้องการ"]
+        return ["ไม่ต้องการ", "บับเบิ้ล", "โฟม", "กระดาษฝอย"]
 
     # ===================================
     # Step 5: Dimensions + Quantity (รับแยกรอบ)
     # structure_steps: extract_dimensions + extract_quantity
     #   - ได้ทั้งคู่ → advance
     #   - ได้แค่ dims → ถาม qty (แสดงปุ่มจำนวน)
-    #   - ได้แค่ qty → ถาม dims (ไม่มีปุ่ม — พิมพ์เอง)
-    #   - ไม่ได้เลย → ถามใหม่ (ไม่มีปุ่ม — พิมพ์เอง)
+    #   - ได้แค่ qty → ถาม dims (แสดง form)
+    #   - ไม่ได้เลย → แสดง form (กว้าง/ยาว/สูง/จำนวน)
+    #
+    # "__FORM_DIMENSIONS__" = marker บอก frontend ให้แสดง form input
+    # แทนปุ่ม quick reply ปกติ
     # ===================================
     if current_step == 5:
         has_dims = (
@@ -117,7 +123,12 @@ def get_quick_replies(
             # มี dimensions แล้ว → ถามจำนวน
             return ["500", "1,000", "2,000", "5,000"]
 
-        # ยังไม่มี dimensions หรือมีทั้งคู่แล้ว → ไม่แสดงปุ่ม
+        if not has_dims:
+            # ยังไม่มี dimensions → แสดง form ให้กรอก
+            # ถ้ามี qty แล้ว form จะแสดงแค่ช่องขนาด (frontend จัดการ)
+            return ["__FORM_DIMENSIONS__"]
+
+        # มีทั้งคู่แล้ว → ไม่แสดงอะไร
         return []
 
     # ===================================
@@ -127,8 +138,7 @@ def get_quick_replies(
     if current_step == 6:
         if is_waiting_confirmation:
             return ["ถูกต้อง ✓", "ขอแก้ไข"]
-        # ยังไม่แสดง summary → ให้ปุ่มกดเพื่อดูสรุป
-        return ["ดูสรุป"]
+        return []
 
     # ===================================
     # Step 7: Mood & Tone (Optional)
@@ -168,7 +178,7 @@ def get_quick_replies(
     if current_step == 10:
         if is_waiting_confirmation:
             return ["ถูกต้อง ✓", "ขอแก้ไข"]
-        return ["ดูสรุป"]
+        return []
 
     # ===================================
     # Step 11: Mockup

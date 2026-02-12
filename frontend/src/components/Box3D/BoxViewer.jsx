@@ -1,20 +1,17 @@
 /**
  * BoxViewer — 3D Canvas Area (center panel)
  * 
- * แสดงกล่อง 3D ตามขนาดที่กำหนด
- * รับ dimensions จาก props (synced กับ ChatbotContext)
- * 
  * Mode:
  * - PlainBox:    ปกติ (สี cardboard)
  * - TexturedBox: มี texture จาก image upload
- * - HeatmapBox:  danger mode (heatmap shader)
+ * - HeatmapBox:  danger mode (heatmap shader — เขียว/แดง)
  */
 
 import React, { useRef, Suspense } from 'react';
 import { Canvas, useFrame, useLoader } from '@react-three/fiber';
 import { OrbitControls, ContactShadows } from '@react-three/drei';
 import { TextureLoader } from 'three';
-import HeatmapBox from './HeatmapBox';
+import HeatmapBox from './HeatmapBox';  // ← Fix: อยู่ folder เดียวกัน (Box3D/)
 
 // --- PlainBox ---
 function PlainBox({ width, height, depth, color }) {
