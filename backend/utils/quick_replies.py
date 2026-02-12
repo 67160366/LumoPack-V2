@@ -56,13 +56,10 @@ def get_quick_replies(
     # ===================================
     # Step 2: Product Type
     # structure_steps: extract_product_type(user_message)
-    # system_prompt: ถาม "ต้องการบรรจุสินค้าอะไร" → พิมพ์เอง
-    #
-    # ไม่ใส่ปุ่มเพราะชื่อสินค้าเป็น free text
-    # แต่ใส่ตัวอย่างเพื่อช่วยให้ลูกค้าเข้าใจว่าต้องตอบอะไร
+    # Greeting ถามประเภทสินค้า → ต้องมีปุ่มให้เลือก
     # ===================================
     if current_step == 2:
-        return []
+        return ["สินค้าทั่วไป", "Non-food", "Food-grade", "เครื่องสำอาง"]
 
     # ===================================
     # Step 3: Box Type + Material (มี sub_step)
@@ -93,10 +90,10 @@ def get_quick_replies(
     # ===================================
     # Step 4: Inner (Optional)
     # structure_steps: extract_inner → "skip" | inner_type | None
-    # ถามเฉพาะ Die-cut (RSC ข้ามไปเอง แต่ปุ่มแสดงทั้งคู่ไม่เสียหาย)
+    # ต้อง match กับ transition text ใน _handle_material_selection (die-cut path)
     # ===================================
     if current_step == 4:
-        return ["ไม่ต้องการ", "บับเบิ้ล", "โฟม", "กระดาษฝอย"]
+        return ["กระดาษฝอย", "บับเบิ้ล", "ถุงลม", "ไม่ต้องการ"]
 
     # ===================================
     # Step 5: Dimensions + Quantity (รับแยกรอบ)
@@ -130,7 +127,8 @@ def get_quick_replies(
     if current_step == 6:
         if is_waiting_confirmation:
             return ["ถูกต้อง ✓", "ขอแก้ไข"]
-        return []
+        # ยังไม่แสดง summary → ให้ปุ่มกดเพื่อดูสรุป
+        return ["ดูสรุป"]
 
     # ===================================
     # Step 7: Mood & Tone (Optional)
@@ -170,7 +168,7 @@ def get_quick_replies(
     if current_step == 10:
         if is_waiting_confirmation:
             return ["ถูกต้อง ✓", "ขอแก้ไข"]
-        return []
+        return ["ดูสรุป"]
 
     # ===================================
     # Step 11: Mockup
