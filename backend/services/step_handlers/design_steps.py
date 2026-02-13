@@ -178,10 +178,22 @@ class DesignStepHandlers:
         )
 
         if effects == "skip":
-            result = _make_result(response=response, advance=True)
             if state.edit_mode:
+                result = _make_result(response=response, advance=True)
                 result.exit_edit = True
-            return result
+                return result
+            # Normal flow → pre-generate checkpoint 2
+            prompt10 = get_prompt_for_step(10, collected_data=state.collected_data)
+            response10 = await self.groq.generate_response(
+                system_prompt=SYSTEM_PROMPT,
+                user_message=prompt10,
+                conversation_history=state.get_conversation_history(limit=3)
+            )
+            return _make_result(
+                response=response + "\n\n---\n\n" + response10,
+                advance=True,
+                post_advance_waiting=True,
+            )
 
         if effects:
             # เช็คว่ามี stamping (ป๊ัม) หรือไม่ → ต้องถามเรื่องบล็อก
@@ -199,13 +211,29 @@ class DesignStepHandlers:
                 )
 
             # ไม่มี stamping → advance เลย
-            result = _make_result(
-                response=response, advance=True,
-                update_data={"special_effects": effects}
-            )
             if state.edit_mode:
+                result = _make_result(
+                    response=response, advance=True,
+                    update_data={"special_effects": effects}
+                )
                 result.exit_edit = True
-            return result
+                return result
+
+            # Normal flow → pre-generate checkpoint 2 ในรอบเดียวกัน
+            # (ป้องกัน dead-end เหมือน step 5→6)
+            state.update_collected_data({"special_effects": effects})
+            prompt10 = get_prompt_for_step(10, collected_data=state.collected_data)
+            response10 = await self.groq.generate_response(
+                system_prompt=SYSTEM_PROMPT,
+                user_message=prompt10,
+                conversation_history=state.get_conversation_history(limit=3)
+            )
+            return _make_result(
+                response=response + "\n\n---\n\n" + response10,
+                advance=True,
+                update_data={"special_effects": effects},
+                post_advance_waiting=True,
+            )
 
         # extract ไม่ได้ → ถามซ้ำ (ไม่ advance เพื่อป้องกันข้อมูลหาย)
         # LLM response จะถามลูกค้าอีกครั้งว่าต้องการลูกเล่นพิเศษหรือไม่
@@ -227,17 +255,29 @@ class DesignStepHandlers:
             block_text = "มีบล็อกเดิม" if has_block else "ต้องทำบล็อกใหม่"
             response = f"รับทราบค่ะ ({block_text}) 📝"
 
-            if not state.edit_mode:
-                response += "\n\nเดี๋ยวสรุปข้อมูลทั้งหมดให้ตรวจสอบนะคะ ✅"
-
-            result = _make_result(
-                response=response,
-                advance=True,
-                update_data={"special_effects": effects}
-            )
             if state.edit_mode:
+                result = _make_result(
+                    response=response,
+                    advance=True,
+                    update_data={"special_effects": effects}
+                )
                 result.exit_edit = True
-            return result
+                return result
+
+            # Normal flow → pre-generate checkpoint 2
+            state.update_collected_data({"special_effects": effects})
+            prompt10 = get_prompt_for_step(10, collected_data=state.collected_data)
+            response10 = await self.groq.generate_response(
+                system_prompt=SYSTEM_PROMPT,
+                user_message=prompt10,
+                conversation_history=state.get_conversation_history(limit=3)
+            )
+            return _make_result(
+                response=response + "\n\n---\n\n" + response10,
+                advance=True,
+                update_data={"special_effects": effects},
+                post_advance_waiting=True,
+            )
 
         return _make_result(
             response="ขอโทษค่ะ ไม่ค่อยเข้าใจ ช่วยตอบว่า 'เคย' หรือ 'ไม่เคย' ทำบล็อกป๊ัมกับเราได้ไหมคะ?"
