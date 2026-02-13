@@ -33,6 +33,8 @@ class StepResult:
     exit_edit: bool = False                     # ออกจาก edit mode
     post_advance_waiting: bool = False          # หลัง advance แล้ว set is_waiting_for_confirmation=True
                                                 # ใช้เมื่อ handler generate checkpoint summary ในรอบเดียวกัน
+    auto_execute: bool = False                  # หลัง advance ให้ orchestrator call handler ถัดไปทันที
+                                                # (ไม่รอ user message) ใช้กับ step 10→11→12→13
 
 
 # ===================================
@@ -103,10 +105,25 @@ class ChatbotFlowManager:
         4. บันทึก bot response
         """
         state.add_message("user", user_message)
-        
+
         result = await self._route_to_handler(user_message, state)
         self._apply_result(result, state)
-        
+
+        # auto_execute: หลัง advance ให้ call handler ถัดไปทันที (ไม่รอ user)
+        # ใช้กับ checkpoint 2 → step 11 (mockup) → step 12 (quote) → step 13
+        # ป้องกัน infinite loop ด้วย MAX_AUTO = 3
+        MAX_AUTO = 3
+        auto_count = 0
+        while result.auto_execute and auto_count < MAX_AUTO:
+            auto_count += 1
+            next_result = await self._route_to_handler("", state)
+            # combine response: ต่อท้ายด้วย separator
+            combined_response = result.response + "\n\n" + next_result.response
+            self._apply_result(next_result, state)
+            # สร้าง result ใหม่ที่ combine response แล้ว แต่ใช้ flag จาก next_result
+            next_result.response = combined_response
+            result = next_result
+
         state.add_message("assistant", result.response)
         return result.response, state
     

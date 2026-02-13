@@ -101,27 +101,21 @@ def get_inner_prompt(user_message: str) -> str:
 
 
 def get_dimensions_prompt(user_message: str) -> str:
-    """ขั้นที่ 5: เก็บขนาดกล่อง + จำนวน"""
+    """ขั้นที่ 5: เก็บขนาด + จำนวน + น้ำหนัก (optional) + ลอนกระดาษ (optional)"""
     return f"""ลูกค้าตอบว่า: "{user_message}"
 
 ภารกิจของคุณ:
-1. แยกข้อมูลจากข้อความ:
-   - กว้าง (width) ซม.
-   - ยาว (length) ซม.
-   - สูง (height) ซม.
-   - จำนวน (quantity) ชิ้น
+1. ยืนยันข้อมูลที่ได้รับ 1-2 ประโยค ได้แก่:
+   - ขนาด (กว้าง×ยาว×สูง ซม.)
+   - จำนวน (ชิ้น)
+   - น้ำหนักสินค้า (kg) — ถ้าระบุมา
+   - ลอนกระดาษ (A/B/C/E/BC) — ถ้าระบุมา
 
-2. ตรวจสอบ:
-   - ขนาดต้องเป็นตัวเลขบวก
-   - จำนวนต้อง >= 500 ชิ้น
+2. ถ้าจำนวนน้อยกว่า 500 ชิ้น: แจ้งว่าขั้นต่ำคือ 500 ชิ้น
+3. ถ้าขาดเฉพาะน้ำหนัก/ลอน: ไม่ต้องถาม (ระบบจะใช้ค่า default)
+4. ถ้าขาดขนาดหรือจำนวน: ถามเฉพาะส่วนที่ขาด
 
-3. ยืนยันข้อมูลที่ได้รับ สั้นๆ 1-2 ประโยค
-
-หมายเหตุ:
-- ถ้าข้อมูลไม่ครบ: ถามเฉพาะส่วนที่ขาด
-- ถ้าจำนวนน้อยกว่า 500: แจ้งว่าขั้นต่ำคือ 500 ชิ้น
-
-⚠️ ห้ามถามคำถามถัดไป (ระบบจะสรุป requirement เอง)"""
+⚠️ ห้ามถามคำถามถัดไป (ระบบจะแสดงผลวิเคราะห์ความแข็งแรงและสรุป requirement เอง)"""
 
 
 def _format_inner_display(inner_raw) -> str:
@@ -171,6 +165,15 @@ def get_checkpoint1_prompt(collected_data: Dict[str, Any]) -> str:
     dims = collected_data.get("dimensions", {})
     inner_display = _format_inner_display(collected_data.get("inner"))
     
+    # weight + flute display
+    weight_kg  = collected_data.get("weight_kg", 0)
+    flute_type = collected_data.get("flute_type", "C")
+    flute_names = {"A": "ลอน A (หนาสุด)", "B": "ลอน B (บาง)", "C": "ลอน C (มาตรฐาน)",
+                   "E": "ลอน E (จิ๋ว)", "BC": "ลอน BC (2 ชั้น)"}
+    weight_display = f"{weight_kg:.1f} kg" if weight_kg > 0 else "ไม่ได้ระบุ"
+    flute_display  = flute_names.get(flute_type, flute_type)
+    danger_note    = "\n⚠️ **ความแข็งแรง: DANGER** — กรุณาตรวจสอบลอนกระดาษ" if collected_data.get("strength_warning") else ""
+
     return f"""ถึงเวลาสรุป Requirement รอบที่ 1 แล้ว!
 
 สร้างข้อความสรุปดังนี้:
@@ -182,6 +185,8 @@ def get_checkpoint1_prompt(collected_data: Dict[str, Any]) -> str:
 • Inner: {inner_display}
 • ขนาดกล่อง: {dims.get('width', '?')}×{dims.get('length', '?')}×{dims.get('height', '?')} cm
 • จำนวนผลิต: {collected_data.get('quantity', '?'):,} ชิ้น
+• น้ำหนักสินค้า: {weight_display}
+• ลอนกระดาษ: {flute_display}{danger_note}
 
 จากนั้นถามว่า: "ข้อมูลถูกต้องหรือไม่คะ? หากต้องการแก้ไขช่วยบอกได้เลยนะคะ"
 

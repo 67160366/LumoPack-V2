@@ -38,25 +38,43 @@ class FinalizeStepHandlers:
     # ===================================
     async def handle_mockup(self, user_message: str, state: ConversationState):
         """
-        แสดง Mockup → รอ user ดูก่อน → user ตอบอะไรก็ได้ → advance
+        แสดง Mockup + ใบเสนอราคาในรอบเดียว → advance ไป step 13 (confirm) ทันที
 
-        sub_step 0: แสดง mockup
-        sub_step 1: รอ user response → advance ไป step 12
+        ถูก call 2 แบบ:
+        1. auto_execute จาก checkpoint 2 (user_message="") → generate mockup+quote → advance ไป step 13
+        2. back-navigate จาก step 13 (user อยากแก้ mockup) → generate ใหม่อีกรอบ
         """
-        if state.sub_step == 0:
-            prompt = get_prompt_for_step(11)
-            response = await self.groq.generate_response(
+        # Generate mockup placeholder (อนาคต: ใช้ image generation)
+        prompt11 = get_prompt_for_step(11)
+        response_mockup = await self.groq.generate_response(
+            system_prompt=SYSTEM_PROMPT,
+            user_message=prompt11,
+            conversation_history=state.get_conversation_history(limit=3)
+        )
+        # TODO: แทน response_mockup ด้วย URL ภาพจริงเมื่อ implement image generation
+
+        # Generate quote ทันที (ไม่รอ user)
+        try:
+            pricing_data = self._calculate_pricing(state.session_id, state.collected_data)
+            state.temp_data["pricing"] = pricing_data
+            prompt12 = get_prompt_for_step(12, pricing_data=pricing_data)
+            response_quote = await self.groq.generate_response(
                 system_prompt=SYSTEM_PROMPT,
-                user_message=prompt,
+                user_message=prompt12,
                 conversation_history=state.get_conversation_history(limit=3)
             )
-            # TODO: สร้าง mockup image จริง (อนาคต)
-            return _make_result(response=response, update_sub_step=1)
+        except Exception as e:
+            response_quote = (
+                f"⚠️ เกิดข้อผิดพลาดในการคำนวณราคาค่ะ ({str(e)})\n"
+                f"กรุณาแจ้งทีมงานเพื่อดำเนินการต่อค่ะ"
+            )
 
-        # sub_step 1: user ตอบแล้ว → advance ไป quote
+        combined = response_mockup + "\n\n---\n\n" + response_quote
+        # advance ไป step 13 (CONFIRM_ORDER) ข้าม sub_step 1 และ step 12 ที่เคย wait
         return _make_result(
-            response="เรียบร้อยค่ะ! เดี๋ยวจัดทำใบเสนอราคาให้นะคะ 💰",
-            advance=True
+            response=combined,
+            advance=True,
+            next_step_override=13,
         )
 
     # ===================================

@@ -191,26 +191,19 @@ def get_quick_replies(
         return []
 
     # ===================================
-    # Step 11: Mockup
-    # finalize_steps: sub_step 0 → แสดง mockup (ไม่ต้องมีปุ่ม)
-    #                 sub_step 1 → รอ user ดู → advance
+    # Step 11: Mockup + Quote (รวมในรอบเดียว → advance ไป step 13 ทันที)
+    # finalize_steps: handle_mockup generate ทั้ง mockup+quote แล้ว advance ไป 13
+    # ไม่มี sub_step waiting อีกต่อไป
     # ===================================
     if current_step == 11:
-        if sub_step == 0:
-            return []  # กำลังสร้าง mockup
-        if sub_step == 1:
-            return ["สวยมาก ไปต่อเลย! ✓", "ขอปรับ Mockup"]
+        return []  # auto_execute กำลังทำงาน ไม่ต้องแสดงปุ่ม
 
     # ===================================
-    # Step 12: Quote
-    # finalize_steps: sub_step 0 → แสดงราคา (ไม่ต้องมีปุ่ม)
-    #                 sub_step 1 → รอ user ดู → advance
+    # Step 12: (ไม่ถูก call ตาม normal flow อีกต่อไป)
+    # ยังคงไว้เผื่อ edge case หรือ back-navigation
     # ===================================
     if current_step == 12:
-        if sub_step == 0:
-            return []  # กำลังคำนวณราคา
-        if sub_step == 1:
-            return ["เข้าใจแล้ว ไปต่อ ✓", "สอบถามเพิ่มเติม"]
+        return []
 
     # ===================================
     # Step 13: Confirm Order

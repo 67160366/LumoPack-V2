@@ -16,9 +16,11 @@ from models.chat_state import ConversationState, ChatbotStep
 from services.data_extractor import (
     extract_product_type, extract_box_type, extract_material,
     extract_inner, extract_dimensions, extract_quantity,
+    extract_weight, extract_flute,
     is_confirmation, is_rejection, is_skip_response,
     is_add_request, detect_edit_target,
 )
+from analyze import analyze_box_strength, suggest_alternatives, format_analysis_for_chat, FLUTE_SPECS
 from utils.prompts import SYSTEM_PROMPT, get_prompt_for_step
 
 
@@ -252,43 +254,102 @@ class StructureStepHandlers:
     async def handle_dimensions(self, user_message: str, state: ConversationState):
         """
         รองรับ:
-        1. ส่งมาพร้อมกัน: "20x15x10 จำนวน 1000"
-        2. dimensions ก่อน → ถาม quantity
-        3. quantity ก่อน → ถาม dimensions
+        1. ส่งพร้อมกัน: "20x15x10 จำนวน 1000 น้ำหนัก 2kg ลอน C"
+        2. dims ก่อน → ถาม qty
+        3. qty ก่อน → ถาม dims
+        weight + flute เป็น optional (default: 0 / "C")
+        หลังได้ dims+qty ครบ → run strength analysis → แสดงผล → checkpoint 1
         """
         dims = extract_dimensions(user_message)
-        qty = extract_quantity(user_message)
+        qty  = extract_quantity(user_message)
+        w    = extract_weight(user_message)
+        fl   = extract_flute(user_message)
 
         # Merge กับ partial จากรอบก่อน
-        prev_dims = state.partial_data.get("dimensions")
-        prev_qty = state.partial_data.get("quantity")
+        prev_dims  = state.partial_data.get("dimensions")
+        prev_qty   = state.partial_data.get("quantity")
+        prev_w     = state.partial_data.get("weight_kg")
+        prev_fl    = state.partial_data.get("flute_type")
         final_dims = dims or prev_dims
-        final_qty = qty or prev_qty
+        final_qty  = qty  or prev_qty
+        final_w    = w    if w is not None else prev_w   # 0 ก็เป็น valid
+        final_fl   = fl   or prev_fl
 
-        # ได้ทั้งคู่ → advance + pre-generate checkpoint 1 ในรอบเดียวกัน
+        # ได้ dims+qty ครบ → commit และดำเนินการต่อ
         if final_dims and final_qty:
             state.commit_partial_data()
 
-            # Step 5: ยืนยัน dims+qty
-            prompt5 = get_prompt_for_step(5, user_message=user_message)
-            response5 = await self.groq.generate_response(
-                system_prompt=SYSTEM_PROMPT,
-                user_message=prompt5,
-                conversation_history=state.get_conversation_history(limit=5)
+            # ค่า default ถ้าลูกค้าไม่ระบุ
+            weight_kg  = final_w  if final_w  is not None else 0.0
+            flute_type = final_fl if final_fl is not None else "C"
+
+            collected = {
+                "dimensions": final_dims,
+                "quantity":   final_qty,
+                "weight_kg":  weight_kg,
+                "flute_type": flute_type,
+            }
+
+            # --- Run Strength Analysis ---
+            analysis = analyze_box_strength(
+                length_cm=final_dims["length"],
+                width_cm=final_dims["width"],
+                height_cm=final_dims["height"],
+                weight_kg=weight_kg,
+                flute_type=flute_type,
             )
+            analysis_text = format_analysis_for_chat(analysis, weight_kg, flute_type)
+
+            # DANGER → เพิ่ม recommendation จาก suggest_alternatives
+            if analysis["status"] == "DANGER" and weight_kg > 0:
+                alts = suggest_alternatives(
+                    weight_kg=weight_kg,
+                    length_cm=final_dims["length"],
+                    width_cm=final_dims["width"],
+                    height_cm=final_dims["height"],
+                    current_flute=flute_type,
+                )
+                rec_lines = ["\n💡 **แนะนำ:**"]
+
+                if alts["needs_larger_box"]:
+                    # กล่องเล็กเกินไป → ต้องเพิ่มขนาดก่อน
+                    rec_lines.append(
+                        f"  • กล่องขนาดนี้เล็กเกินไปสำหรับ {weight_kg:.1f} kg ทุกลอนกระดาษ"
+                    )
+                    if alts["min_perimeter_cm"]:
+                        cur_perim = 2 * (final_dims["length"] + final_dims["width"])
+                        extra = alts["min_perimeter_cm"] - cur_perim
+                        rec_lines.append(
+                            f"  • ต้องการขอบรอบรวม (กว้าง+ยาว)×2 ≥ {alts['min_perimeter_cm']} ซม. "
+                            f"(เพิ่มอีก {extra:.1f} ซม.) + ใช้ลอน BC"
+                        )
+                else:
+                    if alts["recommended_flutes"]:
+                        best = alts["recommended_flutes"][0]
+                        rec_lines.append(
+                            f"  • เปลี่ยนเป็น **{best['name']}** — รับน้ำหนักได้ {best['max_load_kg']} kg "
+                            f"(safety factor {best['safety_factor']}×)"
+                        )
+                    if alts["min_perimeter_cm"]:
+                        cur_perim = 2 * (final_dims["length"] + final_dims["width"])
+                        if alts["min_perimeter_cm"] > cur_perim:
+                            rec_lines.append(
+                                f"  • หรือเพิ่มขนาดกล่อง ขอบรอบรวมขั้นต่ำ {alts['min_perimeter_cm']} ซม."
+                            )
+
+                analysis_text += "\n" + "\n".join(rec_lines)
+                collected["strength_warning"] = True
 
             if state.edit_mode:
-                # edit_mode → ไม่ต้อง generate checkpoint ซ้ำ
                 result = _make_result(
-                    response=response5, advance=True,
-                    update_data={"dimensions": final_dims, "quantity": final_qty}
+                    response=analysis_text, advance=True,
+                    update_data=collected
                 )
                 result.exit_edit = True
                 return result
 
-            # Normal flow → pre-generate checkpoint 1 summary ต่อท้ายทันที
-            # เพื่อไม่ให้ลูกค้าเห็นแค่ "ยืนยันแล้วค่ะ" แล้วงง ไม่รู้ต้องทำอะไรต่อ
-            state.update_collected_data({"dimensions": final_dims, "quantity": final_qty})
+            # Normal flow → analysis + checkpoint 1 ในรอบเดียว
+            state.update_collected_data(collected)
             prompt6 = get_prompt_for_step(6, collected_data=state.collected_data)
             response6 = await self.groq.generate_response(
                 system_prompt=SYSTEM_PROMPT,
@@ -296,12 +357,12 @@ class StructureStepHandlers:
                 conversation_history=state.get_conversation_history(limit=3)
             )
 
-            combined = response5 + "\n\n---\n\n" + response6
+            combined = analysis_text + "\n\n---\n\n" + response6
             return _make_result(
                 response=combined,
                 advance=True,
-                update_data={"dimensions": final_dims, "quantity": final_qty},
-                post_advance_waiting=True,  # restore is_waiting_for_confirmation หลัง advance
+                update_data=collected,
+                post_advance_waiting=True,
             )
 
         # ได้แค่ dimensions → ถาม quantity

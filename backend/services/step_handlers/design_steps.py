@@ -307,7 +307,8 @@ class DesignStepHandlers:
             state.is_waiting_for_confirmation = False
             return _make_result(
                 response="ขอบคุณค่ะ! ✅ กำลังสร้าง Mockup และใบเสนอราคาให้นะคะ รอสักครู่... ⏳",
-                advance=True
+                advance=True,
+                auto_execute=True,
             )
 
         # แก้ไข / เพิ่ม

@@ -150,6 +150,106 @@ def analyze_box_strength(
 
 
 # ===================================
+# Strength Recommendation (สำหรับ DANGER)
+# ===================================
+def suggest_alternatives(
+    weight_kg: float,
+    length_cm: float,
+    width_cm: float,
+    height_cm: float,
+    current_flute: str
+) -> dict:
+    """
+    เมื่อ DANGER → หาตัวเลือกที่ทำให้ SAFE
+
+    Strategy:
+    1. หา flute ที่แข็งแรงพอกับขนาดกล่องปัจจุบัน
+    2. หาขนาดกล่องขั้นต่ำที่ทำให้ SAFE กับ flute ที่แข็งแรงที่สุด (BC)
+    3. ถ้าไม่มี flute ใดรับได้ → แนะนำขนาดกล่องโดย BC flute
+
+    Returns:
+        {
+          "recommended_flutes": [...] or [],  # ว่างถ้าทุก flute รับไม่ได้ที่ขนาดนี้
+          "min_perimeter_cm": X,              # ขอบรอบขั้นต่ำที่ SAFE ด้วย BC
+          "current_max_load_kg": X,
+          "needs_larger_box": bool,           # True ถ้าต้องการกล่องใหญ่ขึ้น
+        }
+    """
+    stacking_factor = 3
+    perimeter_mm = 2 * (length_cm + width_cm) * 10
+
+    # 1. หา flute ทั้งหมดที่ SAFE กับขนาดปัจจุบัน
+    recommended = []
+    for flute_key, spec in FLUTE_SPECS.items():
+        bct = mckee_bct(spec["ect"], spec["caliper"], perimeter_mm)
+        max_load = bct / stacking_factor
+        if weight_kg > 0 and max_load / weight_kg >= 1.5:
+            recommended.append({
+                "flute": flute_key,
+                "name": spec["name"],
+                "max_load_kg": round(max_load, 1),
+                "safety_factor": round(max_load / weight_kg, 2),
+            })
+    recommended.sort(key=lambda x: FLUTE_SPECS[x["flute"]]["ect"])
+
+    # 2. หา min perimeter ที่ทำให้ SAFE — ลอง BC ก่อน (แข็งแรงสุด)
+    best_flute_key = "BC"
+    best_spec = FLUTE_SPECS[best_flute_key]
+    min_perimeter_cm = None
+    # ค้นหาจาก current size ขึ้นไปจนถึง 5000mm (500cm perimeter)
+    for p_mm in range(int(perimeter_mm), 5000, 10):
+        bct = mckee_bct(best_spec["ect"], best_spec["caliper"], p_mm)
+        if bct / stacking_factor >= weight_kg * 1.5:
+            min_perimeter_cm = round(p_mm / 10, 1)
+            break
+
+    flute = FLUTE_SPECS.get(current_flute.upper(), FLUTE_SPECS["C"])
+    current_bct = mckee_bct(flute["ect"], flute["caliper"], perimeter_mm)
+
+    return {
+        "recommended_flutes": recommended[:3],
+        "min_perimeter_cm": min_perimeter_cm,
+        "current_max_load_kg": round(current_bct / stacking_factor, 2),
+        "needs_larger_box": len(recommended) == 0,
+    }
+
+
+def format_analysis_for_chat(analysis: dict, weight_kg: float, flute_type: str) -> str:
+    """
+    Format ผลวิเคราะห์ความแข็งแรงเป็นข้อความแชท
+
+    ถ้า weight_kg == 0 → แสดงแค่ค่า BCT โดยไม่ประเมิน
+    """
+    status = analysis["status"]
+    score = analysis["safety_score"]
+    max_load = analysis["max_load_kg"]
+    bct = analysis["bct_kgf"]
+    flute_name = FLUTE_SPECS.get(flute_type.upper(), FLUTE_SPECS["C"])["name"]
+
+    if weight_kg == 0:
+        return (
+            f"🔬 **ผลวิเคราะห์ความแข็งแรง** ({flute_name})\n"
+            f"• BCT (รับแรงกด): {bct:.1f} kgf\n"
+            f"• รับน้ำหนักได้สูงสุด: {max_load:.1f} kg (stacking ×3)\n"
+            f"*(ไม่ได้ระบุน้ำหนักสินค้า — ไม่สามารถประเมิน SAFE/DANGER ได้)*"
+        )
+
+    icon = "✅" if status == "SAFE" else "⚠️"
+    bar_filled = int(score / 10)
+    bar = "█" * bar_filled + "░" * (10 - bar_filled)
+
+    lines = [
+        f"🔬 **ผลวิเคราะห์ความแข็งแรง** ({flute_name})",
+        f"• สถานะ: {icon} **{status}** (คะแนน {score}/100)",
+        f"  [{bar}]",
+        f"• รับน้ำหนักได้สูงสุด: {max_load:.1f} kg | น้ำหนักสินค้า: {weight_kg:.1f} kg",
+        f"• {analysis['recommendation']}",
+    ]
+
+    return "\n".join(lines)
+
+
+# ===================================
 # Endpoint
 # ===================================
 @router.post("/analyze", response_model=AnalyzeResponse)

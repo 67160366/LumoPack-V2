@@ -38,6 +38,11 @@ class BoxStructure(BaseModel):
     
     # วัสดุกล่อง (ระบบเลือกให้อัตโนมัติตาม box_type และ product_type)
     material: Optional[str] = None
+
+    # ขั้นที่ 5: น้ำหนักสินค้า + ลอนกระดาษ (optional — ใช้วิเคราะห์ความแข็งแรง)
+    weight_kg: float = Field(default=0.0, ge=0, description="น้ำหนักสินค้า (kg) — 0 = ไม่ได้ระบุ")
+    flute_type: str = Field(default="C", description="ลอนกระดาษ (A/B/C/E/BC)")
+    strength_warning: bool = Field(default=False, description="True ถ้าผลวิเคราะห์เป็น DANGER")
     
     
     @field_validator('dimensions')
@@ -159,6 +164,9 @@ class CompleteRequirement(BaseModel):
             dimensions=collected_data.get("dimensions", {"width": 10, "length": 10, "height": 10}),
             quantity=collected_data.get("quantity", 500),
             material=collected_data.get("material"),
+            weight_kg=collected_data.get("weight_kg", 0.0),
+            flute_type=collected_data.get("flute_type", "C"),
+            strength_warning=collected_data.get("strength_warning", False),
         )
         
         # --- Build DesignRequirement (ถ้ามีข้อมูล) ---
