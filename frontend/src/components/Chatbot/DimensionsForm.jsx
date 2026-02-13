@@ -1,123 +1,123 @@
 /**
- * DimensionsForm — Structured input สำหรับ Step 5 (ขนาด + จำนวน)
+ * DimensionsForm — Structured input สำหรับ Step 5
  *
- * แทนที่การพิมพ์อิสระ ด้วย form 4 ช่อง:
- *   กว้าง (cm) / ยาว (cm) / สูง (cm) / จำนวน (ชิ้น)
+ * ช่องบังคับ: กว้าง / ยาว / สูง / จำนวน
+ * ช่อง optional: น้ำหนักสินค้า (kg) / ลอนกระดาษ (A/B/C/E/BC)
  *
- * เมื่อ submit → format เป็น string ที่ extract_dimensions() จับได้:
- *   "กว้าง 20 ยาว 10 สูง 30 จำนวน 500 ชิ้น"
+ * format output: "กว้าง 20 ยาว 10 สูง 30 จำนวน 500 ชิ้น น้ำหนัก 2 kg ลอน C"
  *
  * Props:
- *   onSubmit(formattedText: string) — เรียก sendMessage ด้วยข้อความที่ format แล้ว
- *   showQuantity — แสดงช่องจำนวนหรือไม่ (false = มี qty ใน partial แล้ว)
+ *   onSubmit(formattedText: string)
+ *   showQuantity — แสดงช่องจำนวนหรือไม่
  */
 
 import React, { useState, useRef, useEffect } from 'react';
 
-// Validation rules
 const MIN_DIMENSION = 1;
 const MAX_DIMENSION = 200;
-const MIN_QUANTITY = 500;
-const MAX_QUANTITY = 100000;
+const MIN_QUANTITY  = 500;
+const MAX_QUANTITY  = 100000;
+
+const FLUTE_OPTIONS = [
+  { value: '',   label: 'ไม่ระบุ (ค่าเริ่มต้น C)' },
+  { value: 'A',  label: 'ลอน A — หนาสุด' },
+  { value: 'B',  label: 'ลอน B — บาง' },
+  { value: 'C',  label: 'ลอน C — มาตรฐาน' },
+  { value: 'E',  label: 'ลอน E — จิ๋ว (กล่องเล็ก)' },
+  { value: 'BC', label: 'ลอน BC — 2 ชั้น (หนักมาก)' },
+];
 
 export default function DimensionsForm({ onSubmit, showQuantity = true }) {
-  const [width, setWidth] = useState('');
-  const [length, setLength] = useState('');
-  const [height, setHeight] = useState('');
+  const [width,    setWidth]    = useState('');
+  const [length,   setLength]   = useState('');
+  const [height,   setHeight]   = useState('');
   const [quantity, setQuantity] = useState('');
-  const [errors, setErrors] = useState({});
+  const [weight,   setWeight]   = useState('');   // optional
+  const [flute,    setFlute]    = useState('');    // optional
+  const [errors,   setErrors]   = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const firstInputRef = useRef(null);
+  useEffect(() => { firstInputRef.current?.focus(); }, []);
 
-  // Auto-focus ช่องแรกเมื่อ mount
-  useEffect(() => {
-    if (firstInputRef.current) {
-      firstInputRef.current.focus();
-    }
-  }, []);
-
-  // --- Validation ---
+  // =====================
+  // Validation
+  // =====================
   const validate = () => {
     const newErrors = {};
     const w = parseFloat(width);
     const l = parseFloat(length);
     const h = parseFloat(height);
 
-    if (!width || isNaN(w) || w < MIN_DIMENSION || w > MAX_DIMENSION) {
-      newErrors.width = `${MIN_DIMENSION}-${MAX_DIMENSION} ซม.`;
-    }
-    if (!length || isNaN(l) || l < MIN_DIMENSION || l > MAX_DIMENSION) {
-      newErrors.length = `${MIN_DIMENSION}-${MAX_DIMENSION} ซม.`;
-    }
-    if (!height || isNaN(h) || h < MIN_DIMENSION || h > MAX_DIMENSION) {
-      newErrors.height = `${MIN_DIMENSION}-${MAX_DIMENSION} ซม.`;
-    }
+    if (!width  || isNaN(w) || w < MIN_DIMENSION || w > MAX_DIMENSION)
+      newErrors.width  = `${MIN_DIMENSION}–${MAX_DIMENSION} ซม.`;
+    if (!length || isNaN(l) || l < MIN_DIMENSION || l > MAX_DIMENSION)
+      newErrors.length = `${MIN_DIMENSION}–${MAX_DIMENSION} ซม.`;
+    if (!height || isNaN(h) || h < MIN_DIMENSION || h > MAX_DIMENSION)
+      newErrors.height = `${MIN_DIMENSION}–${MAX_DIMENSION} ซม.`;
 
     if (showQuantity) {
       const q = parseInt(quantity, 10);
-      if (!quantity || isNaN(q) || q < MIN_QUANTITY) {
+      if (!quantity || isNaN(q) || q < MIN_QUANTITY)
         newErrors.quantity = `ขั้นต่ำ ${MIN_QUANTITY.toLocaleString()} ชิ้น`;
-      } else if (q > MAX_QUANTITY) {
+      else if (q > MAX_QUANTITY)
         newErrors.quantity = `สูงสุด ${MAX_QUANTITY.toLocaleString()} ชิ้น`;
-      }
+    }
+
+    // weight optional — validate เฉพาะถ้ากรอกมา
+    if (weight !== '') {
+      const wt = parseFloat(weight);
+      if (isNaN(wt) || wt <= 0 || wt > 9999)
+        newErrors.weight = '0.1–9999 kg';
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  // --- Submit ---
+  // =====================
+  // Submit
+  // =====================
   const handleSubmit = () => {
     if (isSubmitting) return;
     if (!validate()) return;
-
     setIsSubmitting(true);
 
-    // Format ให้ตรงกับ extract_dimensions Pattern 2 + extract_quantity
     let text = `กว้าง ${width} ยาว ${length} สูง ${height}`;
-    if (showQuantity && quantity) {
-      text += ` จำนวน ${quantity} ชิ้น`;
-    }
+    if (showQuantity && quantity) text += ` จำนวน ${quantity} ชิ้น`;
+    if (weight)                   text += ` น้ำหนัก ${weight} kg`;
+    if (flute)                    text += ` ลอน ${flute}`;
 
     onSubmit(text);
   };
 
-  // --- Enter key → submit ---
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleSubmit();
-    }
+    if (e.key === 'Enter') { e.preventDefault(); handleSubmit(); }
   };
 
-  // --- Number-only input handler ---
-  const handleNumberChange = (setter) => (e) => {
+  const handleNumberChange = (setter, fieldName) => (e) => {
     const val = e.target.value;
-    // อนุญาตเฉพาะตัวเลขและจุดทศนิยม
     if (val === '' || /^\d*\.?\d*$/.test(val)) {
       setter(val);
-      // ล้าง error เมื่อ user เริ่มพิมพ์ใหม่
-      if (errors[e.target.name]) {
-        setErrors((prev) => ({ ...prev, [e.target.name]: undefined }));
-      }
+      if (errors[fieldName]) setErrors(prev => ({ ...prev, [fieldName]: undefined }));
     }
   };
 
-  // --- Quantity input (integer only) ---
   const handleQuantityChange = (e) => {
     const val = e.target.value;
     if (val === '' || /^\d*$/.test(val)) {
       setQuantity(val);
-      if (errors.quantity) {
-        setErrors((prev) => ({ ...prev, quantity: undefined }));
-      }
+      if (errors.quantity) setErrors(prev => ({ ...prev, quantity: undefined }));
     }
   };
 
+  // =====================
+  // Render
+  // =====================
   return (
     <div className="ml-9 mb-3 animate-slide-up">
       <div className="bg-panel-surface border border-panel-border rounded-2xl p-4 max-w-sm">
+
         {/* Header */}
         <div className="flex items-center gap-2 mb-3">
           <span className="text-sm">📐</span>
@@ -126,56 +126,73 @@ export default function DimensionsForm({ onSubmit, showQuantity = true }) {
           </span>
         </div>
 
-        {/* Dimension inputs — 3 columns */}
+        {/* ── บังคับ: กว้าง / ยาว / สูง ── */}
         <div className="grid grid-cols-3 gap-2 mb-2">
-          <DimInput
-            ref={firstInputRef}
-            name="width"
-            label="กว้าง"
-            unit="ซม."
-            value={width}
-            error={errors.width}
-            onChange={handleNumberChange(setWidth)}
-            onKeyDown={handleKeyDown}
-          />
-          <DimInput
-            name="length"
-            label="ยาว"
-            unit="ซม."
-            value={length}
-            error={errors.length}
-            onChange={handleNumberChange(setLength)}
-            onKeyDown={handleKeyDown}
-          />
-          <DimInput
-            name="height"
-            label="สูง"
-            unit="ซม."
-            value={height}
-            error={errors.height}
-            onChange={handleNumberChange(setHeight)}
-            onKeyDown={handleKeyDown}
-          />
+          <DimInput ref={firstInputRef} name="width"  label="กว้าง" unit="ซม."
+            value={width}  error={errors.width}
+            onChange={handleNumberChange(setWidth, 'width')}   onKeyDown={handleKeyDown} />
+          <DimInput name="length" label="ยาว" unit="ซม."
+            value={length} error={errors.length}
+            onChange={handleNumberChange(setLength, 'length')} onKeyDown={handleKeyDown} />
+          <DimInput name="height" label="สูง" unit="ซม."
+            value={height} error={errors.height}
+            onChange={handleNumberChange(setHeight, 'height')} onKeyDown={handleKeyDown} />
         </div>
 
-        {/* Quantity input */}
+        {/* ── บังคับ: จำนวน ── */}
         {showQuantity && (
           <div className="mb-3">
-            <DimInput
-              name="quantity"
-              label="จำนวน"
-              unit="ชิ้น"
-              value={quantity}
-              error={errors.quantity}
-              onChange={handleQuantityChange}
-              onKeyDown={handleKeyDown}
-              placeholder="ขั้นต่ำ 500"
-              fullWidth
-            />
+            <DimInput name="quantity" label="จำนวน" unit="ชิ้น"
+              value={quantity} error={errors.quantity}
+              onChange={handleQuantityChange} onKeyDown={handleKeyDown}
+              placeholder="ขั้นต่ำ 500" fullWidth />
           </div>
         )}
 
-        {/* Submit button */}
+        {/* ── Divider: optional section ── */}
+        <div className="flex items-center gap-2 mb-3">
+          <div className="h-px flex-1 bg-panel-border" />
+          <span className="text-[10px] text-zinc-600 font-body whitespace-nowrap">
+            ไม่บังคับ — ใช้วิเคราะห์ความแข็งแรง
+          </span>
+          <div className="h-px flex-1 bg-panel-border" />
+        </div>
+
+        {/* ── Optional: น้ำหนัก + ลอนกระดาษ ── */}
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          {/* น้ำหนักสินค้า */}
+          <DimInput name="weight" label="น้ำหนักสินค้า" unit="kg"
+            value={weight} error={errors.weight}
+            onChange={handleNumberChange(setWeight, 'weight')} onKeyDown={handleKeyDown}
+            placeholder="เว้นว่างได้" />
+
+          {/* ลอนกระดาษ */}
+          <div>
+            <label htmlFor="dim-flute" className="block text-[11px] text-zinc-500 font-body mb-1">
+              ลอนกระดาษ
+              <span className="text-zinc-600 ml-0.5">(ชั้น)</span>
+            </label>
+            <select
+              id="dim-flute"
+              value={flute}
+              onChange={(e) => setFlute(e.target.value)}
+              className="
+                w-full px-2 py-2 rounded-lg text-xs font-body text-zinc-200
+                bg-panel-darker border border-panel-border
+                focus:outline-none focus:ring-1 focus:border-lumo-400/50 focus:ring-lumo-400/20
+                transition-colors duration-150 appearance-none cursor-pointer
+              "
+            >
+              {FLUTE_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value} className="bg-panel-darker">
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Submit */}
         <button
           onClick={handleSubmit}
           disabled={isSubmitting}
@@ -196,20 +213,16 @@ export default function DimensionsForm({ onSubmit, showQuantity = true }) {
 }
 
 
-// ===================================
-// Sub-component: Single input field
-// ===================================
-
+// =============================================
+// Sub-component: DimInput
+// =============================================
 const DimInput = React.forwardRef(function DimInput(
   { name, label, unit, value, error, onChange, onKeyDown, placeholder, fullWidth },
   ref
 ) {
   return (
     <div className={fullWidth ? 'w-full' : ''}>
-      <label
-        htmlFor={`dim-${name}`}
-        className="block text-[11px] text-zinc-500 font-body mb-1"
-      >
+      <label htmlFor={`dim-${name}`} className="block text-[11px] text-zinc-500 font-body mb-1">
         {label}
         <span className="text-zinc-600 ml-0.5">({unit})</span>
       </label>

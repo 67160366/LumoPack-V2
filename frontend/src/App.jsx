@@ -1,10 +1,10 @@
 /**
- * App.jsx — LumoPack Studio (Responsive 3-Panel Layout)
+ * App.jsx â€” LumoPack Studio (Responsive 3-Panel Layout)
  * 
  * Breakpoints:
- * - Desktop  ≥1280px : 3 panels — Left (tabs) | Center (3D) | Right (Chat)
- * - Laptop   ≥1024px : Left panel collapsible, Chat + 3D
- * - Tablet   ≥768px  : Left hidden, Chat + 3D side-by-side
+ * - Desktop  â‰¥1280px : 3 panels â€” Left (tabs) | Center (3D) | Right (Chat)
+ * - Laptop   â‰¥1024px : Left panel collapsible, Chat + 3D
+ * - Tablet   â‰¥768px  : Left hidden, Chat + 3D side-by-side
  * - Mobile   <768px  : Tab toggle between Chat / 3D
  */
 
@@ -18,7 +18,7 @@ import BoxViewer from './components/Box3D/BoxViewer';
 
 
 // ===================================
-// Inner App (ใช้ Context ได้)
+// Inner App (à¹ƒà¸Šà¹‰ Context à¹„à¸”à¹‰)
 // ===================================
 
 function AppLayout() {
@@ -40,10 +40,26 @@ function AppLayout() {
   // --- Mobile view toggle ---
   const [mobileView, setMobileView] = useState('chat'); // 'chat' | '3d'
 
-  // --- Chatbot dimensions (bridge) --- [Bug #1 fix]
-  const { boxDimensions, hasChatbotDimensions } = useChatbot();
+  // --- Chatbot data (bridge) ---
+  const { boxDimensions, hasChatbotDimensions, collectedData, chatbotAnalysis } = useChatbot();
 
-  // ใช้ chatbot dimensions ถ้า chatbot กำหนดแล้ว ไม่งั้นใช้ formData
+  // Sync chatbot analysis → StudioPanel analysis state (เมื่อ chatbot run analyze แล้ว)
+  React.useEffect(() => {
+    if (chatbotAnalysis) setAnalysis(chatbotAnalysis);
+  }, [chatbotAnalysis]);
+
+  // Sync chatbot weight/flute → formData ของ StudioPanel
+  React.useEffect(() => {
+    if (collectedData?.weight_kg != null || collectedData?.flute_type) {
+      setFormData(prev => ({
+        ...prev,
+        weight:     collectedData.weight_kg ?? prev.weight,
+        flute_type: collectedData.flute_type ?? prev.flute_type,
+      }));
+    }
+  }, [collectedData?.weight_kg, collectedData?.flute_type]);
+
+  // à¹ƒà¸Šà¹‰ chatbot dimensions à¸–à¹‰à¸² chatbot à¸à¸³à¸«à¸™à¸”à¹à¸¥à¹‰à¸§ à¹„à¸¡à¹ˆà¸‡à¸±à¹‰à¸™à¹ƒà¸Šà¹‰ formData
   const displayDims = hasChatbotDimensions
     ? { width: boxDimensions.width, length: boxDimensions.length, height: boxDimensions.height }
     : { width: parseFloat(formData.width), length: parseFloat(formData.length), height: parseFloat(formData.height) };
@@ -61,7 +77,7 @@ function AppLayout() {
   const handleAnalyze = async () => {
     setLoading(true);
     try {
-      // [Bug #3 fix] ใช้ env variable แทน hardcoded URL
+      // [Bug #3 fix] à¹ƒà¸Šà¹‰ env variable à¹à¸—à¸™ hardcoded URL
       const apiBase = import.meta.env.VITE_API_URL || '';
       const response = await fetch(`${apiBase}/analyze`, {
         method: 'POST',
@@ -77,7 +93,7 @@ function AppLayout() {
       const data = await response.json();
       setAnalysis(data);
     } catch {
-      alert('เชื่อมต่อ Backend ไม่ได้!');
+      alert('à¹€à¸Šà¸·à¹ˆà¸­à¸¡à¸•à¹ˆà¸­ Backend à¹„à¸¡à¹ˆà¹„à¸”à¹‰!');
     }
     setLoading(false);
   };
@@ -140,7 +156,7 @@ function AppLayout() {
     <div className="flex w-screen h-screen bg-panel-darker overflow-hidden">
 
       {/* ===== LEFT PANEL (Tabs: Studio | Summary) ===== */}
-      {/* Desktop: แสดงเสมอ / Tablet: toggle ได้ / Mobile: ซ่อน */}
+      {/* Desktop: à¹à¸ªà¸”à¸‡à¹€à¸ªà¸¡à¸­ / Tablet: toggle à¹„à¸”à¹‰ / Mobile: à¸‹à¹ˆà¸­à¸™ */}
       <div
         className={`
           flex-shrink-0 flex-col border-r border-panel-border bg-panel-dark
@@ -155,7 +171,7 @@ function AppLayout() {
         {/* Logo + Title */}
         <div className="flex-shrink-0 border-b border-panel-border" style={{ padding: '12px 24px' }}>
           <h1 className="font-display font-bold text-base">
-            <span className="text-gradient-lumo">📦 LumoPack</span>
+            <span className="text-gradient-lumo">ðŸ“¦ LumoPack</span>
             <span className="text-zinc-500 text-xs font-normal ml-1.5">Studio</span>
           </h1>
         </div>
@@ -172,7 +188,7 @@ function AppLayout() {
               }
             `}
           >
-            🔧 Studio
+            ðŸ”§ Studio
           </button>
           <button
             onClick={() => setActiveTab('summary')}
@@ -184,7 +200,7 @@ function AppLayout() {
               }
             `}
           >
-            📋 Summary
+            ðŸ“‹ Summary
           </button>
         </div>
 
@@ -208,7 +224,7 @@ function AppLayout() {
       </div>
 
       {/* ===== CENTER: 3D BOX VIEWER ===== */}
-      {/* Desktop/Tablet: แสดงเสมอ / Mobile: toggle กับ chat */}
+      {/* Desktop/Tablet: à¹à¸ªà¸”à¸‡à¹€à¸ªà¸¡à¸­ / Mobile: toggle à¸à¸±à¸š chat */}
       <div
         className={`
           flex-1 relative min-w-0
@@ -236,9 +252,9 @@ function AppLayout() {
             text-sm
             max-md:hidden
           `}
-          title={leftPanelOpen ? 'ซ่อน Panel' : 'แสดง Panel'}
+          title={leftPanelOpen ? 'à¸‹à¹ˆà¸­à¸™ Panel' : 'à¹à¸ªà¸”à¸‡ Panel'}
         >
-          {leftPanelOpen ? '◀' : '▶'}
+          {leftPanelOpen ? 'â—€' : 'â–¶'}
         </button>
       </div>
 
@@ -256,7 +272,7 @@ function AppLayout() {
       </div>
 
       {/* ===== MOBILE TAB BAR ===== */}
-      {/* ซ่อนบน desktop แสดงบน mobile เพื่อสลับ Chat / 3D */}
+      {/* à¸‹à¹ˆà¸­à¸™à¸šà¸™ desktop à¹à¸ªà¸”à¸‡à¸šà¸™ mobile à¹€à¸žà¸·à¹ˆà¸­à¸ªà¸¥à¸±à¸š Chat / 3D */}
       <div className="hidden max-md:flex absolute bottom-0 left-0 right-0 z-20 bg-panel-darker border-t border-panel-border">
         <button
           onClick={() => setMobileView('chat')}
@@ -265,7 +281,7 @@ function AppLayout() {
             ${mobileView === 'chat' ? 'text-lumo-400 bg-panel-surface' : 'text-zinc-500'}
           `}
         >
-          💬 แชท
+          ðŸ’¬ à¹à¸Šà¸—
         </button>
         <button
           onClick={() => setMobileView('3d')}
@@ -274,7 +290,7 @@ function AppLayout() {
             ${mobileView === '3d' ? 'text-lumo-400 bg-panel-surface' : 'text-zinc-500'}
           `}
         >
-          📦 กล่อง 3D
+          ðŸ“¦ à¸à¸¥à¹ˆà¸­à¸‡ 3D
         </button>
       </div>
 

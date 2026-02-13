@@ -72,6 +72,9 @@ export function ChatbotProvider({ children }) {
   // Ref เพื่อป้องกัน double-send
   const sendingRef = useRef(false);
 
+  // analysis result จาก chatbot (sync ไป StudioPanel)
+  const [chatbotAnalysis, setChatbotAnalysis] = useState(null);
+
   // --- Extract box dimensions จาก collectedData --- [Bug #1 fix]
   useEffect(() => {
     if (collectedData?.dimensions) {
@@ -85,6 +88,30 @@ export function ChatbotProvider({ children }) {
       setHasChatbotDimensions(true);
     }
   }, [collectedData?.dimensions]);
+
+  // --- Auto-trigger strength analysis เมื่อ chatbot เก็บ dimensions+weight ครบ ---
+  useEffect(() => {
+    const dims   = collectedData?.dimensions;
+    const weight = collectedData?.weight_kg;
+    const flute  = collectedData?.flute_type ?? 'C';
+    if (!dims) return;
+
+    const apiBase = import.meta?.env?.VITE_API_URL ?? '';
+    fetch(`${apiBase}/analyze`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        length:     dims.length,
+        width:      dims.width,
+        height:     dims.height,
+        weight:     weight ?? 0,
+        flute_type: flute,
+      }),
+    })
+      .then(r => r.json())
+      .then(data => setChatbotAnalysis(data))
+      .catch(() => {}); // ถ้า error → ไม่ทำอะไร ไม่รบกวน UX
+  }, [collectedData?.dimensions, collectedData?.weight_kg, collectedData?.flute_type]);
 
 
   // --- Send Message ---
@@ -188,6 +215,7 @@ export function ChatbotProvider({ children }) {
     isLoading,
     error,
     isComplete,
+    chatbotAnalysis,
 
     // Actions
     sendMessage,
@@ -196,7 +224,7 @@ export function ChatbotProvider({ children }) {
   }), [
     messages, sessionId, currentStep, collectedData,
     boxDimensions, hasChatbotDimensions, quickReplies,
-    isLoading, error, isComplete,
+    isLoading, error, isComplete, chatbotAnalysis,
     sendMessage, resetChat, clearError,
   ]);
 
