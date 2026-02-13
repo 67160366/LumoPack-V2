@@ -265,22 +265,44 @@ class StructureStepHandlers:
         final_dims = dims or prev_dims
         final_qty = qty or prev_qty
 
-        # ได้ทั้งคู่ → advance
+        # ได้ทั้งคู่ → advance + pre-generate checkpoint 1 ในรอบเดียวกัน
         if final_dims and final_qty:
             state.commit_partial_data()
-            prompt = get_prompt_for_step(5, user_message=user_message)
-            response = await self.groq.generate_response(
+
+            # Step 5: ยืนยัน dims+qty
+            prompt5 = get_prompt_for_step(5, user_message=user_message)
+            response5 = await self.groq.generate_response(
                 system_prompt=SYSTEM_PROMPT,
-                user_message=prompt,
+                user_message=prompt5,
                 conversation_history=state.get_conversation_history(limit=5)
             )
-            result = _make_result(
-                response=response, advance=True,
-                update_data={"dimensions": final_dims, "quantity": final_qty}
-            )
+
             if state.edit_mode:
+                # edit_mode → ไม่ต้อง generate checkpoint ซ้ำ
+                result = _make_result(
+                    response=response5, advance=True,
+                    update_data={"dimensions": final_dims, "quantity": final_qty}
+                )
                 result.exit_edit = True
-            return result
+                return result
+
+            # Normal flow → pre-generate checkpoint 1 summary ต่อท้ายทันที
+            # เพื่อไม่ให้ลูกค้าเห็นแค่ "ยืนยันแล้วค่ะ" แล้วงง ไม่รู้ต้องทำอะไรต่อ
+            state.update_collected_data({"dimensions": final_dims, "quantity": final_qty})
+            prompt6 = get_prompt_for_step(6, collected_data=state.collected_data)
+            response6 = await self.groq.generate_response(
+                system_prompt=SYSTEM_PROMPT,
+                user_message=prompt6,
+                conversation_history=state.get_conversation_history(limit=3)
+            )
+
+            combined = response5 + "\n\n---\n\n" + response6
+            return _make_result(
+                response=combined,
+                advance=True,
+                update_data={"dimensions": final_dims, "quantity": final_qty},
+                post_advance_waiting=True,  # restore is_waiting_for_confirmation หลัง advance
+            )
 
         # ได้แค่ dimensions → ถาม quantity
         if dims and not final_qty:

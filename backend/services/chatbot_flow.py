@@ -31,6 +31,8 @@ class StepResult:
     update_sub_step: Optional[int] = None
     merge_partial: Optional[Dict[str, Any]] = None
     exit_edit: bool = False                     # ออกจาก edit mode
+    post_advance_waiting: bool = False          # หลัง advance แล้ว set is_waiting_for_confirmation=True
+                                                # ใช้เมื่อ handler generate checkpoint summary ในรอบเดียวกัน
 
 
 # ===================================
@@ -173,6 +175,10 @@ class ChatbotFlowManager:
         if result.advance:
             next_step = result.next_step_override or self._resolve_next_step(state)
             state.advance_step(next_step)
+            # 6. Post-advance: restore waiting flag ถ้า handler pre-generated checkpoint
+            #    (advance_step() จะ reset flag → ต้อง set คืนทีหลัง)
+            if result.post_advance_waiting:
+                state.is_waiting_for_confirmation = True
     
     # ===================================
     # Smart Step Skip Logic

@@ -56,13 +56,15 @@ def get_quick_replies(
     # ===================================
     # Step 2: Product Type
     # structure_steps: extract_product_type(user_message)
-    # system_prompt: ถาม "ต้องการบรรจุสินค้าอะไร" → พิมพ์เอง
-    #
-    # ไม่ใส่ปุ่มเพราะชื่อสินค้าเป็น free text
-    # แต่ใส่ตัวอย่างเพื่อช่วยให้ลูกค้าเข้าใจว่าต้องตอบอะไร
+    # 4 ตัวเลือกตาม Requirement: general / non_food / food_grade / cosmetic
     # ===================================
     if current_step == 2:
-        return []
+        return [
+            "สินค้าทั่วไป",
+            "Non-food",
+            "Food-grade",
+            "เครื่องสำอาง",
+        ]
 
     # ===================================
     # Step 3: Box Type + Material (มี sub_step)
@@ -91,12 +93,20 @@ def get_quick_replies(
                 ]
 
     # ===================================
-    # Step 4: Inner (Optional)
-    # structure_steps: extract_inner → "skip" | inner_type | None
-    # ถามเฉพาะ Die-cut (RSC ข้ามไปเอง แต่ปุ่มแสดงทั้งคู่ไม่เสียหาย)
+    # Step 4: Inner (Optional, Approach B — 3 กลุ่ม, multi-select)
+    # structure_steps: extract_inner → List[Dict] | "skip" | None
+    # ถามเฉพาะ Die-cut (RSC skip ผ่าน _resolve_next_step)
+    # แสดงตัวเลือกตัวเริ่มต้นที่ใช้บ่อยที่สุด + ไม่ต้องการ
     # ===================================
     if current_step == 4:
-        return ["ไม่ต้องการ", "บับเบิ้ล", "โฟม", "กระดาษฝอย"]
+        return [
+            "ไม่ต้องการ",
+            "1 (กระดาษฝอย)",
+            "2 (บับเบิ้ล)",
+            "3 (ถุงลม)",
+            "4 (AQ กันชื้น)",
+            "8 (Food Coating)",
+        ]
 
     # ===================================
     # Step 5: Dimensions + Quantity (รับแยกรอบ)
