@@ -83,15 +83,19 @@ def get_box_type_prompt(user_message: str, product_type: str) -> str:
 
 
 def get_inner_prompt(user_message: str) -> str:
-    """ขั้นที่ 4: เก็บ Inner (Optional)"""
+    """ขั้นที่ 4: เก็บ Inner (Optional, 3 กลุ่ม, multi-select)"""
     return f"""ลูกค้าตอบว่า: "{user_message}"
 
 ภารกิจของคุณ:
-1. วิเคราะห์ว่าลูกค้าต้องการ Inner (วัสดุกันกระแทก) หรือไม่
-   - ถ้าต้องการ: ยืนยันชนิดที่เลือก
-   - ถ้าไม่ต้องการ: รับทราบสั้นๆ
+1. วิเคราะห์ว่าลูกค้าเลือก Inner กลุ่มไหน (เลือกได้หลายข้อ)
+   กลุ่มที่ 1 — กันกระแทก: กระดาษฝอย / บับเบิ้ล / ถุงลม
+   กลุ่มที่ 2 — เคลือบกันชื้น: AQ / PE / Wax / Bio barrier
+   กลุ่มที่ 3 — Food-grade: Water-based / PE food / PLA/Bio / Grease-resistant
+2. ยืนยันสิ่งที่เลือกอย่างกระชับ 1-2 ประโยค
+   ถ้าเลือกหลายอย่าง ให้แสดงรายการที่เลือกทั้งหมด
 
-ตอบกระชับ 1-2 ประโยค
+ถ้าลูกค้าไม่ต้องการ: รับทราบสั้นๆ
+ถ้าไม่ชัดเจน: แสดงตัวเลือกอีกครั้ง
 
 ⚠️ ห้ามถามคำถามถัดไป (ระบบจะถามขนาดกล่องเอง)"""
 
@@ -120,6 +124,36 @@ def get_dimensions_prompt(user_message: str) -> str:
 ⚠️ ห้ามถามคำถามถัดไป (ระบบจะสรุป requirement เอง)"""
 
 
+def _format_inner_display(inner_raw) -> str:
+    """
+    แปลง inner เป็นข้อความแสดงผล รองรับ:
+    - None / "skip" → "ไม่ได้กำหนด"
+    - List[Dict]    → รายการชื่อภาษาไทย
+    - str           → ส่งตรง (legacy)
+    """
+    _INNER_NAMES = {
+        "shredded_paper":   "กระดาษฝอย",
+        "air_bubble":       "บับเบิ้ล",
+        "air_cushion":      "ถุงลม",
+        "aq_coating":       "AQ Coating (กันชื้น)",
+        "pe_coating":       "PE Coating (กันชื้น)",
+        "wax_coating":      "Wax Coating (กันชื้น)",
+        "bio_barrier":      "Bio/Water-based Barrier",
+        "water_based_food": "Water-based Food Coating",
+        "pe_food_grade":    "PE Food-grade Coating",
+        "pla_bio":          "PLA/Bio Coating",
+        "grease_resistant": "Grease-resistant Coating",
+    }
+    if not inner_raw or inner_raw == "skip":
+        return "ไม่ได้กำหนด"
+    if isinstance(inner_raw, list):
+        names = [_INNER_NAMES.get(item.get("type", ""), item.get("type", "")) for item in inner_raw]
+        return ", ".join(names) if names else "ไม่ได้กำหนด"
+    if isinstance(inner_raw, str):
+        return _INNER_NAMES.get(inner_raw, inner_raw)
+    return "ไม่ได้กำหนด"
+
+
 def get_checkpoint1_prompt(collected_data: Dict[str, Any]) -> str:
     """ขั้นที่ 6: Checkpoint 1 - สรุปรอบแรก"""
     product_type_th = {
@@ -135,7 +169,7 @@ def get_checkpoint1_prompt(collected_data: Dict[str, Any]) -> str:
     }
     
     dims = collected_data.get("dimensions", {})
-    inner = collected_data.get("inner", "ไม่ได้กำหนด")
+    inner_display = _format_inner_display(collected_data.get("inner"))
     
     return f"""ถึงเวลาสรุป Requirement รอบที่ 1 แล้ว!
 
@@ -145,7 +179,7 @@ def get_checkpoint1_prompt(collected_data: Dict[str, Any]) -> str:
 {'='*50}
 • ประเภทสินค้า: {product_type_th.get(collected_data.get('product_type'), 'ไม่ระบุ')}
 • ประเภทกล่อง: {box_type_th.get(collected_data.get('box_type'), 'ไม่ระบุ')}
-• Inner: {inner}
+• Inner: {inner_display}
 • ขนาดกล่อง: {dims.get('width', '?')}×{dims.get('length', '?')}×{dims.get('height', '?')} cm
 • จำนวนผลิต: {collected_data.get('quantity', '?'):,} ชิ้น
 
@@ -248,30 +282,76 @@ def get_mockup_generation_prompt() -> str:
 
 
 def get_quote_generation_prompt(pricing_data: Dict[str, Any]) -> str:
-    """ขั้นที่ 12: แสดงใบเสนอราคา"""
-    return f"""สร้างใบเสนอราคาตามข้อมูลนี้:
+    """ขั้นที่ 12: แสดงใบเสนอราคา — format pricing_data ก่อนส่ง LLM"""
+    
+    # --- แยกข้อมูลออกมา ---
+    dims = pricing_data.get("dimensions", {})
+    box_base = pricing_data.get("box_base", {})
+    inner = pricing_data.get("inner", {})
+    coatings = pricing_data.get("coatings", [])
+    stampings = pricing_data.get("stampings", [])
 
-{pricing_data}
+    dims_str = (
+        f"{dims.get('width', '?')}×{dims.get('length', '?')}×{dims.get('height', '?')} cm"
+    )
+    qty = pricing_data.get("quantity", 0)
 
-จัดรูปแบบให้สวยงาม:
+    # Inner
+    inner_line = "ไม่มี"
+    if inner and inner.get("total_price", 0) > 0:
+        inner_line = (
+            f"{inner.get('name', 'Inner')} — "
+            f"{inner.get('price_per_box', 0):.2f} บาท/กล่อง "
+            f"(รวม {inner.get('total_price', 0):,.2f} บาท)"
+        )
+
+    # Coatings
+    coating_lines = "ไม่มี"
+    if coatings:
+        coating_lines = "\n".join(
+            f"  - {c.get('name', c.get('type', ''))}: "
+            f"{c.get('price_per_box', 0):.2f} บาท/กล่อง "
+            f"(รวม {c.get('total_price', 0):,.2f} บาท)"
+            for c in coatings
+        )
+
+    # Stampings
+    stamp_lines = "ไม่มี"
+    if stampings:
+        parts = []
+        for s in stampings:
+            line = f"  - {s.get('type', '')} — ป๊ัม {s.get('stamp_cost_per_box', 0):.2f} บาท/กล่อง"
+            if s.get("block_cost", 0) > 0:
+                line += f", บล็อก {s.get('block_cost', 0):,.0f} บาท"
+            line += f" (รวม {s.get('total', 0):,.2f} บาท)"
+            parts.append(line)
+        stamp_lines = "\n".join(parts)
+
+    subtotal  = pricing_data.get("subtotal", 0)
+    vat       = pricing_data.get("vat", 0)
+    grand     = pricing_data.get("grand_total", 0)
+    ppb_box   = box_base.get("price_per_box", 0)
+    total_box = box_base.get("total_price", 0)
+
+    return f"""สร้างใบเสนอราคาจากข้อมูลที่เตรียมให้ด้านล่าง จัดรูปแบบให้สวยงามและครบถ้วน:
 
 💰 ใบเสนอราคา LumoPack
 {'='*50}
 📦 รายละเอียดกล่อง
-• ประเภท: [box_type]
-• วัสดุ: [material]
-• ขนาด: [dimensions]
-• จำนวน: [quantity] ชิ้น
+• ขนาด: {dims_str}
+• จำนวน: {qty:,} ชิ้น
 
 💵 รายละเอียดราคา
-• กล่องเปล่า: [box_base] บาท
-• Inner: [inner] บาท (ถ้ามี)
-• Coating/ลูกเล่น: [coatings] บาท (ถ้ามี)
-• ป๊ัม: [stampings] บาท (ถ้ามี)
+• กล่องเปล่า: {ppb_box:.2f} บาท/กล่อง (รวม {total_box:,.2f} บาท)
+• Inner: {inner_line}
+• Coating/ลูกเล่น:
+{coating_lines}
+• ป๊ัม:
+{stamp_lines}
 
-ยอดรวม: [subtotal] บาท
-VAT 7%: [vat] บาท
-รวมสุทธิ: [grand_total] บาท
+ยอดรวม: {subtotal:,.2f} บาท
+VAT 7%: {vat:,.2f} บาท
+รวมสุทธิ: {grand:,.2f} บาท
 
 จากนั้นถามว่า: "คุณต้องการยืนยันคำสั่งซื้อหรือไม่คะ?"
 """

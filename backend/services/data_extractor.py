@@ -111,50 +111,86 @@ def extract_material(message: str, box_type: str) -> Optional[str]:
 
 
 # ===================================
-# 4. Inner (Step 4)
+# 4. Inner (Step 4) — Approach B: Multi-select, แสดงตัวเลือกครบทั้ง 3 กลุ่ม
 # ===================================
-def extract_inner(message: str) -> Optional[Dict[str, Any]]:
+
+# ตาราง mapping หมายเลข → inner type (ตรงกับตัวเลือกที่แสดงให้ลูกค้า)
+_INNER_NUMBER_MAP: Dict[str, Dict[str, str]] = {
+    "1":  {"type": "shredded_paper",   "category": "cushion"},
+    "2":  {"type": "air_bubble",        "category": "cushion"},
+    "3":  {"type": "air_cushion",       "category": "cushion"},
+    "4":  {"type": "aq_coating",        "category": "moisture"},
+    "5":  {"type": "pe_coating",        "category": "moisture"},
+    "6":  {"type": "wax_coating",       "category": "moisture"},
+    "7":  {"type": "bio_barrier",       "category": "moisture"},
+    "8":  {"type": "water_based_food",  "category": "food_grade"},
+    "9":  {"type": "pe_food_grade",     "category": "food_grade"},
+    "10": {"type": "pla_bio",           "category": "food_grade"},
+    "11": {"type": "grease_resistant",  "category": "food_grade"},
+}
+
+
+def extract_inner(message: str) -> Optional[List[Dict[str, Any]]]:
     """
-    Extract inner type
-    Returns: {"type": "shredded_paper", "category": "cushion"} | "skip" | None
+    Extract inner selections (multi-select, Approach B)
     
+    รองรับทั้ง:
+    - Number selection: "1", "1, 4", "1 และ 8"
+    - Keyword selection: "กระดาษฝอย", "AQ coating กันชื้น"
+    
+    Returns: List[Dict] | "skip" | None
     Categories: cushion (กันกระแทก), moisture (กันชื้น), food_grade
     """
     msg = message.lower().strip()
-    
-    # ไม่ต้องการ
+
     if is_skip_response(msg):
         return "skip"
-    
-    # --- แผ่นกันกระแทก ---
+
+    inners: List[Dict[str, Any]] = []
+    seen_types: set = set()
+
+    def _add(item: Dict[str, str]) -> None:
+        """เพิ่ม inner โดยป้องกัน duplicate"""
+        if item["type"] not in seen_types:
+            inners.append(dict(item))
+            seen_types.add(item["type"])
+
+    # 1. Number-based selection (e.g. "1", "1, 3, 8", "ข้อ 2 และ 5")
+    #    ใช้ \b เพื่อ match ตัวเลข 1-11 แบบ standalone เท่านั้น
+    for num in re.findall(r'\b(1[01]?|[2-9])\b', msg):
+        if num in _INNER_NUMBER_MAP:
+            _add(_INNER_NUMBER_MAP[num])
+
+    # 2. Keyword-based selection (fallback เมื่อลูกค้าพิมพ์ชื่อแทน)
+    # --- กลุ่ม 1: แผ่นกันกระแทก ---
     if any(w in msg for w in ["กระดาษฝอย", "shredded", "ฝอย"]):
-        return {"type": "shredded_paper", "category": "cushion"}
+        _add({"type": "shredded_paper", "category": "cushion"})
     if any(w in msg for w in ["บับเบิ้ล", "bubble"]):
-        return {"type": "air_bubble", "category": "cushion"}
-    if any(w in msg for w in ["ถุงลม", "air cushion", "cushion"]):
-        return {"type": "air_cushion", "category": "cushion"}
-    
-    # --- เคลือบกันชื้น ---
-    if any(w in msg for w in ["aq coating", "aq", "acrylic"]) and "กันชื้น" in msg:
-        return {"type": "aq_coating", "category": "moisture"}
-    if any(w in msg for w in ["pe coating", "pe", "polyethylene"]) and "กันชื้น" in msg:
-        return {"type": "pe_coating", "category": "moisture"}
+        _add({"type": "air_bubble", "category": "cushion"})
+    if any(w in msg for w in ["ถุงลม", "air cushion"]):
+        _add({"type": "air_cushion", "category": "cushion"})
+
+    # --- กลุ่ม 2: เคลือบกันชื้น ---
+    if any(w in msg for w in ["aq coating", "acrylic"]) and "กันชื้น" in msg:
+        _add({"type": "aq_coating", "category": "moisture"})
+    if any(w in msg for w in ["pe coating", "polyethylene"]) and "กันชื้น" in msg:
+        _add({"type": "pe_coating", "category": "moisture"})
     if any(w in msg for w in ["wax", "paraffin"]):
-        return {"type": "wax_coating", "category": "moisture"}
-    if any(w in msg for w in ["bio", "water-based barrier"]):
-        return {"type": "bio_barrier", "category": "moisture"}
-    
-    # --- Food-grade coating ---
+        _add({"type": "wax_coating", "category": "moisture"})
+    if any(w in msg for w in ["bio barrier", "water-based barrier"]):
+        _add({"type": "bio_barrier", "category": "moisture"})
+
+    # --- กลุ่ม 3: Food-grade coating ---
     if any(w in msg for w in ["water-based food", "food coating"]):
-        return {"type": "water_based_food", "category": "food_grade"}
+        _add({"type": "water_based_food", "category": "food_grade"})
     if any(w in msg for w in ["pe food", "pe food-grade"]):
-        return {"type": "pe_food_grade", "category": "food_grade"}
+        _add({"type": "pe_food_grade", "category": "food_grade"})
     if any(w in msg for w in ["pla", "bio coating"]):
-        return {"type": "pla_bio", "category": "food_grade"}
+        _add({"type": "pla_bio", "category": "food_grade"})
     if any(w in msg for w in ["grease", "กันน้ำมัน"]):
-        return {"type": "grease_resistant", "category": "food_grade"}
-    
-    return None
+        _add({"type": "grease_resistant", "category": "food_grade"})
+
+    return inners if inners else None
 
 
 # ===================================

@@ -43,6 +43,38 @@ class ChatbotFlowManager:
     1. Route message → handler ตาม current_step
     2. Apply StepResult (update data, advance step)
     3. จัดการ edit mode & step skip logic
+
+    ─────────────────────────────────────────────
+    FULL FLOW OVERVIEW (14 Steps)
+    ─────────────────────────────────────────────
+    Phase 1 — Structure (Steps 1-6)  →  structure_steps.py
+      1  GREETING            handle_greeting            [auto-advance]
+      2  PRODUCT_TYPE        handle_product_type        [required]
+      3  BOX_TYPE            handle_box_type            [required, sub_step: box→material]
+      4  INNER               handle_inner               [optional, die-cut only, multi-select 3 กลุ่ม]
+         └─ skip if RSC (should_skip_inner)
+      5  DIMENSIONS          handle_dimensions          [required, partial_data: dims+qty แยกรอบได้]
+      6  CHECKPOINT_1        handle_checkpoint1         [สรุป+ยืนยัน, edit_mode support]
+
+    Phase 2 — Design (Steps 7-10)  →  design_steps.py
+      7  MOOD_TONE           handle_mood_tone           [optional, free text]
+      8  LOGO                handle_logo                [optional, sub_step: has_logo→positions]
+      9  SPECIAL_EFFECTS     handle_special_effects     [optional, multi-select, sub_step: block check]
+      10 CHECKPOINT_2        handle_checkpoint2         [สรุป+ยืนยัน, edit_mode support]
+
+    Phase 3 — Finalize (Steps 11-14)  →  finalize_steps.py
+      11 GENERATE_MOCKUP     handle_mockup              [sub_step 0:แสดง, 1:รอ user → advance]
+      12 GENERATE_QUOTE      handle_quote               [คำนวณ pricing, sub_step 0:คำนวณ, 1:รอ]
+      13 CONFIRM_ORDER       handle_confirm             [ยืนยัน/back to 11 (mockup)/back to 10]
+      14 END                 handle_end                 [จบ, is_complete=True]
+
+    ─────────────────────────────────────────────
+    Special Mechanics
+    ─────────────────────────────────────────────
+    edit_mode:     Checkpoint → enter_edit_mode(target, checkpoint) → handler → exit_edit_mode → checkpoint
+    partial_data:  Step 5 dims/qty อาจมาแยกรอบ → merge_partial → commit เมื่อครบ
+    skip logic:    RSC → ข้าม Step 4 (inner) ผ่าน _resolve_next_step
+    inner format:  List[Dict] — cushion→inner_type, moisture/food_grade→coatings ใน to_pricing_request
     """
     
     def __init__(self):

@@ -20,8 +20,9 @@ class BoxStructure(BaseModel):
     # ขั้นที่ 3: ประเภทกล่อง
     box_type: Literal["rsc", "die_cut"]
     
-    # ขั้นที่ 4: Inner (Optional)
-    inner: Optional[str] = None  # "shredded_paper", "air_bubble", "air_cushion", etc.
+    # ขั้นที่ 4: Inner (Optional) — List เพื่อรองรับ multi-select (Approach B)
+    # แต่ละ item: {"type": "shredded_paper", "category": "cushion"} เป็นต้น
+    inner: Optional[List[dict]] = None
     
     # ขั้นที่ 5: ขนาดกล่อง (Needed)
     dimensions: dict = Field(
@@ -137,18 +138,24 @@ class CompleteRequirement(BaseModel):
             CompleteRequirement instance
         """
         # --- Build BoxStructure ---
-        # จัดการ inner: dict → str
+        # จัดการ inner: รองรับ List[Dict] (ใหม่), dict (legacy), str (legacy), "skip"
         inner_raw = collected_data.get("inner")
-        inner_str = None
-        if isinstance(inner_raw, dict):
-            inner_str = inner_raw.get("type")
-        elif isinstance(inner_raw, str):
-            inner_str = inner_raw
+        inner_list = None
+        if isinstance(inner_raw, list):
+            # Approach B: multi-select list — ใช้ตรงๆ
+            inner_list = inner_raw if inner_raw else None
+        elif isinstance(inner_raw, dict):
+            # Legacy single dict → แปลงเป็น list
+            inner_list = [inner_raw]
+        elif isinstance(inner_raw, str) and inner_raw != "skip":
+            # Legacy string → แปลงเป็น list (ไม่รู้ category ใช้ cushion เป็น default)
+            inner_list = [{"type": inner_raw, "category": "cushion"}]
+        # inner_raw == "skip" หรือ None → inner_list = None
         
         structure = BoxStructure(
             product_type=collected_data.get("product_type", "general"),
             box_type=collected_data.get("box_type", "rsc"),
-            inner=inner_str,
+            inner=inner_list,
             dimensions=collected_data.get("dimensions", {"width": 10, "length": 10, "height": 10}),
             quantity=collected_data.get("quantity", 500),
             material=collected_data.get("material"),
@@ -187,8 +194,23 @@ class CompleteRequirement(BaseModel):
         }
         
         # เพิ่ม inner ถ้ามี
+        # cushion types → inner_type string (pricing_calculator รับ single string)
+        # moisture/food_grade → ถือเป็น coatings (pricing_calculator มี calculate_coating_price แล้ว)
+        extra_coatings_from_inner = []
         if self.structure.inner:
-            result["inner"] = self.structure.inner
+            for item in self.structure.inner:
+                category = item.get("category", "")
+                itype = item.get("type", "")
+                if category == "cushion":
+                    # ใส่ cushion ตัวแรกที่เจอเป็น inner_type (pricing รับได้ 1 ตัว)
+                    if "inner" not in result:
+                        result["inner"] = itype
+                elif category in ("moisture", "food_grade"):
+                    # moisture/food_grade → ไปเป็น coating ใน pricing request
+                    extra_coatings_from_inner.append({
+                        "type": itype,
+                        "category": category
+                    })
         
         # เพิ่ม coatings & stampings ถ้ามี
         if self.design and self.design.special_effects:
@@ -208,10 +230,15 @@ class CompleteRequirement(BaseModel):
                         "has_block": effect.get("has_block", False)
                     })
             
-            if coatings:
-                result["coatings"] = coatings
+            # รวม coating จาก inner (moisture/food_grade) เข้ากับ coatings จาก special_effects
+            all_coatings = extra_coatings_from_inner + coatings
+            if all_coatings:
+                result["coatings"] = all_coatings
             if stampings:
                 result["stampings"] = stampings
+        elif extra_coatings_from_inner:
+            # ไม่มี special_effects แต่มี inner coating
+            result["coatings"] = extra_coatings_from_inner
         
         return result
     
