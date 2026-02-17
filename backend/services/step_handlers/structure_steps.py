@@ -20,7 +20,7 @@ from services.data_extractor import (
     is_confirmation, is_rejection, is_skip_response,
     is_add_request, detect_edit_target,
 )
-from analyze import analyze_box_strength, suggest_alternatives, format_analysis_for_chat, FLUTE_SPECS
+from api.analyze import analyze_box_strength, suggest_alternatives, format_analysis_for_chat, FLUTE_SPECS
 from utils.prompts import SYSTEM_PROMPT, get_prompt_for_step
 
 

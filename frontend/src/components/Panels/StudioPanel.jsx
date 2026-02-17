@@ -40,9 +40,9 @@ export default function StudioPanel({
           ขนาดกล่อง
         </h4>
         <div className="space-y-3">
-          <SliderField label="ยาว" name="length" value={formData.length} min={10} max={60} unit="cm" onChange={onFormChange} />
-          <SliderField label="กว้าง" name="width" value={formData.width} min={10} max={60} unit="cm" onChange={onFormChange} />
-          <SliderField label="สูง" name="height" value={formData.height} min={5} max={50} unit="cm" onChange={onFormChange} />
+          <SliderField label="ยาว" name="length" value={formData.length} min={1} max={Math.max(60, Number(formData.length) + 10)} unit="cm" onChange={onFormChange} />
+          <SliderField label="กว้าง" name="width" value={formData.width} min={1} max={Math.max(60, Number(formData.width) + 10)} unit="cm" onChange={onFormChange} />
+          <SliderField label="สูง" name="height" value={formData.height} min={1} max={Math.max(50, Number(formData.height) + 10)} unit="cm" onChange={onFormChange} />
         </div>
       </div>
 
@@ -74,6 +74,7 @@ export default function StudioPanel({
             <option value="C">ลอน C (มาตรฐาน 3.6mm)</option>
             <option value="B">ลอน B (บาง 2.5mm)</option>
             <option value="E">ลอน E (จิ๋ว 1.5mm)</option>
+            <option value="BC">ลอน BC (2 ชั้น หนักมาก)</option>
           </select>
 
           <button
