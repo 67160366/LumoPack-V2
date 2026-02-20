@@ -1,27 +1,68 @@
 /**
- * App.jsx LumoPack Studio (Responsive 3-Panel Layout)
- * 
- * Breakpoints:
- * - Desktop  1280px : 3 panels — Left (tabs) | Center (3D) | Right (Chat)
- * - Laptop   1024px : Left panel collapsible, Chat + 3D
- * - Tablet   768px  : Left hidden, Chat + 3D side-by-side
- * - Mobile   <768px  : Tab toggle between Chat / 3D
+ * App.jsx LumoPack Studio (Responsive 3-Panel Layout + Routing)
+ *
+ * Routes:
+ * /              → Studio (3-panel layout)
+ * /login         → Login
+ * /register      → Register
+ * /checkout      → Checkout (protected)
+ * /orders        → My Orders (protected)
+ * /orders/:id    → Order Detail (protected)
+ * /admin         → Admin Dashboard (protected + admin)
  */
 
 import React, { useState } from 'react';
+import { Routes, Route, Link, Navigate, useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
 import { ChatbotProvider, useChatbot } from './contexts/ChatbotContext';
+import { useAuth } from './contexts/AuthContext';
 import ChatWindow from './components/Chatbot/ChatWindow';
 import StudioPanel from './components/Panels/StudioPanel';
 import SummaryPanel from './components/Panels/SummaryPanel';
 import BoxViewer from './components/Box3D/BoxViewer';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
+import CheckoutPage from './pages/CheckoutPage';
+import MyOrdersPage from './pages/MyOrdersPage';
+import OrderDetailPage from './pages/OrderDetailPage';
+import AdminDashboard from './pages/AdminDashboard';
 
 
 // ===================================
-// Inner App (ใช้ Context ได้)
+// Protected Route Wrapper
+// ===================================
+
+function ProtectedRoute({ children }) {
+  const { user, loading } = useAuth();
+  if (loading) return <LoadingScreen />;
+  if (!user) return <Navigate to="/login" replace />;
+  return children;
+}
+
+function AdminRoute({ children }) {
+  const { user, isAdmin, loading } = useAuth();
+  if (loading) return <LoadingScreen />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (!isAdmin) return <Navigate to="/" replace />;
+  return children;
+}
+
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen bg-panel-darker flex items-center justify-center">
+      <div className="text-zinc-500 text-sm font-display">Loading...</div>
+    </div>
+  );
+}
+
+
+// ===================================
+// Inner App Layout (3-panel Studio)
 // ===================================
 
 function AppLayout() {
+  const navigate = useNavigate();
+
   // --- Old state (Studio panel) ---
   const [formData, setFormData] = useState({
     length: 20, width: 15, height: 10,
@@ -30,6 +71,7 @@ function AppLayout() {
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(false);
   const [image, setImage] = useState(null);
+  const [boxType, setBoxType] = useState('rsc');
 
   // --- Tab state ---
   const [activeTab, setActiveTab] = useState('studio');
@@ -40,36 +82,42 @@ function AppLayout() {
   // --- Mobile view toggle ---
   const [mobileView, setMobileView] = useState('chat'); // 'chat' | '3d'
 
-  // --- Chatbot data (bridge) ---
-  const { boxDimensions, hasChatbotDimensions, collectedData, chatbotAnalysis } = useChatbot();
+  // --- Auth ---
+  const { user, profile, signOut } = useAuth();
 
-  // Sync chatbot analysis → StudioPanel analysis state (เมื่อ chatbot run analyze แล้ว)
+  // --- Chatbot data (bridge) ---
+  const { boxDimensions, hasChatbotDimensions, collectedData, chatbotAnalysis, isComplete } = useChatbot();
+
+  // Sync chatbot analysis → StudioPanel analysis state
   React.useEffect(() => {
     if (chatbotAnalysis) setAnalysis(chatbotAnalysis);
   }, [chatbotAnalysis]);
 
-  // Sync chatbot collected data → formData ของ StudioPanel (dimensions + weight + flute)
+  // Sync chatbot collected data → formData
   React.useEffect(() => {
     if (!collectedData) return;
     setFormData(prev => {
       const updates = {};
-      // Sync dimensions
       if (collectedData.dimensions) {
         updates.length = collectedData.dimensions.length ?? prev.length;
         updates.width  = collectedData.dimensions.width  ?? prev.width;
         updates.height = collectedData.dimensions.height ?? prev.height;
       }
-      // Sync weight & flute
       if (collectedData.weight_kg != null) updates.weight     = collectedData.weight_kg;
       if (collectedData.flute_type)        updates.flute_type = collectedData.flute_type;
 
-      // ไม่มีอะไรเปลี่ยน → คืน prev เดิม (ไม่ trigger re-render)
       if (Object.keys(updates).length === 0) return prev;
       return { ...prev, ...updates };
     });
   }, [collectedData?.dimensions, collectedData?.weight_kg, collectedData?.flute_type]);
 
-  // ใช้ chatbot dimensions ถ้า chatbot กำหนดแล้ว ไม่งั้นใช้ formData
+  // Sync chatbot box_type → boxType state
+  React.useEffect(() => {
+    if (collectedData?.box_type) {
+      setBoxType(collectedData.box_type);
+    }
+  }, [collectedData?.box_type]);
+
   const displayDims = hasChatbotDimensions
     ? { width: boxDimensions.width, length: boxDimensions.length, height: boxDimensions.height }
     : { width: parseFloat(formData.width), length: parseFloat(formData.length), height: parseFloat(formData.height) };
@@ -87,7 +135,6 @@ function AppLayout() {
   const handleAnalyze = async () => {
     setLoading(true);
     try {
-      // [Bug #3 fix] ใช้ env variable แทน hardcoded URL
       const apiBase = import.meta.env.VITE_API_URL || '';
       const response = await fetch(`${apiBase}/analyze`, {
         method: 'POST',
@@ -160,13 +207,20 @@ function AppLayout() {
     doc.save('LumoPack_Quotation.pdf');
   };
 
+  const handleCheckout = () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    navigate('/checkout', { state: { collectedData } });
+  };
+
   const isDanger = analysis?.status === 'DANGER';
 
   return (
     <div className="flex w-screen h-screen bg-panel-darker overflow-hidden">
 
       {/* ===== LEFT PANEL (Tabs: Studio | Summary) ===== */}
-      {/* Desktop: แสดงเสมอ / Tablet: toggle ได้ / Mobile: ซ่อน */}
       <div
         className={`
           flex-shrink-0 flex-col border-r border-panel-border bg-panel-dark
@@ -178,12 +232,48 @@ function AppLayout() {
           max-md:hidden
         `}
       >
-        {/* Logo + Title */}
-        <div className="flex-shrink-0 border-b border-panel-border" style={{ padding: '12px 24px' }}>
+        {/* Logo + Title + Auth */}
+        <div className="flex-shrink-0 border-b border-panel-border flex items-center justify-between" style={{ padding: '12px 24px' }}>
           <h1 className="font-display font-bold text-base">
-            <span className="text-gradient-lumo">📦 LumoPack</span>
+            <span className="text-gradient-lumo">LumoPack</span>
             <span className="text-zinc-500 text-xs font-normal ml-1.5">Studio</span>
           </h1>
+          <div className="flex items-center gap-2">
+            {user ? (
+              <>
+                <Link
+                  to="/orders"
+                  className="text-[10px] text-zinc-500 hover:text-lumo-400 transition-colors"
+                  title="My Orders"
+                >
+                  Orders
+                </Link>
+                {profile?.role === 'admin' && (
+                  <Link
+                    to="/admin"
+                    className="text-[10px] text-zinc-500 hover:text-lumo-400 transition-colors"
+                    title="Admin"
+                  >
+                    Admin
+                  </Link>
+                )}
+                <button
+                  onClick={signOut}
+                  className="text-[10px] text-zinc-600 hover:text-red-400 transition-colors"
+                  title="Logout"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <Link
+                to="/login"
+                className="text-[10px] text-lumo-400 hover:text-lumo-300 transition-colors"
+              >
+                Login
+              </Link>
+            )}
+          </div>
         </div>
 
         {/* Tab Headers */}
@@ -198,7 +288,7 @@ function AppLayout() {
               }
             `}
           >
-            🎨 Studio
+            Studio
           </button>
           <button
             onClick={() => setActiveTab('summary')}
@@ -210,7 +300,7 @@ function AppLayout() {
               }
             `}
           >
-            📋 Summary
+            Summary
           </button>
         </div>
 
@@ -226,15 +316,28 @@ function AppLayout() {
               image={image}
               onImageUpload={handleImageUpload}
               onGeneratePDF={handleGeneratePDF}
+              boxType={boxType}
+              onBoxTypeChange={(e) => setBoxType(e.target.value)}
             />
           ) : (
             <SummaryPanel />
           )}
         </div>
+
+        {/* Checkout Button (visible when chatbot is complete) */}
+        {isComplete && collectedData?.pricing && (
+          <div className="flex-shrink-0 border-t border-panel-border p-4">
+            <button
+              onClick={handleCheckout}
+              className="w-full py-3 rounded-xl bg-lumo-400 hover:bg-lumo-300 text-panel-darker text-sm font-display font-semibold transition-colors active:scale-[0.98]"
+            >
+              Checkout — ฿{collectedData.pricing.grand_total?.toLocaleString()}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ===== CENTER: 3D BOX VIEWER ===== */}
-      {/* Desktop/Tablet: แสดงเสมอ / Mobile: toggle กับ chat */}
       <div
         className={`
           flex-1 relative min-w-0
@@ -248,9 +351,10 @@ function AppLayout() {
           depth={displayDims.width}
           image={image}
           isDanger={isDanger}
+          boxType={boxType}
         />
 
-        {/* Left panel toggle button (visible when panel is closed or on tablet) */}
+        {/* Left panel toggle button */}
         <button
           onClick={() => setLeftPanelOpen(!leftPanelOpen)}
           className={`
@@ -262,14 +366,13 @@ function AppLayout() {
             text-sm
             max-md:hidden
           `}
-          title={leftPanelOpen ? 'ซ่อน Panel' : 'แสดง Panel'}
+          title={leftPanelOpen ? 'Hide Panel' : 'Show Panel'}
         >
           {leftPanelOpen ? '—' : '▶'}
         </button>
       </div>
 
       {/* ===== RIGHT PANEL: CHATBOT ===== */}
-      {/* Desktop: fixed width / Tablet: flex / Mobile: full screen */}
       <div
         className={`
           flex-shrink-0 border-l border-panel-border overflow-hidden
@@ -282,7 +385,6 @@ function AppLayout() {
       </div>
 
       {/* ===== MOBILE TAB BAR ===== */}
-      {/* ซ่อนบน desktop แสดงบน mobile เพื่อสลับ Chat / 3D */}
       <div className="hidden max-md:flex absolute bottom-0 left-0 right-0 z-20 bg-panel-darker border-t border-panel-border">
         <button
           onClick={() => setMobileView('chat')}
@@ -291,7 +393,7 @@ function AppLayout() {
             ${mobileView === 'chat' ? 'text-lumo-400 bg-panel-surface' : 'text-zinc-500'}
           `}
         >
-          💬 แชท
+          Chat
         </button>
         <button
           onClick={() => setMobileView('3d')}
@@ -300,7 +402,7 @@ function AppLayout() {
             ${mobileView === '3d' ? 'text-lumo-400 bg-panel-surface' : 'text-zinc-500'}
           `}
         >
-          📦 กล่อง 3D
+          3D Box
         </button>
       </div>
 
@@ -310,13 +412,46 @@ function AppLayout() {
 
 
 // ===================================
-// Root App
+// Root App with Routes
 // ===================================
 
 export default function App() {
   return (
-    <ChatbotProvider>
-      <AppLayout />
-    </ChatbotProvider>
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
+      <Route
+        path="/checkout"
+        element={
+          <ProtectedRoute>
+            <ChatbotProvider><CheckoutPage /></ChatbotProvider>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/orders"
+        element={
+          <ProtectedRoute><MyOrdersPage /></ProtectedRoute>
+        }
+      />
+      <Route
+        path="/orders/:id"
+        element={
+          <ProtectedRoute><OrderDetailPage /></ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin"
+        element={
+          <AdminRoute><AdminDashboard /></AdminRoute>
+        }
+      />
+      <Route
+        path="/*"
+        element={
+          <ChatbotProvider><AppLayout /></ChatbotProvider>
+        }
+      />
+    </Routes>
   );
 }

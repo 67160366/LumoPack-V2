@@ -12,10 +12,12 @@
   "dependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.4.0",
+    "@supabase/supabase-js": "^2.97.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.1.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-router-dom": "^7.13.0",
     "three": "^0.181.2"
   },
   "devDependencies": {

@@ -8,14 +8,16 @@
  * - PDF download
  * 
  * Props:
- * - formData       : {length, width, height, weight, flute_type}
- * - onFormChange   : (e) => void
- * - analysis       : AI analysis result | null
- * - onAnalyze      : () => void
- * - loading        : boolean
- * - image          : string (URL) | null
- * - onImageUpload  : (e) => void
- * - onGeneratePDF  : () => void
+ * - formData        : {length, width, height, weight, flute_type}
+ * - onFormChange    : (e) => void
+ * - analysis        : AI analysis result | null
+ * - onAnalyze       : () => void
+ * - loading         : boolean
+ * - image           : string (URL) | null
+ * - onImageUpload   : (e) => void
+ * - onGeneratePDF   : () => void
+ * - boxType         : string ('rsc' | 'die_cut' | 'tuck_end' | 'ear_lock')
+ * - onBoxTypeChange : (e) => void
  */
 
 import React from 'react';
@@ -29,11 +31,32 @@ export default function StudioPanel({
   image,
   onImageUpload,
   onGeneratePDF,
+  boxType,
+  onBoxTypeChange,
 }) {
   const isDanger = analysis?.status === 'DANGER';
 
   return (
     <div className="h-full overflow-y-auto scrollbar-thin space-y-5" style={{ padding: '20px 24px' }}>
+      {/* ---- Box Type Selector ---- */}
+      <div>
+        <h4 className="text-xs font-display font-semibold text-zinc-400 uppercase tracking-wider mb-2">
+          ประเภทกล่อง
+        </h4>
+        <select
+          value={boxType}
+          onChange={onBoxTypeChange}
+          className="w-full bg-panel-dark border border-panel-border rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-lumo-400/50"
+        >
+          <option value="rsc">RSC (กล่องลูกฟูก)</option>
+          <option value="die_cut">Die-cut (ฝาเสียบ)</option>
+          <option value="tuck_end">ฝาชน</option>
+          <option value="ear_lock">หูช้าง</option>
+        </select>
+      </div>
+
+      <hr className="border-panel-border" />
+
       {/* ---- Dimension Sliders ---- */}
       <div>
         <h4 className="text-xs font-display font-semibold text-zinc-400 uppercase tracking-wider mb-3">

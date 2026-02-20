@@ -183,7 +183,36 @@ class FinalizeStepHandlers:
             conversation_history=[]
         )
         response += f"\n\n📌 หมายเลขอ้างอิง: {state.session_id}"
+
+        # Auto-save order to Supabase (if configured)
+        self._save_order_to_db(state)
+
         return _make_result(response=response)
+
+    # ===================================
+    # Save Order to Supabase
+    # ===================================
+    def _save_order_to_db(self, state: ConversationState):
+        """Save completed order to Supabase (best-effort, does not block chatbot)"""
+        try:
+            from services.supabase_client import get_supabase
+            supabase = get_supabase()
+            if not supabase:
+                return
+
+            pricing = state.temp_data.get("pricing") or state.collected_data.get("pricing", {})
+            grand_total = pricing.get("grand_total", 0)
+
+            supabase.table("orders").insert({
+                "session_id": state.session_id,
+                "status": "pending",
+                "collected_data": state.collected_data,
+                "pricing": pricing,
+                "grand_total": grand_total,
+                "deposit_amount": round(grand_total * 0.5, 2),
+            }).execute()
+        except Exception as e:
+            print(f"⚠️ Failed to save order to DB: {e}")
 
     # ===================================
     # Pricing Helper (ใช้ CompleteRequirement เป็น single source of truth)
