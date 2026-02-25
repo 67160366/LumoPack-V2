@@ -449,7 +449,9 @@ export default function App() {
       <Route
         path="/*"
         element={
-          <ChatbotProvider><AppLayout /></ChatbotProvider>
+          <ProtectedRoute>
+            <ChatbotProvider><AppLayout /></ChatbotProvider>
+          </ProtectedRoute>
         }
       />
     </Routes>

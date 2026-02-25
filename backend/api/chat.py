@@ -118,6 +118,10 @@ async def send_message(request: ChatMessageRequest):
         state = session_storage.get_session(request.session_id)
         if not state:
             state = ConversationState(session_id=request.session_id)
+
+        # Store user_id in state (for order creation)
+        if request.user_id:
+            state.user_id = request.user_id
         
         # ประมวลผลข้อความ
         # chatbot_flow.process_message(user_message, state) → Tuple[str, ConversationState]

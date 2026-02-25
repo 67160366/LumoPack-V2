@@ -136,7 +136,7 @@ class FinalizeStepHandlers:
 
         if is_confirmation(user_message):
             state.is_complete = True
-            return _make_result(response=response, advance=True)
+            return _make_result(response=response, advance=True, auto_execute=True)
 
         if is_rejection(user_message):
             msg_lower = user_message.lower()
@@ -203,14 +203,19 @@ class FinalizeStepHandlers:
             pricing = state.temp_data.get("pricing") or state.collected_data.get("pricing", {})
             grand_total = pricing.get("grand_total", 0)
 
-            supabase.table("orders").insert({
+            order_data = {
                 "session_id": state.session_id,
                 "status": "pending",
                 "collected_data": state.collected_data,
                 "pricing": pricing,
                 "grand_total": grand_total,
                 "deposit_amount": round(grand_total * 0.5, 2),
-            }).execute()
+            }
+            # Include user_id if available (required for RLS)
+            if getattr(state, 'user_id', None):
+                order_data["user_id"] = state.user_id
+
+            supabase.table("orders").insert(order_data).execute()
         except Exception as e:
             print(f"⚠️ Failed to save order to DB: {e}")
 

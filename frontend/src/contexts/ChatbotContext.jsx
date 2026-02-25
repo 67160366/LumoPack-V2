@@ -22,6 +22,7 @@ import React, {
   createContext, useContext, useState, useCallback, useRef, useEffect, useMemo
 } from 'react';
 import { sendChatMessage, resetSession as apiResetSession } from '../services/api';
+import { useAuth } from './AuthContext';
 
 
 // ===================================
@@ -57,6 +58,9 @@ export const STEP_LABELS = {
 // ===================================
 
 export function ChatbotProvider({ children }) {
+  // --- Auth ---
+  const { user } = useAuth();
+
   // --- State ---
   const [messages, setMessages] = useState([]);
   const [sessionId, setSessionId] = useState(null);
@@ -132,7 +136,7 @@ export function ChatbotProvider({ children }) {
 
     try {
       // 2. เรียก API
-      const data = await sendChatMessage(text, sessionId);
+      const data = await sendChatMessage(text, sessionId, user?.id ?? null);
 
       // 3. Update state จาก response
       setSessionId(data.session_id);
@@ -171,7 +175,7 @@ export function ChatbotProvider({ children }) {
       setIsLoading(false);
       sendingRef.current = false;
     }
-  }, [sessionId]);
+  }, [sessionId, user?.id]);
 
 
   // --- Reset Chat ---

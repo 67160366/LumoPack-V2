@@ -8,6 +8,8 @@
  * ใช้ VITE_API_URL ตอน production
  */
 
+import { supabase } from '../lib/supabase';
+
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 // ===================================
@@ -16,14 +18,26 @@ const API_BASE = import.meta.env.VITE_API_URL || '';
 
 async function apiFetch(path, options = {}) {
   const url = `${API_BASE}${path}`;
-  
+
   // [Bug #2 fix] แยก headers ก่อน spread เพื่อไม่ให้ options.headers overwrite
   const { headers: optHeaders, ...restOptions } = options;
-  
+
+  // Get auth token from Supabase session
+  let authHeader = {};
+  if (supabase) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        authHeader = { Authorization: `Bearer ${session.access_token}` };
+      }
+    } catch { /* ignore auth errors */ }
+  }
+
   const config = {
     ...restOptions,
     headers: {
       'Content-Type': 'application/json',
+      ...authHeader,
       ...optHeaders,
     },
   };
@@ -88,12 +102,13 @@ export class ApiError extends Error {
  *   is_complete: boolean
  * }>}
  */
-export async function sendChatMessage(message, sessionId = null) {
+export async function sendChatMessage(message, sessionId = null, userId = null) {
   return apiFetch('/api/chat/message', {
     method: 'POST',
     body: JSON.stringify({
       message,
       session_id: sessionId,
+      user_id: userId,
     }),
   });
 }
