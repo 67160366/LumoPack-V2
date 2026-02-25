@@ -22,15 +22,19 @@ async function apiFetch(path, options = {}) {
   // [Bug #2 fix] แยก headers ก่อน spread เพื่อไม่ให้ options.headers overwrite
   const { headers: optHeaders, ...restOptions } = options;
 
-  // Get auth token from Supabase session
+  // Get auth token from Supabase session (with timeout to prevent hanging)
   let authHeader = {};
   if (supabase) {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const sessionPromise = supabase.auth.getSession();
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('timeout')), 3000)
+      );
+      const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]);
       if (session?.access_token) {
         authHeader = { Authorization: `Bearer ${session.access_token}` };
       }
-    } catch { /* ignore auth errors */ }
+    } catch { /* ignore auth errors or timeout */ }
   }
 
   const config = {

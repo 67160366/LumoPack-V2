@@ -176,6 +176,7 @@ class FinalizeStepHandlers:
     # Step 14: End
     # ===================================
     async def handle_end(self, state: ConversationState):
+        print(f"[handle_end] called for session {state.session_id}")
         prompt = get_prompt_for_step(14)
         response = await self.groq.generate_response(
             system_prompt=SYSTEM_PROMPT,
@@ -185,6 +186,7 @@ class FinalizeStepHandlers:
         response += f"\n\n📌 หมายเลขอ้างอิง: {state.session_id}"
 
         # Auto-save order to Supabase (if configured)
+        print(f"[handle_end] saving order, user_id={getattr(state, 'user_id', None)}")
         self._save_order_to_db(state)
 
         return _make_result(response=response)
@@ -215,9 +217,13 @@ class FinalizeStepHandlers:
             if getattr(state, 'user_id', None):
                 order_data["user_id"] = state.user_id
 
-            supabase.table("orders").insert(order_data).execute()
+            print(f"[save_order] inserting, grand_total={grand_total}")
+            result = supabase.table("orders").insert(order_data).execute()
+            print(f"[save_order] OK: {result.data[0]['id'] if result.data else 'NO DATA'}")
         except Exception as e:
-            print(f"⚠️ Failed to save order to DB: {e}")
+            import traceback
+            print(f"[save_order] FAILED: {e}")
+            traceback.print_exc()
 
     # ===================================
     # Pricing Helper (ใช้ CompleteRequirement เป็น single source of truth)

@@ -40,13 +40,33 @@ export function AuthProvider({ children }) {
       return;
     }
 
+    let resolved = false;
+
+    // Timeout fallback — if getSession hangs (e.g. Supabase project paused), stop loading after 5s
+    const timeout = setTimeout(() => {
+      if (!resolved) {
+        console.warn('Auth session check timed out — proceeding without auth');
+        resolved = true;
+        setLoading(false);
+      }
+    }, 5000);
+
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (resolved) return;
+      resolved = true;
+      clearTimeout(timeout);
       const currentUser = session?.user ?? null;
       setUser(currentUser);
       if (currentUser) {
-        fetchProfile(currentUser.id).then(setProfile);
+        fetchProfile(currentUser.id).then(setProfile).catch(() => {});
       }
+      setLoading(false);
+    }).catch((err) => {
+      if (resolved) return;
+      resolved = true;
+      clearTimeout(timeout);
+      console.error('Auth getSession failed:', err);
       setLoading(false);
     });
 
@@ -64,7 +84,10 @@ export function AuthProvider({ children }) {
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(timeout);
+      subscription.unsubscribe();
+    };
   }, [fetchProfile]);
 
   // Sign up
