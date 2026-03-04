@@ -14,6 +14,7 @@
 import React, { useState } from 'react';
 import { Routes, Route, Link, Navigate, useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 import { ChatbotProvider, useChatbot } from './contexts/ChatbotContext';
 import { useAuth } from './contexts/AuthContext';
 import ChatWindow from './components/Chatbot/ChatWindow';
@@ -155,56 +156,55 @@ function AppLayout() {
     setLoading(false);
   };
 
-  const handleGeneratePDF = () => {
-    const canvas = document.querySelector('canvas');
-    if (!canvas) return;
+  const handleGeneratePDF = async () => {
+    // Capture 3D canvas screenshot
+    const threeCanvas = document.querySelector('canvas');
+    const boxImgSrc = threeCanvas ? threeCanvas.toDataURL('image/png') : null;
 
-    const imgData = canvas.toDataURL('image/png');
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
+    // Set box image src for the hidden template
+    const boxImgEl = document.getElementById('pdf-box-img');
+    if (boxImgEl && boxImgSrc) boxImgEl.src = boxImgSrc;
 
-    doc.setFontSize(22); doc.setTextColor(40, 40, 40);
-    doc.text('LumoPack Quotation', 20, 20);
-    doc.setFontSize(10); doc.setTextColor(100);
-    doc.text(`Generated on: ${new Date().toLocaleString()}`, 20, 30);
-    doc.setDrawColor(200); doc.line(20, 35, pageWidth - 20, 35);
+    // Show hidden PDF template
+    const pdfEl = document.getElementById('pdf-content');
+    if (!pdfEl) return;
+    pdfEl.style.display = 'block';
 
-    doc.setFontSize(16); doc.setTextColor(0);
-    doc.text('1. Product Specifications', 20, 50);
-    doc.setFontSize(12); doc.setTextColor(60);
-    doc.text(`- Dimensions: ${formData.length}x${formData.width}x${formData.height} cm`, 25, 60);
-    doc.text(`- Material: Flute ${formData.flute_type}`, 25, 70);
-    doc.text(`- Weight Load: ${formData.weight} kg`, 25, 80);
+    try {
+      const canvas = await html2canvas(pdfEl, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+      });
 
-    doc.addImage(imgData, 'PNG', 110, 45, 80, 80);
+      const imgData = canvas.toDataURL('image/png');
+      const pdfWidth = 210; // A4 mm
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
-    if (analysis) {
-      doc.setFontSize(16); doc.setTextColor(0);
-      doc.text('2. AI Engineering Analysis', 20, 140);
-      if (analysis.status === 'DANGER') {
-        doc.setTextColor(220, 53, 69); doc.setFont(undefined, 'bold');
-      } else {
-        doc.setTextColor(40, 167, 69); doc.setFont(undefined, 'bold');
+      const doc = new jsPDF({
+        orientation: pdfHeight > 297 ? 'portrait' : 'portrait',
+        unit: 'mm',
+        format: 'a4',
+      });
+
+      doc.addImage(imgData, 'PNG', 0, 0, pdfWidth, Math.min(pdfHeight, 297));
+
+      // If content overflows one page, add extra pages
+      if (pdfHeight > 297) {
+        let remainingHeight = pdfHeight;
+        let position = -297;
+        while (remainingHeight > 297) {
+          doc.addPage();
+          doc.addImage(imgData, 'PNG', 0, position, pdfWidth, pdfHeight);
+          remainingHeight -= 297;
+          position -= 297;
+        }
       }
-      doc.text(`STATUS: ${analysis.status}`, 25, 150);
-      doc.setFont(undefined, 'normal');
-      doc.setTextColor(60); doc.setFontSize(12);
-      doc.text(`- Safety Score: ${analysis.safety_score} / 100`, 25, 160);
-      doc.text(`- Max Load Capacity: ${analysis.max_load_kg} kg`, 25, 170);
-      doc.setFont(undefined, 'italic');
-      const recText = doc.splitTextToSize(`NOTE: ${analysis.recommendation}`, pageWidth - 40);
-      doc.text(recText, 25, 180);
+
+      doc.save('LumoPack_Quotation.pdf');
+    } finally {
+      pdfEl.style.display = 'none';
     }
-
-    doc.setDrawColor(200); doc.line(20, 200, pageWidth - 20, 200);
-    const price = (formData.length * formData.width * formData.height) * 0.005;
-    doc.setFontSize(14); doc.setTextColor(100);
-    doc.text('Total Estimated Price:', 20, 215);
-    doc.setFontSize(24); doc.setTextColor(0, 86, 179);
-    doc.setFont(undefined, 'bold');
-    doc.text(`THB ${price.toFixed(2)}`, pageWidth - 20, 215, { align: 'right' });
-
-    doc.save('LumoPack_Quotation.pdf');
   };
 
   const handleCheckout = () => {
@@ -217,8 +217,168 @@ function AppLayout() {
 
   const isDanger = analysis?.status === 'DANGER';
 
+  // --- PDF data helpers ---
+  const pdfDims = collectedData?.dimensions || {
+    length: formData.length, width: formData.width, height: formData.height,
+  };
+  const pdfPricing = collectedData?.pricing;
+  const pdfGrandTotal = pdfPricing?.grand_total ?? (parseFloat(formData.length) * parseFloat(formData.width) * parseFloat(formData.height) * 0.005);
+
   return (
     <div className="flex w-screen h-screen bg-panel-darker overflow-hidden">
+
+      {/* ===== HIDDEN PDF TEMPLATE ===== */}
+      <div
+        id="pdf-content"
+        style={{
+          display: 'none',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '794px', // A4 at 96dpi
+          background: '#ffffff',
+          fontFamily: "'Sarabun', sans-serif",
+          color: '#1a1a1a',
+          padding: '40px',
+          zIndex: -9999,
+        }}
+      >
+        {/* Header */}
+        <div style={{ borderBottom: '2px solid #e5e5e5', paddingBottom: '16px', marginBottom: '24px' }}>
+          <h1 style={{ fontSize: '28px', fontWeight: 700, color: '#1a1a1a', margin: 0 }}>
+            LumoPack Quotation
+          </h1>
+          <p style={{ fontSize: '12px', color: '#888', marginTop: '4px' }}>
+            Generated on: {new Date().toLocaleString('th-TH')}
+          </p>
+        </div>
+
+        {/* Section 1: Product Specifications */}
+        <div style={{ display: 'flex', gap: '24px', marginBottom: '24px' }}>
+          <div style={{ flex: 1 }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '12px' }}>
+              1. Product Specifications
+            </h2>
+            <table style={{ fontSize: '13px', lineHeight: '1.8', borderCollapse: 'collapse', width: '100%' }}>
+              <tbody>
+                {collectedData?.product_type && (
+                  <tr><td style={{ color: '#666', paddingRight: '16px' }}>ประเภทสินค้า</td><td style={{ fontWeight: 600 }}>{collectedData.product_type}</td></tr>
+                )}
+                {(collectedData?.box_type || boxType) && (
+                  <tr><td style={{ color: '#666', paddingRight: '16px' }}>ประเภทกล่อง</td><td style={{ fontWeight: 600 }}>{collectedData?.box_type || boxType}</td></tr>
+                )}
+                {collectedData?.material && (
+                  <tr><td style={{ color: '#666', paddingRight: '16px' }}>วัสดุ</td><td style={{ fontWeight: 600 }}>{collectedData.material}</td></tr>
+                )}
+                <tr><td style={{ color: '#666', paddingRight: '16px' }}>ขนาด</td><td style={{ fontWeight: 600 }}>{pdfDims.length} x {pdfDims.width} x {pdfDims.height} cm</td></tr>
+                {collectedData?.quantity && (
+                  <tr><td style={{ color: '#666', paddingRight: '16px' }}>จำนวน</td><td style={{ fontWeight: 600 }}>{collectedData.quantity.toLocaleString()} ชิ้น</td></tr>
+                )}
+                <tr><td style={{ color: '#666', paddingRight: '16px' }}>ลอน (Flute)</td><td style={{ fontWeight: 600 }}>{collectedData?.flute_type || formData.flute_type}</td></tr>
+                {collectedData?.weight_kg != null && (
+                  <tr><td style={{ color: '#666', paddingRight: '16px' }}>น้ำหนักรับได้</td><td style={{ fontWeight: 600 }}>{collectedData.weight_kg} kg</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          {/* 3D Box Screenshot */}
+          <div style={{ width: '200px', flexShrink: 0 }}>
+            <img id="pdf-box-img" alt="3D Box" style={{ width: '100%', borderRadius: '8px', background: '#1a1a2e' }} />
+          </div>
+        </div>
+
+        {/* Section 2: AI Engineering Analysis */}
+        {analysis && (
+          <div style={{ marginBottom: '24px', padding: '16px', background: '#f8f8f8', borderRadius: '8px' }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '12px' }}>
+              2. AI Engineering Analysis
+            </h2>
+            <p style={{
+              fontSize: '14px', fontWeight: 700, marginBottom: '8px',
+              color: analysis.status === 'DANGER' ? '#dc3545' : '#28a745',
+            }}>
+              STATUS: {analysis.status}
+            </p>
+            <table style={{ fontSize: '13px', lineHeight: '1.8' }}>
+              <tbody>
+                <tr><td style={{ color: '#666', paddingRight: '16px' }}>Safety Score</td><td style={{ fontWeight: 600 }}>{analysis.safety_score} / 100</td></tr>
+                <tr><td style={{ color: '#666', paddingRight: '16px' }}>Max Load Capacity</td><td style={{ fontWeight: 600 }}>{analysis.max_load_kg} kg</td></tr>
+              </tbody>
+            </table>
+            {analysis.recommendation && (
+              <p style={{ fontSize: '12px', color: '#555', marginTop: '8px', fontStyle: 'italic' }}>
+                NOTE: {analysis.recommendation}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Section 3: Pricing */}
+        <div style={{ marginBottom: '24px' }}>
+          <h2 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '12px' }}>
+            3. Pricing
+          </h2>
+          {pdfPricing ? (
+            <table style={{ fontSize: '13px', lineHeight: '2', width: '100%', borderCollapse: 'collapse' }}>
+              <tbody>
+                {pdfPricing.box_base != null && (
+                  <tr>
+                    <td style={{ color: '#666' }}>ค่ากล่อง</td>
+                    <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                      {typeof pdfPricing.box_base === 'object' ? `฿${pdfPricing.box_base.total_price?.toLocaleString()}` : `฿${pdfPricing.box_base.toLocaleString()}`}
+                    </td>
+                  </tr>
+                )}
+                {pdfPricing.inner != null && (typeof pdfPricing.inner === 'object' ? pdfPricing.inner.total_price > 0 : pdfPricing.inner > 0) && (
+                  <tr>
+                    <td style={{ color: '#666' }}>Inner</td>
+                    <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                      {typeof pdfPricing.inner === 'object' ? `฿${pdfPricing.inner.total_price?.toLocaleString()}` : `฿${pdfPricing.inner.toLocaleString()}`}
+                    </td>
+                  </tr>
+                )}
+                {Array.isArray(pdfPricing.coatings) && pdfPricing.coatings.map((c, i) => (
+                  <tr key={`coat-${i}`}>
+                    <td style={{ color: '#666' }}>{c.name || 'Coating'}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 600 }}>฿{c.total_price?.toLocaleString()}</td>
+                  </tr>
+                ))}
+                {Array.isArray(pdfPricing.stampings) && pdfPricing.stampings.map((s, i) => (
+                  <tr key={`stamp-${i}`}>
+                    <td style={{ color: '#666' }}>{s.name || 'Stamping'}</td>
+                    <td style={{ textAlign: 'right', fontWeight: 600 }}>฿{s.total?.toLocaleString()}</td>
+                  </tr>
+                ))}
+                <tr><td colSpan={2}><hr style={{ border: 'none', borderTop: '1px solid #ddd', margin: '4px 0' }} /></td></tr>
+                <tr>
+                  <td style={{ color: '#666' }}>Subtotal</td>
+                  <td style={{ textAlign: 'right', fontWeight: 600 }}>฿{pdfPricing.subtotal?.toLocaleString()}</td>
+                </tr>
+                <tr>
+                  <td style={{ color: '#666' }}>VAT 7%</td>
+                  <td style={{ textAlign: 'right', fontWeight: 600 }}>฿{pdfPricing.vat?.toLocaleString()}</td>
+                </tr>
+              </tbody>
+            </table>
+          ) : (
+            <p style={{ fontSize: '13px', color: '#888' }}>ยังไม่มีข้อมูลราคาจาก Chatbot</p>
+          )}
+        </div>
+
+        {/* Grand Total */}
+        <div style={{
+          borderTop: '2px solid #1a1a1a',
+          paddingTop: '16px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}>
+          <span style={{ fontSize: '16px', fontWeight: 600, color: '#333' }}>Total Estimated Price:</span>
+          <span style={{ fontSize: '28px', fontWeight: 700, color: '#0056b3' }}>
+            THB {pdfGrandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
+        </div>
+      </div>
 
       {/* ===== LEFT PANEL (Tabs: Studio | Summary) ===== */}
       <div

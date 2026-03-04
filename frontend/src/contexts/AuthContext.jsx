@@ -17,6 +17,17 @@ import { supabase } from '../lib/supabase';
 
 const AuthContext = createContext(null);
 
+// Remove all Supabase auth keys from localStorage (fallback cleanup)
+function clearSupabaseStorage() {
+  try {
+    Object.keys(localStorage).forEach((key) => {
+      if (key.startsWith('sb-') && key.endsWith('-auth-token')) {
+        localStorage.removeItem(key);
+      }
+    });
+  } catch { /* ignore */ }
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -40,22 +51,8 @@ export function AuthProvider({ children }) {
       return;
     }
 
-    let resolved = false;
-
-    // Timeout fallback — if getSession hangs (e.g. Supabase project paused), stop loading after 5s
-    const timeout = setTimeout(() => {
-      if (!resolved) {
-        console.warn('Auth session check timed out — proceeding without auth');
-        resolved = true;
-        setLoading(false);
-      }
-    }, 5000);
-
-    // Get initial session
+    // Get initial session (no-op lock prevents deadlocks now)
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (resolved) return;
-      resolved = true;
-      clearTimeout(timeout);
       const currentUser = session?.user ?? null;
       setUser(currentUser);
       if (currentUser) {
@@ -63,10 +60,9 @@ export function AuthProvider({ children }) {
       }
       setLoading(false);
     }).catch((err) => {
-      if (resolved) return;
-      resolved = true;
-      clearTimeout(timeout);
       console.error('Auth getSession failed:', err);
+      // Clear corrupted session
+      clearSupabaseStorage();
       setLoading(false);
     });
 
@@ -85,29 +81,35 @@ export function AuthProvider({ children }) {
     );
 
     return () => {
-      clearTimeout(timeout);
       subscription.unsubscribe();
     };
   }, [fetchProfile]);
 
+  // Helper: wrap Supabase call with timeout
+  const withTimeout = (promise, ms = 10000) =>
+    Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), ms)),
+    ]);
+
   // Sign up
   const signUp = useCallback(async (email, password, fullName, phone, company) => {
     if (!supabase) throw new Error('Supabase not configured');
-    const { data, error } = await supabase.auth.signUp({
+    const { data, error } = await withTimeout(supabase.auth.signUp({
       email,
       password,
       options: {
         data: { full_name: fullName },
       },
-    });
+    }));
     if (error) throw error;
 
     // Update profile with phone & company (trigger auto-creates row)
     if (data.user) {
-      await supabase
+      await withTimeout(supabase
         .from('profiles')
         .update({ phone, company, full_name: fullName })
-        .eq('id', data.user.id);
+        .eq('id', data.user.id));
     }
 
     return data;
@@ -116,20 +118,27 @@ export function AuthProvider({ children }) {
   // Sign in
   const signIn = useCallback(async (email, password) => {
     if (!supabase) throw new Error('Supabase not configured');
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await withTimeout(supabase.auth.signInWithPassword({
       email,
       password,
-    });
+    }));
     if (error) throw error;
     return data;
   }, []);
 
   // Sign out
   const signOut = useCallback(async () => {
-    if (!supabase) return;
-    await supabase.auth.signOut();
+    // Clear local state immediately so UI responds instantly
     setUser(null);
     setProfile(null);
+    if (supabase) {
+      try {
+        await withTimeout(supabase.auth.signOut(), 5000);
+      } catch {
+        // If signOut hangs or fails, manually clear Supabase localStorage keys
+        clearSupabaseStorage();
+      }
+    }
   }, []);
 
   const isAdmin = profile?.role === 'admin';

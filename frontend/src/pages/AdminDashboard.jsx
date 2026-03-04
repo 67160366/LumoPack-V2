@@ -204,14 +204,17 @@ export default function AdminDashboard() {
 
                     <div className="flex items-center gap-2">
                       {payment.slip_url && (
-                        <a
-                          href={payment.slip_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          onClick={async () => {
+                            const { data } = await supabase.storage
+                              .from('payment-slips')
+                              .createSignedUrl(payment.slip_url, 3600);
+                            if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+                          }}
                           className="text-[10px] text-blue-400 hover:text-blue-300 underline"
                         >
                           ดูสลิป
-                        </a>
+                        </button>
                       )}
                       <button
                         onClick={() => handlePaymentAction(payment.id, 'approved')}

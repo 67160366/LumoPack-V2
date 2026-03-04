@@ -1,5 +1,5 @@
 /**
- * OrderDetailPage — รายละเอียดคำสั่งซื้อ + Timeline + Payment History
+ * OrderDetailPage — รายละเอียดคำสั่งซื้อ + Timeline + Payment History + Upload Slip
  */
 
 import { useState, useEffect } from 'react';
@@ -24,23 +24,71 @@ export default function OrderDetailPage() {
   const [order, setOrder] = useState(null);
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [slipFile, setSlipFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
+
+  const fetchData = async () => {
+    if (!supabase || !user || !id) return;
+    const [orderRes, paymentRes] = await Promise.all([
+      supabase.from('orders').select('*').eq('id', id).single(),
+      supabase.from('payments').select('*').eq('order_id', id).order('created_at', { ascending: true }),
+    ]);
+    if (orderRes.data) setOrder(orderRes.data);
+    if (paymentRes.data) setPayments(paymentRes.data);
+    setLoading(false);
+  };
 
   useEffect(() => {
-    if (!supabase || !user || !id) return;
-
-    async function fetchData() {
-      const [orderRes, paymentRes] = await Promise.all([
-        supabase.from('orders').select('*').eq('id', id).single(),
-        supabase.from('payments').select('*').eq('order_id', id).order('created_at', { ascending: true }),
-      ]);
-
-      if (orderRes.data) setOrder(orderRes.data);
-      if (paymentRes.data) setPayments(paymentRes.data);
-      setLoading(false);
-    }
-
     fetchData();
   }, [id, user]);
+
+  // Upload slip and create payment record
+  const handleUploadSlip = async () => {
+    if (!slipFile || !supabase || !order) return;
+    setUploading(true);
+    setUploadError(null);
+
+    try {
+      const fileExt = slipFile.name.split('.').pop();
+      const filePath = `${user.id}/${Date.now()}.${fileExt}`;
+
+      console.log('[slip] uploading to:', filePath);
+      const { error: uploadErr } = await supabase.storage
+        .from('payment-slips')
+        .upload(filePath, slipFile);
+
+      if (uploadErr) {
+        console.error('[slip] upload error:', uploadErr);
+        throw uploadErr;
+      }
+      console.log('[slip] upload OK');
+
+      // Store file path (private bucket — use signed URL to view)
+      const { error: paymentErr } = await supabase
+        .from('payments')
+        .insert({
+          order_id: order.id,
+          amount: order.deposit_amount || Math.ceil((order.grand_total || 0) * 0.5),
+          type: 'deposit',
+          slip_url: filePath,
+          status: 'pending',
+        });
+
+      if (paymentErr) {
+        console.error('[slip] payment insert error:', paymentErr);
+        throw paymentErr;
+      }
+      console.log('[slip] payment record created');
+
+      setSlipFile(null);
+      await fetchData();
+    } catch (err) {
+      console.error('[slip] error:', err);
+      setUploadError(err.message || err.error || 'อัปโหลดไม่สำเร็จ กรุณาลองใหม่');
+    }
+    setUploading(false);
+  };
 
   if (loading) {
     return (
@@ -156,6 +204,58 @@ export default function OrderDetailPage() {
             )}
           </div>
         </div>
+
+        {/* Upload Slip — show when status is pending and no deposit payment yet */}
+        {order.status === 'pending' && !payments.some(p => p.type === 'deposit') && (
+          <div className="bg-lumo-400/5 rounded-2xl border border-lumo-400/20 p-6">
+            <h3 className="text-sm font-display font-semibold text-lumo-400 mb-2">ชำระมัดจำ 50%</h3>
+            <p className="text-2xl font-bold text-lumo-400 mb-4">
+              ฿{(order.deposit_amount || Math.ceil((order.grand_total || 0) * 0.5)).toLocaleString()}
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs text-zinc-400 mb-2">โอนเงินมาที่:</p>
+                <div className="bg-panel-darker rounded-lg p-3 text-xs text-zinc-300 space-y-1">
+                  <div>ธนาคารกสิกรไทย</div>
+                  <div className="font-mono">XXX-X-XXXXX-X</div>
+                  <div>บจก. ลูโม่แพค</div>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs text-zinc-400 mb-2">อัปโหลดสลิปโอนเงิน:</p>
+                <label className="block w-full cursor-pointer">
+                  <div className="border border-dashed border-panel-border rounded-lg p-4 text-center hover:border-lumo-400/40 transition-colors">
+                    <div className="text-zinc-500 text-xs">
+                      {slipFile ? slipFile.name : 'คลิกเพื่อเลือกไฟล์สลิป'}
+                    </div>
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => { setSlipFile(e.target.files[0]); setUploadError(null); }}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+
+              {uploadError && (
+                <div className="p-3 rounded-lg bg-red-900/30 border border-red-800/40 text-red-300 text-xs">
+                  {uploadError}
+                </div>
+              )}
+
+              <button
+                onClick={handleUploadSlip}
+                disabled={!slipFile || uploading}
+                className="w-full py-3 rounded-xl bg-lumo-400 hover:bg-lumo-300 text-panel-darker text-sm font-display font-semibold transition-colors disabled:opacity-50 active:scale-[0.98]"
+              >
+                {uploading ? 'กำลังอัปโหลด...' : 'ส่งสลิปมัดจำ'}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Payment History */}
         <div className="bg-panel-dark rounded-2xl border border-panel-border p-6">

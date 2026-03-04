@@ -26,27 +26,51 @@ export default function MyOrdersPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!supabase || !user) return;
-
-    async function fetchOrders() {
-      const { data, error } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (!error && data) setOrders(data);
+    if (!supabase || !user) {
       setLoading(false);
+      return;
     }
 
-    fetchOrders();
+    let cancelled = false;
+
+    async function fetchOrders() {
+      try {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (!cancelled) {
+          if (!error && data) setOrders(data);
+          setLoading(false);
+        }
+      } catch {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    // Timeout fallback — ถ้า query ค้างเกิน 8 วินาที ให้หยุด loading
+    const timeout = setTimeout(() => {
+      if (!cancelled) {
+        cancelled = true;
+        setLoading(false);
+      }
+    }, 8000);
+
+    fetchOrders().then(() => clearTimeout(timeout));
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
   }, [user]);
 
   return (
     <div className="min-h-screen bg-panel-darker">
       {/* Header */}
       <div className="border-b border-panel-border bg-panel-dark">
-        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-3xl mx-auto px-8 sm:px-12 py-5 flex items-center justify-between">
           <div>
             <h1 className="font-display font-bold text-lg text-gradient-lumo">My Orders</h1>
             <p className="text-zinc-500 text-xs mt-0.5">ติดตามสถานะคำสั่งซื้อ</p>
@@ -57,7 +81,7 @@ export default function MyOrdersPage() {
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-6 py-8">
+      <div className="max-w-3xl mx-auto px-8 sm:px-12 py-8">
         {loading ? (
           <div className="text-center py-12">
             <p className="text-zinc-500 text-sm">Loading...</p>
