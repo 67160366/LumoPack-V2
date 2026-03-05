@@ -6,84 +6,219 @@
 
 ---
 
-## โครงสร้างกล่อง Die-cut (Tuck Top, Snap Lock Bottom)
+## Dieline Reference (วิเคราะห์จาก SVG จริง)
 
-ขนาดอ้างอิง: W=315mm, H=202mm, D=62mm
-ทุก panel คำนวณจาก props `width`, `height`, `depth` (หน่วย: cm → scene unit = /10)
+SVG ต้นฉบับ: `500x300x80mm-folding-box.svg`
+viewBox: `0 0 877 858` (1 unit = 1mm)
 
 ```
-const w = width  / 10
+เส้นสีเขียว = Crease line (เส้นพับ) → pivot ตอนพับ
+เส้นสีแดง   = Cut line (เส้นตัด)   → ขอบ panel
+```
+
+### Layout ภาพรวม (SVG coordinate space, mm)
+```
+      181       190      687  696
+       |         |        |   |
+  0   ┌─────────────────────────┐   0
+      │       TOP FLAP          │    ← tongue โค้ง R=80mm
+  80  └──┬──────────────────┬──┘   80
+  86  ───┼──────────────────┼───   86
+      │  │                  │  │
+  95  │D │   BACK PANEL     │D │   
+      │E │    (TOP HALF)    │E │
+      │P │    497 × 300mm   │P │
+      │T │                  │T │
+      │H │                  │H │
+      │L │                  │R │
+ 386  │  │                  │  │  386
+ 390.5 ──┼──────────────────┼──   390.5
+         │  [crease strip]  │
+ 473.5 ──┼──────────────────┼──   473.5
+ 0─86    │                  │  791─877
+ ┌──┐ ┌──┤   FRONT PANEL    ├──┐ ┌──┐
+ │SL│ │DE│    497 × 386mm   │DE│ │SL│  ← SL=Slot strip
+ │OT│ │PT│                  │PT│ │OT│     DE=Depth panel
+ │  │ │H │                  │H │ │  │
+ └──┘ └──┤                  ├──┘ └──┘
+ 776.5 ──┼──────────────────┼──   776.5
+ 858  ┌──┴──────────────────┴──┐  858
+      │      BOTTOM FLAP       │    ← snap lock
+      └────────────────────────┘
+```
+
+---
+
+## พิกัดจริงจาก SVG (mm) — ใช้แปลงเป็น Three.js โดยตรง
+
+### Panel Boundaries
+```
+Panel              X (left→right)     Y (top→bottom)    Size (W×H mm)
+──────────────────────────────────────────────────────────────────────
+TOP_FLAP           181 → 696          0 → 80            515 × 80
+BACK_PANEL         190 → 687          86 → 386           497 × 300
+DEPTH_L (top)       95 → 178          86 → 386            83 × 300
+DEPTH_R (top)      699 → 782          86 → 386            83 × 300
+FRONT_PANEL        190 → 687         390.5 → 776.5       497 × 386
+DEPTH_L (main)      95 → 178         472 → 778            83 × 306
+DEPTH_R (main)     699 → 782         472 → 778            83 × 306
+SLOT_STRIP_L         0 →  86         475 → 775            86 × 300
+SLOT_STRIP_R       791 → 877         475 → 775            86 × 300
+BOTTOM_FLAP        181 → 696         776.5 → 858         515 × 81.5
+
+Slots (holes ใน DEPTH panels):
+  Left  slot 1:  x=178→188.5,  y=525→585   (10.5 × 60mm)
+  Left  slot 2:  x=178→188.5,  y=665→725   (10.5 × 60mm)
+  Right slot 1:  x=688.5→699,  y=525→585   (10.5 × 60mm)
+  Right slot 2:  x=688.5→699,  y=665→725   (10.5 × 60mm)
+```
+
+### Top Flap Arc Radii (จาก SVG path จริง)
+```
+A 80 80 0 0 0  → R=80mm  ← โค้งใหญ่ตรงกลางบน (corner rounds)
+A  5  5 0 0 0  → R=5mm   ← โค้งเล็กมุมที่ติดกับ depth panel
+A 10 10 0 0 0  → R=10mm  ← โค้งกลางข้าง depth panel
+```
+
+---
+
+## กฎการ Scale — แปลงพิกัด SVG → Three.js
+
+SVG ใช้ขนาดคงที่ (500×300×80mm) แต่ **component ต้องรับ props ที่ปรับได้**
+ให้คำนวณทุกค่าเป็น **ratio** จากขนาดอ้างอิง แล้ว scale ตาม W/H/D จริง:
+
+```js
+// Props: width, height, depth (หน่วย cm)
+const w = width  / 10   // scene units
 const h = height / 10
 const d = depth  / 10
-const t = 0.015  // ความหนากระดาษ (scene unit)
+const t = 0.015         // ความหนากระดาษ
+
+// SVG reference dimensions (mm → ratio)
+const REF_W = 500, REF_H = 300, REF_D = 80
+
+// แปลงพิกัด SVG เป็น ratio ก่อน แล้ว scale ด้วย w/h/d
+// ตัวอย่าง: slot กว้าง 10.5mm จากทั้งหมด 83mm depth panel
+// → ratio = 10.5/83 ≈ 0.126 → scene = d * 0.126
+
+const slotW     = d * (10.5 / REF_D)     // scale ตาม D
+const slotH     = h * (60  / REF_H)      // scale ตาม H
+const slot1Y    = h * ((585 - 390.5) / REF_H)  // offset จาก top ของ front panel
+const slot2Y    = h * ((725 - 390.5) / REF_H)
+
+const topFlapH  = d * (80   / REF_D)     // = d * 1.0
+const botFlapH  = d * (81.5 / REF_D)     // ≈ d * 1.02
+
+// Arc radii scale ตาม D:
+const arcBig    = d * (80  / REF_D)      // R=80mm → scale ตาม D
+const arcSmall  = d * (5   / REF_D)      // R=5mm
+const arcMid    = d * (10  / REF_D)      // R=10mm
+
+// Guard: ไม่ให้เล็กเกินไป
+const slotWMin  = Math.max(slotW, t * 1.5)
+const slotHMin  = Math.max(slotH, t * 3)
+```
+
+---
+
+## Coordinate Map (ตำแหน่ง Flat Layout บน Three.js XZ plane)
+
+```js
+// Three.js: X=ขวา, Z=ลง (SVG Y → Three.js Z), Y=ขึ้น
+// กึ่งกลาง (0,0,0) = center ของ FRONT_PANEL
+// ทุก panel วางนอนบน Y=0, rotation.x = -Math.PI/2
+
+// Front panel: w × h (scene units)
+FRONT_PANEL:       pos = (0,           0,  0)           size = w × h
+BACK_PANEL:        pos = (0,           0, -(h + d))     size = w × h   ← อยู่ด้านหลัง
+
+// Depth panels (ซ้าย-ขวา)
+DEPTH_L:           pos = (-(w/2+d/2),  0,  d/2)         size = d × (h+d)
+DEPTH_R:           pos = (+(w/2+d/2),  0,  d/2)         size = d × (h+d)
+
+// Slot strips (ปีกนอก)
+SLOT_STRIP_L:      pos = (-(w/2+d+slotW/2), 0, d/2)    size = slotStripW × h
+SLOT_STRIP_R:      pos = (+(w/2+d+slotW/2), 0, d/2)    size = slotStripW × h
+
+// Top panels
+TOP_FLAP:          pos = (0, 0, -(h/2 + topFlapH/2))   size = (w+d*0.03) × topFlapH
+BACK_TOP_CREASE:   pos = (0, 0, -(h + d + topFlapH/2)) // mirror ด้านหลัง
+
+// Bottom panels
+BOTTOM_FLAP:       pos = (0, 0, +(h/2 + botFlapH/2))   size = (w+d*0.03) × botFlapH
 ```
 
 ---
 
 ## รายละเอียดแต่ละ Panel
 
-### 1. FRONT PANEL (แผ่นหน้าหลัก)
+### 1. FRONT PANEL
 - ขนาด: `w × h`
-- ตำแหน่ง: กึ่งกลาง วางตั้ง
 - Geometry: `PlaneGeometry`
-- หมายเหตุ: เป็น reference panel ที่ panel อื่นยึดตำแหน่งตาม
 
-### 2. BACK PANEL (แผ่นหลัง)
+### 2. BACK PANEL
 - ขนาด: `w × h`
-- ตำแหน่ง: ด้านหลัง Front Panel ห่างออกไป `d` (ความลึก)
 - Geometry: `PlaneGeometry`
 
-### 3. LEFT SIDE FLAP (แผ่นข้างซ้าย)
-- ขนาด: `d × h`
-- ตำแหน่ง: ซ้ายของ Front Panel
-- Geometry: **`ShapeGeometry`** — มีรอยตัดมุมเป็นขั้นบันได (step cut) ที่มุมทั้ง 4 เพื่อให้ซ้อนพับได้พอดี
-  - Step cut ขนาด: `t × t` ที่ทุกมุม
-- มี **2 ช่องสล็อต (slot)** แนวตั้ง สำหรับสอด tongue ของฝาบน:
-  - แต่ละ slot: กว้าง `t*1.5`, สูง `d*0.35`
-  - ตำแหน่ง: อยู่ที่ x = `d*0.25` และ `d*0.65` ห่างจากขอบบน `h*0.15`
+### 3. DEPTH_L / DEPTH_R (แผ่นข้างซ้าย-ขวา)
+- ขนาด: `d × (h + d)` — ครอบทั้ง front และ depth zone
+- Geometry: **`ShapeGeometry`**
+- มี **2 slots** เจาะเป็น hole:
+  ```js
+  // Slot position สัมพันธ์กับขอบบนของ depth panel
+  slot1: { x: -slotW/2 → +slotW/2,  y: slot1Y → slot1Y+slotH }
+  slot2: { x: -slotW/2 → +slotW/2,  y: slot2Y → slot2Y+slotH }
+  // slotW = d*(10.5/80), slotH = h*(60/300)
+  ```
+- step cut ที่มุมทั้ง 4: ขนาด `t × t`
 
-### 4. RIGHT SIDE FLAP (แผ่นข้างขวา)
-- เหมือน Left Side Flap ทุกประการ (mirror)
+### 4. SLOT_STRIP_L / SLOT_STRIP_R (แถบสล็อตนอก)
+- ขนาด: `(86/80 * d) × h`
+- Geometry: **`ShapeGeometry`** มีรอยบากแนวนอน 4 ตำแหน่ง (lock tabs)
+- ตำแหน่ง Y ของ tab: สัมพันธ์กับ slot ของ depth panel
 
-### 5. TOP INNER FLAP (แผ่นด้านในฝาบน)
-- ขนาด: `w × (d * 0.85)`
-- ตำแหน่ง: บน Front Panel พับออกไปด้านบน
-- Geometry: `PlaneGeometry`
-- หมายเหตุ: แผ่นนี้อยู่ระหว่าง Front Panel กับ Top Flap
+### 5. TOP FLAP (tongue โค้ง)
+- ขนาด: `(w + d*0.03) × topFlapH` โดย `topFlapH = d * 1.0`
+- Geometry: **`ShapeGeometry`** วาดจาก SVG path จริง:
+  ```js
+  const shape = new Shape()
+  const fw = w + d * 0.03   // กว้างกว่า front นิดนึง
+  const fh = d * 1.0        // ความสูง flap
+  const r1 = d * (80/80)    // R=80mm → arc ใหญ่มุมบน
+  const r2 = d * (5/80)     // R=5mm  → arc เล็กมุมข้าง
+  const r3 = d * (10/80)    // R=10mm → arc กลาง
 
-### 6. TOP FLAP — TONGUE (ฝาบน มุมโค้ง)
-- ขนาด: `w × (d * 0.95)` — สูงกว่า Top Inner Flap เล็กน้อย
-- Geometry: **`ShapeGeometry`** — วาด path ดังนี้:
-  - เริ่มจากขอบล่างซ้าย → ขวา (เส้นตรง ความกว้าง `w`)
-  - ขึ้นซ้าย-ขวา ตรง (ความสูง `d * 0.6`)
-  - **มุมโค้ง (rounded tongue):** ส่วนบนทำเป็น arc โค้งออก
-    - ใช้ `QuadraticBezierCurve` หรือ `bezierCurveTo`
-    - โค้งเข้าด้านใน radius ≈ `d * 0.15` ที่มุมซ้าย-ขวา
-    - ตรงกลางบนโค้งออกมา `d * 0.05`
-  - shape นี้เป็น tongue ที่จะสอดเข้า slot ของ Side Flap
+  shape.moveTo(0, 0)
+  shape.lineTo(fw, 0)                         // ขอบล่างตรง (crease line)
+  shape.lineTo(fw, fh - r3)
+  shape.quadraticCurveTo(fw, fh, fw-r3, fh)  // มุมขวาล่างของ arch
+  shape.lineTo(fw * (696-190)/(696-181), fh)
+  // arc ใหญ่โค้งขึ้นตรงกลาง
+  shape.bezierCurveTo(
+    fw*0.75, fh + r1*0.3,
+    fw*0.25, fh + r1*0.3,
+    fw*(190-181)/(696-181), fh
+  )
+  shape.lineTo(r3, fh)
+  shape.quadraticCurveTo(0, fh, 0, fh-r3)    // มุมซ้ายล่างของ arch
+  shape.lineTo(0, 0)
+  ```
 
-### 7. BOTTOM INNER FLAP (แผ่นด้านในฝาล่าง)
-- ขนาด: `w × (d * 0.85)`
-- ตำแหน่ง: ล่างของ Front Panel
-- Geometry: `PlaneGeometry`
-
-### 8. BOTTOM FLAP (ฝาล่าง — snap lock)
-- ขนาด: `w × (d * 0.95)`
-- Geometry: **`ShapeGeometry`** — คล้าย Top Flap แต่มีรูปร่าง snap lock แทน tongue โค้ง:
-  - มุมตัดทแยง 45° ขนาด `d*0.1` ที่มุมล่างซ้าย-ขวา
-  - ตรงกลางล่างมีแท็บสี่เหลี่ยมเล็กยื่นออกมา: กว้าง `w*0.3`, สูง `d*0.08`
+### 6. BOTTOM FLAP (snap lock)
+- ขนาด: `(w + d*0.03) × botFlapH` โดย `botFlapH = d * 1.02`
+- Geometry: **`ShapeGeometry`**
+- มุมล่างตัดเฉียง 45° ขนาด `d * 0.1`
+- ตรงกลางล่างมีแท็บยื่น: กว้าง `w * 0.25`, สูง `d * 0.1`
 
 ---
 
 ## Material
 
-ทุก panel ใช้ material เดียวกัน:
 ```js
-// ใช้ corrugated texture จาก useCorrugatedTexture() hook ที่มีอยู่แล้ว
 <meshStandardMaterial
-  map={corrugatedMap}
+  map={corrugatedMap}    // จาก useCorrugatedTexture()
   roughness={0.85}
-  side={DoubleSide}   // ← สำคัญ ต้องเห็นทั้งสองด้าน
+  side={DoubleSide}      // ← สำคัญ ต้องเห็นทั้งสองด้าน
 />
 ```
 
@@ -91,14 +226,21 @@ const t = 0.015  // ความหนากระดาษ (scene unit)
 
 ## ขั้นตอนที่ให้ทำ (Phase 1 เท่านั้น)
 
-### ✅ Phase 1: Flat Layout (dieline펼친)
-แสดง panel ทุกชิ้นในตำแหน่ง "กางออก" บนระนาบ XZ เหมือน dieline 2D แต่เป็น 3D
-- วาง Front Panel ที่กึ่งกลาง
-- Side Flap กางออกซ้าย-ขวา (rotation.y = 0, rotation.z = 0)
-- Top/Bottom Flap กางออกบน-ล่าง (rotation.x = 0)
-- ยังไม่ต้องพับ ยังไม่ต้องมี animation
-- ใส่ `OrbitControls` ให้หมุนดูได้
-- ใส่ `gridHelper` และ `ContactShadows`
+### ✅ Phase 1: Flat Layout
+- วาง panel ทุกชิ้นตาม Coordinate Map
+- panel วางนอนบน XZ plane (`rotation.x = -Math.PI/2`)
+- **ทุก panel ต้องอยู่บน `Y >= 0`** — ห้ามจมใต้ grid
+- **แต่ละ panel ต้อง Y offset ต่างกัน `t * n`** — ป้องกัน Z-fighting:
+  ```js
+  FRONT_PANEL:    y = t * 0
+  BACK_PANEL:     y = t * 1
+  DEPTH_L/R:      y = t * 1
+  SLOT_STRIP_L/R: y = t * 2
+  TOP_FLAP:       y = t * 1
+  BOTTOM_FLAP:    y = t * 1
+  ```
+- ใส่ slider ปรับ W, H, D แบบ real-time — ทุก panel ต้องขยับตามทันที
+- ใส่ `OrbitControls`, `gridHelper`, `ContactShadows`
 
 ### ❌ Phase 2 (ยังไม่ต้องทำ)
 Animation พับกล่อง — รอ review Phase 1 ก่อน
@@ -108,11 +250,10 @@ Animation พับกล่อง — รอ review Phase 1 ก่อน
 ## Interface ของ Component
 
 ```jsx
-// ใช้แทน GltfBox ใน BoxViewer.jsx
 <DieCutBox
-  width={31.5}   // cm
-  height={20.2}  // cm
-  depth={6.2}    // cm
+  width={50}    // cm
+  height={30}   // cm
+  depth={8}     // cm
 />
 ```
 
@@ -121,118 +262,15 @@ Animation พับกล่อง — รอ review Phase 1 ก่อน
 ## โครงสร้างไฟล์
 
 ```
-DieCutBox.jsx       ← component หลัก
+DieCutBox.jsx
   ├── <FrontPanel />
   ├── <BackPanel />
-  ├── <SideFlap side="left" />
-  ├── <SideFlap side="right" />
-  ├── <TopInnerFlap />
-  ├── <TopFlap />          ← ShapeGeometry tongue โค้ง
-  ├── <BottomInnerFlap />
-  └── <BottomFlap />       ← ShapeGeometry snap lock
-```
-
----
-
-## กฎการ Scale (สำคัญมาก)
-
-### ✅ ทุกค่าต้องคำนวณจาก w, h, d — ห้าม hardcode ตัวเลขลอย
-
-```js
-// ✅ ถูก
-const topFlapHeight      = d * 0.95
-const topInnerFlapHeight = d * 0.85
-const slotHeight         = d * 0.35
-const slotOffsetY        = h * 0.15
-const stepSize           = t * 2
-
-// ❌ ผิด
-const topFlapHeight = 0.59   // ← hardcode!
-const slotHeight    = 0.22   // ← hardcode!
-```
-
----
-
-### Slot บน Side Flap — scale ตาม D และ H
-
-```js
-// ทั้งหมดนี้ต้อง scale ตามขนาดกล่อง
-const slotWidth    = t * 1.5          // ความกว้าง slot (scale ตาม t)
-const slotHeight   = d * 0.35         // ความสูง slot (scale ตาม D)
-const slotSpacingX = d * 0.4          // ระยะห่างระหว่าง slot 2 อัน (scale ตาม D)
-const slot1X       = d * 0.25         // ตำแหน่ง X ของ slot แรก
-const slot2X       = d * 0.65         // ตำแหน่ง X ของ slot สอง
-const slotTopY     = h * 0.5 - h * 0.15  // ตำแหน่ง Y บนของ slot (ห่างจากขอบบน h*0.15)
-```
-
----
-
-### ShapeGeometry ต้องใช้ useMemo + deps ครบ
-
-```js
-// Top Flap tongue โค้ง — recalculate ทุกครั้งที่ w หรือ d เปลี่ยน
-const tongueShape = useMemo(() => {
-  const shape = new Shape()
-  const fw = w           // ความกว้างเต็ม
-  const fh = d * 0.95    // ความสูงฝา
-  const curve = d * 0.15 // radius โค้งที่มุม (scale ตาม D)
-  const tipOut = d * 0.05 // ยื่นออกตรงกลาง (scale ตาม D)
-
-  shape.moveTo(0, 0)
-  shape.lineTo(fw, 0)
-  shape.lineTo(fw, fh - curve)
-  shape.quadraticCurveTo(fw, fh, fw - curve, fh + tipOut)   // มุมขวา
-  shape.lineTo(fw * 0.5 + fw * 0.1, fh + tipOut * 1.5)     // กลางโค้งออก
-  shape.quadraticCurveTo(fw * 0.5, fh + tipOut * 2, fw * 0.5 - fw * 0.1, fh + tipOut * 1.5)
-  shape.lineTo(curve, fh + tipOut)
-  shape.quadraticCurveTo(0, fh, 0, fh - curve)             // มุมซ้าย
-  shape.lineTo(0, 0)
-
-  return shape
-}, [w, d])  // ← deps: w และ d เท่านั้น ห้ามลืม
-
-// Side Flap with slots — recalculate ทุกครั้งที่ d หรือ h เปลี่ยน
-const sideFlapShape = useMemo(() => {
-  const shape = new Shape()
-  // ... วาด outline + step cut ที่มุม
-  // เจาะ slot 2 อัน เป็น hole
-  const slot1 = new Path()
-  slot1.moveTo(slot1X, slotTopY)
-  slot1.lineTo(slot1X + slotWidth, slotTopY)
-  slot1.lineTo(slot1X + slotWidth, slotTopY - slotHeight)
-  slot1.lineTo(slot1X, slotTopY - slotHeight)
-  slot1.closePath()
-  shape.holes.push(slot1)
-  // slot2 เหมือนกัน เปลี่ยนแค่ X
-  return shape
-}, [d, h, t])
-```
-
----
-
-### ความสัมพันธ์ Flap Height กับ D (สรุป)
-
-| Panel | ความสูง | เหตุผล |
-|---|---|---|
-| Top Flap (tongue) | `d * 0.95` | สอดเข้า slot ได้พอดี |
-| Top Inner Flap | `d * 0.85` | สั้นกว่า Top Flap นิดนึง ไม่ชน |
-| Bottom Flap | `d * 0.95` | ปิดก้นได้พอดี |
-| Bottom Inner Flap | `d * 0.85` | รองรับ Bottom Flap |
-| Side Flap (width) | `d` | เท่ากับความลึกกล่องพอดี |
-
----
-
-### Edge Case ที่ต้องรองรับ
-
-```
-// ทดสอบ 3 ขนาดนี้ — ทุก panel ต้องแสดงถูกต้อง ไม่ทับ ไม่หาย
-กล่องเล็ก:  width=10, height=8,  depth=3   → slot ต้องไม่เล็กจนมองไม่เห็น
-กล่องใหญ่: width=60, height=40, depth=20  → tongue ต้องโค้งสวยสมส่วน
-กล่องแบน:  width=30, height=5,  depth=3   → inner flap ต้องไม่ overflow ออกนอก front panel
-
-// Guard ป้องกัน slot เล็กเกินไป
-const slotHeight = Math.max(d * 0.35, t * 3)  // ← ต้องใหญ่กว่าความหนาขั้นต่ำ
-const slotWidth  = Math.max(t * 1.5,  0.02)   // ← ต้องมองเห็นได้เสมอ
+  ├── <DepthPanel side="left"  />   ← ShapeGeometry + 2 slots
+  ├── <DepthPanel side="right" />
+  ├── <SlotStrip side="left"   />   ← ShapeGeometry lock tabs
+  ├── <SlotStrip side="right"  />
+  ├── <TopFlap />                   ← ShapeGeometry arc จาก SVG path
+  └── <BottomFlap />                ← ShapeGeometry snap lock
 ```
 
 ---
@@ -240,8 +278,9 @@ const slotWidth  = Math.max(t * 1.5,  0.02)   // ← ต้องมองเห
 ## หมายเหตุสำคัญ
 
 1. **ห้ามใช้ GLB** — geometry ทั้งหมดสร้างจาก Three.js
-2. **ทุก dimension ต้องคำนวณจาก w, h, d** — ห้าม hardcode ตัวเลข
-3. **ใช้ `DoubleSide`** กับทุก material เพื่อให้เห็นทั้งสองหน้า
-4. **pivot point ของทุก flap** ต้องอยู่ที่ขอบที่ติดกับ Front Panel เสมอ (เพื่อ Phase 2)
-5. **`useMemo` + deps ครบ** สำหรับ ShapeGeometry ทุกตัว — ถ้า deps ขาดจะไม่ update เมื่อปรับขนาด
-6. **ใส่ guard** ป้องกัน slot/tongue เล็กเกินไปเมื่อ depth น้อยมาก
+2. **ทุก dimension ต้องคำนวณจาก w, h, d เป็น ratio** — ห้าม hardcode ตัวเลขลอย
+3. **ใช้ `DoubleSide`** กับทุก material
+4. **`useMemo` + deps ครบ** สำหรับ ShapeGeometry ทุกตัว — `[w, d]`, `[d, h, t]` ฯลฯ
+5. **pivot point** ของทุก flap ต้องอยู่ที่ขอบ crease (เพื่อ Phase 2)
+6. **ป้องกัน Z-fighting** ด้วย Y offset `t * n` ในแต่ละ layer
+7. **Guard** slot ไม่ให้เล็กเกินไป: `Math.max(slotW, t*1.5)`
