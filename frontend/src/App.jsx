@@ -21,6 +21,7 @@ import ChatWindow from './components/Chatbot/ChatWindow';
 import StudioPanel from './components/Panels/StudioPanel';
 import SummaryPanel from './components/Panels/SummaryPanel';
 import BoxViewer from './components/Box3D/BoxViewer';
+import DielineViewer from './components/Dieline/DielineViewer';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import CheckoutPage from './pages/CheckoutPage';
@@ -82,6 +83,9 @@ function AppLayout() {
 
   // --- Mobile view toggle ---
   const [mobileView, setMobileView] = useState('chat'); // 'chat' | '3d'
+
+  // --- Center panel view mode ---
+  const [centerView, setCenterView] = useState('3d'); // '3d' | 'dieline'
 
   // --- Auth ---
   const { user, profile, signOut } = useAuth();
@@ -505,14 +509,42 @@ function AppLayout() {
           ${mobileView === '3d' ? 'max-md:block' : 'max-md:hidden md:block'}
         `}
       >
-        <BoxViewer
-          width={displayDims.length}
-          height={displayDims.height}
-          depth={displayDims.width}
-          image={image}
-          isDanger={isDanger}
-          boxType={boxType}
-        />
+        {centerView === '3d' ? (
+          <BoxViewer
+            width={displayDims.length}
+            height={displayDims.height}
+            depth={displayDims.width}
+            image={image}
+            isDanger={isDanger}
+            boxType={boxType}
+          />
+        ) : (
+          <DielineViewer
+            width={displayDims.length * 10}
+            height={displayDims.height * 10}
+            depth={displayDims.width * 10}
+          />
+        )}
+
+        {/* View mode toggle (3D / 2D Dieline) */}
+        <div className="absolute top-3 right-3 z-10 flex rounded-lg overflow-hidden border border-panel-border bg-panel-darker/80 backdrop-blur-sm">
+          <button
+            onClick={() => setCenterView('3d')}
+            className={`px-3 py-1.5 text-[11px] font-mono transition-colors ${
+              centerView === '3d' ? 'text-lumo-400 bg-panel-surface' : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            3D
+          </button>
+          <button
+            onClick={() => setCenterView('dieline')}
+            className={`px-3 py-1.5 text-[11px] font-mono transition-colors ${
+              centerView === 'dieline' ? 'text-lumo-400 bg-panel-surface' : 'text-zinc-500 hover:text-zinc-300'
+            }`}
+          >
+            2D Dieline
+          </button>
+        </div>
 
         {/* Left panel toggle button */}
         <button
