@@ -1,22 +1,29 @@
 /**
  * DielineViewer — SVG-based 2D dieline renderer
  *
- * Two modes:
- * 1. DXF mode (default for 500x300x80): renders exact DXF geometry
- * 2. Parametric mode: uses the parametric engine for custom dimensions
- *
+ * Renders exact DXF geometry directly from parsed DXF file.
  * Shows cut lines (red) and crease/fold lines (green dashed).
  * Supports pan & zoom via mouse/touch.
+ * Click on lines to inspect vertex coordinates in Console.
  */
 
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import { parseDxf } from '../../engine/dxfParser';
-import { scaleDxfData } from '../../engine/parametric/dxfScaler';
 import dxfRaw from '../../assets/500x300x80mm-folding-box.dxf?raw';
 
 const CUT_COLOR = '#cc2222';
 const CREASE_COLOR = '#22aa44';
 const GRID_COLOR = 'rgba(255,255,255,0.04)';
+
+// Convert SVG client coords to DXF coords (Y is flipped)
+function svgPointToDxf(svg, clientX, clientY) {
+  const pt = svg.createSVGPoint();
+  pt.x = clientX;
+  pt.y = clientY;
+  const ctm = svg.getScreenCTM().inverse();
+  const svgPt = pt.matrixTransform(ctm);
+  return { x: parseFloat(svgPt.x.toFixed(2)), y: parseFloat((-svgPt.y).toFixed(2)) };
+}
 
 function polylineToPath(points) {
   if (!points || points.length < 2) return '';
@@ -32,12 +39,8 @@ export default function DielineViewer({ width = 500, height = 300, depth = 80 })
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [viewBoxStart, setViewBoxStart] = useState(null);
 
-  // Parse reference DXF once, then scale to current dimensions
-  const refDxf = useMemo(() => parseDxf(dxfRaw), []);
-  const dieline = useMemo(
-    () => scaleDxfData(refDxf, width, height, depth, 3),
-    [refDxf, width, height, depth]
-  );
+  // Parse DXF once — render raw geometry directly, no scaling
+  const dieline = useMemo(() => parseDxf(dxfRaw), []);
 
   // Compute initial viewBox from bounds
   const initialViewBox = useMemo(() => {
@@ -111,12 +114,21 @@ export default function DielineViewer({ width = 500, height = 300, depth = 80 })
     setViewBox(initialViewBox);
   }, [initialViewBox]);
 
+  // Click on SVG background to log DXF coordinates
+  const handleClick = useCallback((e) => {
+    if (isPanning) return;
+    const svg = svgRef.current;
+    if (!svg) return;
+    const dxfPt = svgPointToDxf(svg, e.clientX, e.clientY);
+    console.log(`%c[Click] DXF coords: (${dxfPt.x}, ${dxfPt.y})`, 'color: #00ff88; font-weight: bold');
+  }, [isPanning]);
+
   // Stroke widths relative to view
   const cutStroke = Math.max(0.8, vb.w * 0.002);
   const creaseStroke = Math.max(0.5, vb.w * 0.0012);
   const dashPattern = `${vb.w * 0.006} ${vb.w * 0.004}`;
 
-  // Cut paths
+  // Cut paths — click to inspect vertices
   const cutPaths = useMemo(() =>
     dieline.cut.map((polyline, i) => (
       <path
@@ -127,12 +139,19 @@ export default function DielineViewer({ width = 500, height = 300, depth = 80 })
         strokeWidth={cutStroke}
         strokeLinejoin="round"
         strokeLinecap="round"
+        style={{ cursor: 'crosshair', pointerEvents: 'stroke' }}
+        onClick={(e) => {
+          e.stopPropagation();
+          console.log(`%c[Cut #${i}] ${polyline.length} vertices`, 'color: #ff4444; font-weight: bold');
+          console.log(polyline.map(([x, y]) => `(${x.toFixed(2)}, ${y.toFixed(2)})`).join(' → '));
+          console.table(polyline.map(([x, y], j) => ({ vertex: j, x: +x.toFixed(2), y: +y.toFixed(2) })));
+        }}
       />
     )),
     [dieline.cut, cutStroke]
   );
 
-  // Crease paths
+  // Crease paths — click to inspect vertices
   const creasePaths = useMemo(() =>
     dieline.crease.map((polyline, i) => (
       <path
@@ -143,6 +162,13 @@ export default function DielineViewer({ width = 500, height = 300, depth = 80 })
         strokeWidth={creaseStroke}
         strokeDasharray={dashPattern}
         strokeLinejoin="round"
+        style={{ cursor: 'crosshair', pointerEvents: 'stroke' }}
+        onClick={(e) => {
+          e.stopPropagation();
+          console.log(`%c[Crease #${i}] ${polyline.length} vertices`, 'color: #22ff44; font-weight: bold');
+          console.log(polyline.map(([x, y]) => `(${x.toFixed(2)}, ${y.toFixed(2)})`).join(' → '));
+          console.table(polyline.map(([x, y], j) => ({ vertex: j, x: +x.toFixed(2), y: +y.toFixed(2) })));
+        }}
       />
     )),
     [dieline.crease, creaseStroke, dashPattern]
@@ -184,6 +210,7 @@ export default function DielineViewer({ width = 500, height = 300, depth = 80 })
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
+        onClick={handleClick}
         style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
       >
         {gridLines}
@@ -204,7 +231,7 @@ export default function DielineViewer({ width = 500, height = 300, depth = 80 })
       {/* Dimension info */}
       <div className="absolute bottom-3 left-3 bg-panel-darker/80 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-panel-border">
         <span className="text-[11px] font-mono text-zinc-400">
-          {width} x {depth} x {height} mm
+          {width} x {depth} x {height} mm (DXF reference: 500x80x300)
         </span>
       </div>
 
