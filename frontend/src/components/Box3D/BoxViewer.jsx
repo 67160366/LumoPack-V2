@@ -12,8 +12,8 @@
  * - HeatmapBox:  danger mode (heatmap shader)
  * - PanelBox:    กล่องจากแผ่นพับ (die-cut, tuck-end, ear-lock)
  */
-
-import { useRef, Suspense } from 'react';
+  
+import { useRef, useState, Suspense } from 'react';
 import { Canvas, useFrame, useLoader } from '@react-three/fiber';
 import { OrbitControls, ContactShadows, Environment } from '@react-three/drei';
 import { TextureLoader, DoubleSide } from 'three';
@@ -272,7 +272,7 @@ function EarLockPanelBox({ width, height, depth }) {
 /* ============================================================
  * PanelBox — dispatcher ตาม boxType
  * ========================================================== */
-function PanelBox({ width, height, depth, boxType }) {
+function PanelBox({ width, height, depth, boxType, foldProgress }) {
   switch (boxType) {
     case 'tuck_end':
       return <TuckEndPanelBox width={width} height={height} depth={depth} />;
@@ -280,16 +280,39 @@ function PanelBox({ width, height, depth, boxType }) {
       return <EarLockPanelBox width={width} height={height} depth={depth} />;
     case 'die_cut':
     default:
-      return <DieCutBox width={width} height={height} depth={depth} />;
+      return <DieCutBox width={width} height={height} depth={depth} foldProgress={foldProgress} />;
   }
 }
 
 /* ============================================================
  * BoxViewer Container
  * ========================================================== */
+const FOLD_STEPS = [
+  'กางกล่องแบนราบ',
+  'ตั้งผนังด้านข้าง',
+  'พับปีกยึดด้านข้าง',
+  'พับผนังหน้า-หลัง',
+  'พับปีกฝากล่อง',
+  'ปิดฝากล่อง',
+  'เสียบตัวล็อค',
+];
+
+function getFoldStepIndex(p) {
+  if (p === 0) return 0;
+  if (p < 0.15) return 1;
+  if (p < 0.30) return 2;
+  if (p < 0.45) return 3;
+  if (p < 0.60) return 4;
+  if (p < 0.80) return 5;
+  return 6;
+}
+
 export default function BoxViewer({ width, height, depth, image, isDanger, boxType = 'rsc' }) {
+  const [foldProgress, setFoldProgress] = useState(0);
   const showTexture = image && !isDanger;
   const usePanelBox = boxType !== 'rsc' && !showTexture && !isDanger;
+  const showFoldSlider = usePanelBox && boxType === 'die_cut';
+  const activeStep = getFoldStepIndex(foldProgress);
 
   return (
     <div className="w-full h-full relative">
@@ -308,7 +331,7 @@ export default function BoxViewer({ width, height, depth, image, isDanger, boxTy
           ) : isDanger ? (
             <HeatmapBox width={width} height={height} depth={depth} />
           ) : usePanelBox ? (
-            <PanelBox width={width} height={height} depth={depth} boxType={boxType} />
+            <PanelBox width={width} height={height} depth={depth} boxType={boxType} foldProgress={foldProgress} />
           ) : (
             <PlainBox width={width} height={height} depth={depth} />
           )}
@@ -318,6 +341,37 @@ export default function BoxViewer({ width, height, depth, image, isDanger, boxTy
         <OrbitControls makeDefault />
         <gridHelper args={[20, 20, '#2e3139', '#22252d']} />
       </Canvas>
+
+      {/* Fold slider overlay */}
+      {showFoldSlider && (
+        <div className="absolute top-3 right-3 bg-panel-darker/85 backdrop-blur-sm rounded-xl px-4 py-3 border border-panel-border w-56">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-[11px] font-mono text-zinc-400">การพับกล่อง</span>
+            <span className="text-[11px] font-mono text-emerald-400">{Math.round(foldProgress * 100)}%</span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            step="0.5"
+            value={foldProgress * 100}
+            onChange={(e) => setFoldProgress(parseFloat(e.target.value) / 100)}
+            className="w-full h-1.5 rounded-full appearance-none cursor-pointer accent-emerald-500 bg-zinc-700"
+          />
+          <ul className="mt-3 space-y-0.5">
+            {FOLD_STEPS.map((label, i) => (
+              <li
+                key={i}
+                className={`text-[10px] font-mono ${
+                  i === activeStep ? 'text-emerald-400 font-semibold' : 'text-zinc-500'
+                }`}
+              >
+                {i + 1}. {label}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Dimension label overlay */}
       <div className="absolute bottom-3 left-3 bg-panel-darker/80 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-panel-border">

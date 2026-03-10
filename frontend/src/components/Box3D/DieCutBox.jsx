@@ -1,443 +1,231 @@
 /**
- * DieCutBox — Procedural 13-Panel Dieline with Fold Hierarchy
+ * DieCutBox — Mailer box with pivot-based fold animation.
+ * Ported from diecut.html (vanilla Three.js) to React Three Fiber.
  *
- * ทุก panel สร้างจาก procedural geometry — ไม่ใช้ SVGLoader, ไม่ hardcode ขนาด
- * W/H/D ปรับแยกกันได้อิสระ แต่ละ panel scale ตามมิติที่ถูกต้อง
- *
- * อ้างอิงสัดส่วนจาก: 500x300x80mm-folding-box.svg (877×858 viewBox)
- *
- * Fold hierarchy (Phase 1 = flat, fold angles = 0):
- *
- *   FRONT (root, center)
- *     ├─ DEPTH_L → SLOT_STRIP_L       (pivot: front left edge,  fold Z)
- *     ├─ DEPTH_R → SLOT_STRIP_R       (pivot: front right edge, fold Z)
- *     ├─ DEPTH_STRIP → BACK           (pivot: front top edge,   fold X)
- *     │    ├─ BACK_FLAP_L / _R        (pivot: back side edges,  fold Z)
- *     │    ├─ TONGUE                   (pivot: back top edge,    fold X)
- *     │    └─ DEPTH_EXT_L / _R
- *     └─ BOTTOM_FLAP                  (pivot: front bottom edge, fold X)
- *
- * Center (0,0,0) = center of FRONT PANEL on XZ plane
+ * Architecture: nested <group> hierarchy where each group's position
+ * is the fold pivot and rotation animates the fold.
  */
 
 import { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Shape, DoubleSide } from 'three';
-import { Line } from '@react-three/drei';
-import useCorrugatedTexture from './useCorrugatedTexture';
-
-// ─── SVG-derived proportional constants ──────────────────────
-// All ratios from the 500×300×80mm reference SVG.
-// Format: FEATURE_RATIO = svgMeasure / referenceDimension
-
-const BACK_INSET = 9 / 500;              // back panel inset per side (× W)
-
-const SLOT_TAB_W = 10.5 / 80;            // slot tab width on depth panel (× D)
-const SLOT_TAB_H = 60 / 300;             // slot tab height (× H)
-const SLOT_POS_1 = 81.5 / 303;           // lower slot center from bottom (× H)
-const SLOT_POS_2 = 221.5 / 303;          // upper slot center from bottom (× H)
-
-const STRIP_OFFSET = 4.5 / 80;           // slot strip body inset (× D)
-const STRIP_NOTCH_H = 54.8 / 303;        // slot strip notch height (× H)
-const STRIP_NOTCH_TIP = 2.6 / 303;       // notch tip overshoot (× H)
-
-const FLAP_TAPER_X = 71.7 / 80;          // back flap diagonal X (× D)
-const FLAP_TAPER_Y = 12.6 / 300;         // back flap diagonal Y (× H)
-const FLAP_CORNER_R = 10 / 80;           // back flap corner radius (× D)
-
-const TONGUE_DIAG_Y = 6.522 / 80;        // tongue diagonal Y offset (× D)
-const TONGUE_PEAK_Y = 12.27 / 80;        // tongue peak Y (× D)
-const TONGUE_SMALL_R = 5 / 80;           // tongue transition arc (× D)
+import * as THREE from 'three';
 
 const HP = Math.PI / 2;
+const CARD_COLOR = '#dfb48c';
+const EDGE_COLOR = '#b48255';
 
-// ─── Shape generators ───────────────────────────────────────
-
-/**
- * Depth panel: D×H rectangle with 2 slot tab rectangles on outer edge.
- * Shape origin = center of the D×H body. Tabs extend in +X.
- */
-function createDepthPanelShape(d, h) {
-  const tabW = SLOT_TAB_W * d;
-  const tabH = SLOT_TAB_H * h;
-  const s1 = SLOT_POS_1 * h;   // lower slot center from bottom
-  const s2 = SLOT_POS_2 * h;   // upper slot center from bottom
-
-  const s = new Shape();
-  s.moveTo(-d / 2, -h / 2);
-  s.lineTo(d / 2, -h / 2);
-
-  // Right edge going up — insert 2 tab rectangles
-  s.lineTo(d / 2, -h / 2 + s1 - tabH / 2);
-  s.lineTo(d / 2 + tabW, -h / 2 + s1 - tabH / 2);
-  s.lineTo(d / 2 + tabW, -h / 2 + s1 + tabH / 2);
-  s.lineTo(d / 2, -h / 2 + s1 + tabH / 2);
-
-  s.lineTo(d / 2, -h / 2 + s2 - tabH / 2);
-  s.lineTo(d / 2 + tabW, -h / 2 + s2 - tabH / 2);
-  s.lineTo(d / 2 + tabW, -h / 2 + s2 + tabH / 2);
-  s.lineTo(d / 2, -h / 2 + s2 + tabH / 2);
-
-  s.lineTo(d / 2, h / 2);
-  s.lineTo(-d / 2, h / 2);
-  s.closePath();
-  return s;
+/* ── smoothstep easing for fold stages ── */
+function getStage(p, start, end) {
+  if (p <= start) return 0;
+  if (p >= end) return 1;
+  const t = (p - start) / (end - start);
+  return t * t * (3 - 2 * t);
 }
 
-/**
- * Slot strip: D×H with pointed V-notch indentations on inner edge.
- * Body is inset by STRIP_OFFSET from outer edge.
- * Shape origin = center. Notches indent from +X (inner) toward -X (outer).
- */
-function createSlotStripShape(d, h) {
-  const bodyOff = STRIP_OFFSET * d;
-  const notchH = STRIP_NOTCH_H * h;
-  const tipDy = STRIP_NOTCH_TIP * h;
-  const s1 = SLOT_POS_1 * h;
-  const s2 = SLOT_POS_2 * h;
+/* ── Single panel: shape mesh + edge lines ── */
+function Panel({ shape }) {
+  const geo = useMemo(() => new THREE.ShapeGeometry(shape), [shape]);
+  const edges = useMemo(() => new THREE.EdgesGeometry(geo), [geo]);
 
-  const innerX = d / 2;
-  const outerX = -d / 2;
-  const bodyX = outerX + bodyOff; // body edge (slightly inset from outer)
-
-  const s = new Shape();
-  s.moveTo(innerX, -h / 2);
-  s.lineTo(bodyX, -h / 2);
-
-  // Outer edge going up with 2 V-notch indentations
-  const n1b = -h / 2 + s1 - notchH / 2;
-  const n1t = -h / 2 + s1 + notchH / 2;
-  const n2b = -h / 2 + s2 - notchH / 2;
-  const n2t = -h / 2 + s2 + notchH / 2;
-
-  s.lineTo(bodyX, n1b - tipDy);
-  s.lineTo(outerX, n1b);
-  s.lineTo(outerX, n1t);
-  s.lineTo(bodyX, n1t + tipDy);
-
-  s.lineTo(bodyX, n2b - tipDy);
-  s.lineTo(outerX, n2b);
-  s.lineTo(outerX, n2t);
-  s.lineTo(bodyX, n2t + tipDy);
-
-  s.lineTo(bodyX, h / 2);
-  s.lineTo(innerX, h / 2);
-  s.closePath();
-  return s;
-}
-
-/**
- * Back flap: tapered shape with rounded corners (for LEFT side).
- * Inner edge (right, +X) is full height. Outer edge tapers with arcs.
- * Shape origin = center of bounding box.
- */
-function createBackFlapShape(d, h) {
-  const tx = FLAP_TAPER_X * d;
-  const ty = FLAP_TAPER_Y * h;
-  const r = FLAP_CORNER_R * d;
-
-  const s = new Shape();
-
-  // Start at inner-top, go clockwise
-  s.moveTo(d / 2, h / 2);
-
-  // Top diagonal: inner-top → toward outer edge
-  s.lineTo(d / 2 - tx, h / 2 - ty);
-  s.quadraticCurveTo(-d / 2, h / 2 - ty, -d / 2, h / 2 - ty - r);
-
-  // Outer edge (vertical)
-  s.lineTo(-d / 2, -h / 2 + ty + r);
-
-  // Bottom diagonal: outer → inner-bottom
-  s.quadraticCurveTo(-d / 2, -h / 2 + ty, d / 2 - tx, -h / 2 + ty);
-  s.lineTo(d / 2, -h / 2);
-
-  s.closePath();
-  return s;
-}
-
-/**
- * Tongue: (W + 2·extend) wide, D tall, with dome arc on top.
- * Extends ≈D beyond back panel on each side.
- * Shape origin = bottom-center (at crease line).
- *
- * SVG ref: R=5 transition arcs + R=D main arcs forming the dome.
- */
-function createTongueShape(w, d) {
-  const extend = d;
-  const fw = w;
-  const fh = d;
-  const smallR = TONGUE_SMALL_R * d;
-  const diagY = TONGUE_DIAG_Y * d;
-  const peakY = TONGUE_PEAK_Y * d;
-
-  const s = new Shape();
-
-  // Bottom edge (crease)
-  s.moveTo(-fw / 2, 0);
-  s.lineTo(fw / 2, 0);
-
-  // Right side: diagonal up to R=5 transition
-  s.lineTo(fw / 2 + extend - smallR * 2, diagY);
-  s.quadraticCurveTo(fw / 2 + extend, diagY, fw / 2 + extend, peakY);
-
-  // Right R=D arc sweeping up to top
-  s.bezierCurveTo(
-    fw / 2 + extend, fh * 0.45,
-    fw / 2 + extend * 0.5, fh * 0.92,
-    fw / 2, fh,
+  return (
+    <mesh rotation={[-HP, 0, 0]} castShadow receiveShadow>
+      <primitive object={geo} attach="geometry" />
+      <meshStandardMaterial color={CARD_COLOR} side={THREE.DoubleSide} roughness={0.9} />
+      <lineSegments>
+        <primitive object={edges} attach="geometry" />
+        <lineBasicMaterial color={EDGE_COLOR} transparent opacity={0.5} />
+      </lineSegments>
+    </mesh>
   );
-
-  // Top edge
-  s.lineTo(-fw / 2, fh);
-
-  // Left R=D arc sweeping down (mirror)
-  s.bezierCurveTo(
-    -fw / 2 - extend * 0.5, fh * 0.92,
-    -fw / 2 - extend, fh * 0.45,
-    -fw / 2 - extend, peakY,
-  );
-
-  // Left R=5 transition + diagonal
-  s.quadraticCurveTo(-fw / 2 - extend, diagY, -fw / 2 - extend + smallR * 2, diagY);
-  s.lineTo(-fw / 2, 0);
-
-  s.closePath();
-  return s;
 }
 
-// ─── Outline helpers ──────────────────────────────────────────
-
-const LINE_COLOR = '#ff0000';
-const LINE_WIDTH = 1.5;
-
-/** Red outline for a rectangle (used with planeGeometry panels) */
-function RectOutline({ w, h }) {
-  const points = useMemo(() => [
-    [-w / 2, -h / 2, 0],
-    [w / 2, -h / 2, 0],
-    [w / 2, h / 2, 0],
-    [-w / 2, h / 2, 0],
-    [-w / 2, -h / 2, 0],
-  ], [w, h]);
-  return <Line points={points} color={LINE_COLOR} lineWidth={LINE_WIDTH} />;
-}
-
-/** Red outline from a Three.js Shape (used with shapeGeometry panels) */
-function ShapeOutline({ shape }) {
-  const points = useMemo(() => {
-    const pts = shape.getPoints(64);
-    const arr = pts.map(p => [p.x, p.y, 0]);
-    arr.push(arr[0]); // close loop
-    return arr;
-  }, [shape]);
-  return <Line points={points} color={LINE_COLOR} lineWidth={LINE_WIDTH} />;
-}
-
-// ─── Main Component ─────────────────────────────────────────
-
-export default function DieCutBox({ width, height, depth }) {
+/* ── Main component ── */
+export default function DieCutBox({ width, height, depth, foldProgress = 0 }) {
   const group = useRef();
-  const map = useCorrugatedTexture();
+
+  // Convert cm props → scene units (same scale as diecut.html)
+  const W = (width || 50) / 10;
+  const H = (height || 30) / 10;
+  const D = (depth || 8) / 10;
+
+  // Slow auto-rotate
   useFrame((_s, dt) => {
     if (group.current) group.current.rotation.y += dt * 0.08;
   });
 
-  // cm → scene units
-  const W = width / 10;
-  const H = height / 10;
-  const D = depth / 10;
-  const t = 0.015; // z-fighting offset per layer
+  // Build all shapes (memoized on dimensions)
+  const shapes = useMemo(() => {
+    const chamfer = 0.15;
+    const tabW = D * 0.48;
+    const tabH = H * 0.96;
+    const tw = W * 0.96;
+    const th = H * 0.6;
+    const ew = H * 0.85;
+    const eStart = D * 0.1;
+    const eEnd = D * 0.9;
 
-  // Derived
-  const inset = BACK_INSET * W;
-  const bw = W - 2 * inset; // back panel width
+    // Base
+    const base = new THREE.Shape();
+    base.moveTo(-W / 2, -D / 2);
+    base.lineTo(W / 2, -D / 2);
+    base.lineTo(W / 2, D / 2);
+    base.lineTo(-W / 2, D / 2);
 
-  const matProps = { map, roughness: 0.85, side: DoubleSide };
-  const flat = [-HP, 0, 0]; // rotation to lay shape flat on XZ
+    // Back wall
+    const back = new THREE.Shape();
+    back.moveTo(-W / 2, 0);
+    back.lineTo(W / 2, 0);
+    back.lineTo(W / 2, H);
+    back.lineTo(-W / 2, H);
 
-  // Pre-compute shapes (recalculate when dimensions change)
-  const shapes = useMemo(() => ({
-    depthPanel: createDepthPanelShape(D, H),
-    slotStrip: createSlotStripShape(D, H),
-    backFlap: createBackFlapShape(D, H),
-    tongue: createTongueShape(W, D),
-  }), [W, H, D, bw]);
+    // Front wall
+    const front = new THREE.Shape();
+    front.moveTo(-W / 2, 0);
+    front.lineTo(W / 2, 0);
+    front.lineTo(W / 2, -H);
+    front.lineTo(-W / 2, -H);
+
+    // Left wall
+    const left = new THREE.Shape();
+    left.moveTo(0, -D / 2);
+    left.lineTo(-H, -D / 2);
+    left.lineTo(-H, D / 2);
+    left.lineTo(0, D / 2);
+
+    // Right wall
+    const right = new THREE.Shape();
+    right.moveTo(0, -D / 2);
+    right.lineTo(H, -D / 2);
+    right.lineTo(H, D / 2);
+    right.lineTo(0, D / 2);
+
+    // Left-front tab
+    const lft = new THREE.Shape();
+    lft.moveTo(0, 0);
+    lft.lineTo(-tabH, 0);
+    lft.lineTo(-tabH, -tabW + chamfer);
+    lft.lineTo(-tabH + chamfer, -tabW);
+    lft.lineTo(0, -tabW);
+
+    // Left-back tab
+    const lbt = new THREE.Shape();
+    lbt.moveTo(0, 0);
+    lbt.lineTo(-tabH, 0);
+    lbt.lineTo(-tabH, tabW - chamfer);
+    lbt.lineTo(-tabH + chamfer, tabW);
+    lbt.lineTo(0, tabW);
+
+    // Right-front tab
+    const rft = new THREE.Shape();
+    rft.moveTo(0, 0);
+    rft.lineTo(tabH, 0);
+    rft.lineTo(tabH, -tabW + chamfer);
+    rft.lineTo(tabH - chamfer, -tabW);
+    rft.lineTo(0, -tabW);
+
+    // Right-back tab
+    const rbt = new THREE.Shape();
+    rbt.moveTo(0, 0);
+    rbt.lineTo(tabH, 0);
+    rbt.lineTo(tabH, tabW - chamfer);
+    rbt.lineTo(tabH - chamfer, tabW);
+    rbt.lineTo(0, tabW);
+
+    // Lid
+    const lid = new THREE.Shape();
+    lid.moveTo(-W / 2, 0);
+    lid.lineTo(W / 2, 0);
+    lid.lineTo(W / 2, D);
+    lid.lineTo(-W / 2, D);
+
+    // Tuck flap
+    const tuck = new THREE.Shape();
+    tuck.moveTo(-tw / 2, 0);
+    tuck.lineTo(tw / 2, 0);
+    tuck.lineTo(tw / 2 - 0.1, th - 0.1);
+    tuck.quadraticCurveTo(tw / 2 - 0.15, th, tw / 2 - 0.3, th);
+    tuck.lineTo(-tw / 2 + 0.3, th);
+    tuck.quadraticCurveTo(-tw / 2 + 0.15, th, -tw / 2 + 0.1, th - 0.1);
+
+    // Left ear
+    const earL = new THREE.Shape();
+    earL.moveTo(0, eStart);
+    earL.lineTo(-ew + 0.1, eStart);
+    earL.quadraticCurveTo(-ew, eStart + 0.1, -ew, eStart + 0.3);
+    earL.lineTo(-ew, eEnd - 0.3);
+    earL.quadraticCurveTo(-ew + 0.1, eEnd, -ew + 0.3, eEnd);
+    earL.lineTo(0, eEnd);
+
+    // Right ear
+    const earR = new THREE.Shape();
+    earR.moveTo(0, eStart);
+    earR.lineTo(ew - 0.1, eStart);
+    earR.quadraticCurveTo(ew, eStart + 0.1, ew, eStart + 0.3);
+    earR.lineTo(ew, eEnd - 0.3);
+    earR.quadraticCurveTo(ew - 0.1, eEnd, ew - 0.3, eEnd);
+    earR.lineTo(0, eEnd);
+
+    return { base, back, front, left, right, lft, lbt, rft, rbt, lid, tuck, earL, earR };
+  }, [W, H, D]);
+
+  // Fold angles
+  const p = foldProgress;
+  const lift     = getStage(p, 0, 0.10) * 0.05;
+  const sideFold = getStage(p, 0.05, 0.20) * HP;
+  const tabFold  = getStage(p, 0.20, 0.35) * HP;
+  const fbFold   = getStage(p, 0.35, 0.50) * HP;
+  const earFold  = getStage(p, 0.50, 0.65) * (Math.PI / 1.95);
+  const lidFold  = getStage(p, 0.65, 0.85) * (HP * 0.99);
+  const tuckFold = getStage(p, 0.85, 1.00) * (HP * 0.98);
 
   return (
-    <group ref={group} position={[0, 0.01, 0]}>
+    <group ref={group} position={[0, lift, 0]}>
+      {/* Base */}
+      <Panel shape={shapes.base} />
 
-      {/* ═══════════════════════════════════════════════
-       *  1. FRONT PANEL (root, center reference)
-       *     W × H, centered at origin
-       * ═══════════════════════════════════════════════ */}
-      <mesh rotation={flat}>
-        <planeGeometry args={[W, H]} />
-        <meshStandardMaterial {...matProps} />
-      </mesh>
-      <group position={[0, t * 3, 0]} rotation={flat}>
-        <RectOutline w={W} h={H} />
-      </group>
-
-      {/* ═══════════════════════════════════════════════
-       *  LEFT SIDE CHAIN
-       *  pivot: front panel left edge → fold around Z
-       * ═══════════════════════════════════════════════ */}
-      <group position={[-W / 2, 0, 0]}>
-
-        {/* 7. DEPTH_L — D×H with slot tabs */}
-        <mesh position={[-D / 2, t, 0]} rotation={flat}>
-          <shapeGeometry args={[shapes.depthPanel]} />
-          <meshStandardMaterial {...matProps} />
-        </mesh>
-        <group position={[-D / 2, t * 4, 0]} rotation={flat}>
-          <ShapeOutline shape={shapes.depthPanel} />
-        </group>
-
-        {/* pivot: depth panel outer edge → slot strip */}
-        <group position={[-D, 0, 0]}>
-
-          {/* 11. SLOT_STRIP_L — D×H with V-notches */}
-          <mesh position={[-D / 2, t * 2, 0]} rotation={flat}>
-            <shapeGeometry args={[shapes.slotStrip]} />
-            <meshStandardMaterial {...matProps} />
-          </mesh>
-          <group position={[-D / 2, t * 5, 0]} rotation={flat}>
-            <ShapeOutline shape={shapes.slotStrip} />
+      {/* Back wall → Lid → Tuck + Ears */}
+      <group position={[0, 0, -D / 2]} rotation={[fbFold, 0, 0]}>
+        <Panel shape={shapes.back} />
+        <group position={[0, 0, -H]} rotation={[lidFold, 0, 0]}>
+          <Panel shape={shapes.lid} />
+          <group position={[0, 0, -D]} rotation={[tuckFold, 0, 0]}>
+            <Panel shape={shapes.tuck} />
           </group>
-
-        </group>
-      </group>
-
-      {/* ═══════════════════════════════════════════════
-       *  RIGHT SIDE CHAIN (mirror of left)
-       *  pivot: front panel right edge → fold around Z
-       * ═══════════════════════════════════════════════ */}
-      <group position={[W / 2, 0, 0]}>
-
-        {/* 8. DEPTH_R */}
-        <mesh position={[D / 2, t, 0]} rotation={flat} scale={[-1, 1, 1]}>
-          <shapeGeometry args={[shapes.depthPanel]} />
-          <meshStandardMaterial {...matProps} />
-        </mesh>
-        <group position={[D / 2, t * 4, 0]} rotation={flat} scale={[-1, 1, 1]}>
-          <ShapeOutline shape={shapes.depthPanel} />
-        </group>
-
-        <group position={[D, 0, 0]}>
-
-          {/* 12. SLOT_STRIP_R */}
-          <mesh position={[D / 2, t * 2, 0]} rotation={flat} scale={[-1, 1, 1]}>
-            <shapeGeometry args={[shapes.slotStrip]} />
-            <meshStandardMaterial {...matProps} />
-          </mesh>
-          <group position={[D / 2, t * 5, 0]} rotation={flat} scale={[-1, 1, 1]}>
-            <ShapeOutline shape={shapes.slotStrip} />
+          <group position={[-W / 2 + 0.03, 0, 0]} rotation={[0, 0, -earFold]}>
+            <Panel shape={shapes.earL} />
           </group>
-
-        </group>
-      </group>
-
-      {/* ═══════════════════════════════════════════════
-       *  TOP CHAIN
-       *  pivot: front panel top edge → fold around X
-       * ═══════════════════════════════════════════════ */}
-      <group position={[0, 0, -H / 2]}>
-
-        {/* 2. DEPTH_STRIP — W × D */}
-        <mesh position={[0, t * 0.5, -D / 2]} rotation={flat}>
-          <planeGeometry args={[W, D]} />
-          <meshStandardMaterial {...matProps} />
-        </mesh>
-        <group position={[0, t * 3, -D / 2]} rotation={flat}>
-          <RectOutline w={W} h={D} />
-        </group>
-
-        {/* 9. DEPTH_EXT_L — D × D (connects depth_L top to depth strip) */}
-        <mesh position={[-(W / 2 + D / 2), t, -D / 2]} rotation={flat}>
-          <planeGeometry args={[D, D]} />
-          <meshStandardMaterial {...matProps} />
-        </mesh>
-        <group position={[-(W / 2 + D / 2), t * 4, -D / 2]} rotation={flat}>
-          <RectOutline w={D} h={D} />
-        </group>
-
-        {/* 10. DEPTH_EXT_R — D × D (mirror) */}
-        <mesh position={[W / 2 + D / 2, t, -D / 2]} rotation={flat}>
-          <planeGeometry args={[D, D]} />
-          <meshStandardMaterial {...matProps} />
-        </mesh>
-        <group position={[W / 2 + D / 2, t * 4, -D / 2]} rotation={flat}>
-          <RectOutline w={D} h={D} />
-        </group>
-
-        {/* pivot: depth strip far edge → back panel */}
-        <group position={[0, 0, -D]}>
-
-          {/* 3. BACK PANEL — bw × H */}
-          <mesh position={[0, t, -H / 2]} rotation={flat}>
-            <planeGeometry args={[bw, H]} />
-            <meshStandardMaterial {...matProps} />
-          </mesh>
-          <group position={[0, t * 4, -H / 2]} rotation={flat}>
-            <RectOutline w={bw} h={H} />
-          </group>
-
-          {/* 4. BACK_FLAP_L — pivot: back panel left edge */}
-          <group position={[-bw / 2, 0, 0]}>
-            <mesh position={[-D / 2, t, -H / 2]} rotation={flat}>
-              <shapeGeometry args={[shapes.backFlap]} />
-              <meshStandardMaterial {...matProps} />
-            </mesh>
-            <group position={[-D / 2, t * 4, -H / 2]} rotation={flat}>
-              <ShapeOutline shape={shapes.backFlap} />
-            </group>
-          </group>
-
-          {/* 5. BACK_FLAP_R — pivot: back panel right edge (mirror) */}
-          <group position={[bw / 2, 0, 0]}>
-            <mesh position={[D / 2, t, -H / 2]} rotation={flat} scale={[-1, 1, 1]}>
-              <shapeGeometry args={[shapes.backFlap]} />
-              <meshStandardMaterial {...matProps} />
-            </mesh>
-            <group position={[D / 2, t * 4, -H / 2]} rotation={flat} scale={[-1, 1, 1]}>
-              <ShapeOutline shape={shapes.backFlap} />
-            </group>
-          </group>
-
-          {/* pivot: back panel far edge → tongue */}
-          <group position={[0, 0, -H]}>
-
-            {/* 6. TONGUE — (W + 2·extend) × D with dome arc */}
-            <mesh position={[0, t, 0]} rotation={flat}>
-              <shapeGeometry args={[shapes.tongue]} />
-              <meshStandardMaterial {...matProps} />
-            </mesh>
-            <group position={[0, t * 4, 0]} rotation={flat}>
-              <ShapeOutline shape={shapes.tongue} />
-            </group>
-
+          <group position={[W / 2 - 0.03, 0, 0]} rotation={[0, 0, earFold]}>
+            <Panel shape={shapes.earR} />
           </group>
         </group>
       </group>
 
-      {/* ═══════════════════════════════════════════════
-       *  BOTTOM CHAIN
-       *  pivot: front panel bottom edge → fold around X
-       * ═══════════════════════════════════════════════ */}
-      <group position={[0, 0, H / 2]}>
-
-        {/* 13. BOTTOM_FLAP — (W + 2D) × D */}
-        <mesh position={[0, t, D / 2]} rotation={flat}>
-          <planeGeometry args={[W + 2 * D, D]} />
-          <meshStandardMaterial {...matProps} />
-        </mesh>
-        <group position={[0, t * 4, D / 2]} rotation={flat}>
-          <RectOutline w={W + 2 * D} h={D} />
-        </group>
-
+      {/* Front wall */}
+      <group position={[0, 0, D / 2]} rotation={[-fbFold, 0, 0]}>
+        <Panel shape={shapes.front} />
       </group>
 
+      {/* Left wall + tabs */}
+      <group position={[-W / 2, 0, 0]} rotation={[0, 0, -sideFold]}>
+        <Panel shape={shapes.left} />
+        <group position={[0, 0, D / 2 - 0.01]} rotation={[-tabFold, 0, 0]}>
+          <Panel shape={shapes.lft} />
+        </group>
+        <group position={[0, 0, -D / 2 + 0.01]} rotation={[tabFold, 0, 0]}>
+          <Panel shape={shapes.lbt} />
+        </group>
+      </group>
+
+      {/* Right wall + tabs */}
+      <group position={[W / 2, 0, 0]} rotation={[0, 0, sideFold]}>
+        <Panel shape={shapes.right} />
+        <group position={[0, 0, D / 2 - 0.01]} rotation={[-tabFold, 0, 0]}>
+          <Panel shape={shapes.rft} />
+        </group>
+        <group position={[0, 0, -D / 2 + 0.01]} rotation={[tabFold, 0, 0]}>
+          <Panel shape={shapes.rbt} />
+        </group>
+      </group>
     </group>
   );
 }

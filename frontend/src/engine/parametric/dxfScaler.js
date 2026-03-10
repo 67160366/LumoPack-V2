@@ -73,13 +73,14 @@ export function createDxfScaler(W, H, D, T = 3) {
 
   // Also need intermediate X breakpoints for back panel / tongue area
   // These are within the X range but at different structural boundaries
+  // Flap arc taper ratio 0.8967 from DXF: first arc vertex X / D
   const xMapBack = [
-    [-68,  backInset - D - T],           // left back flap outer
-    [-59.7, backInset - D + D * 0.28],   // left back flap taper
-    [12,   backInset],                    // back panel left
-    [509,  backInset + backW],            // back panel right
-    [580.7, backInset + backW + D - D * 0.28], // right back flap taper
-    [589,  backInset + backW + D + T],    // right back flap outer
+    [-68,   backInset - D],                    // left back flap outer
+    [-59.7, backInset - D * 0.8967],           // left back flap taper
+    [12,    backInset],                         // back panel left
+    [509,   backInset + backW],                 // back panel right
+    [580.7, backInset + backW + D * 0.8967],   // right back flap taper
+    [589,   backInset + backW + D],             // right back flap outer
   ];
 
   // Merge xMapBack into xMap for the back panel Y range

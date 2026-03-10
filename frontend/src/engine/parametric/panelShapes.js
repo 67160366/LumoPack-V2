@@ -1,451 +1,327 @@
 /**
- * Parametric Panel Shape Generator
+ * Parametric Panel Shape Generator — built from box.json vertex data
  *
- * Pure math engine — generates closed polygon outlines for each panel
- * of a die-cut folding box (FEFCO 0427 style).
+ * Complex shapes (side walls, back flaps, tongue) use ACTUAL DXF vertices
+ * from the reference 500×300×80mm box, scaled via dxfScaler for any size.
  *
- * CRITICAL DESIGN RULE:
- *   Each panel's origin (0,0) sits at its HINGE (fold line).
- *   This makes 3D folding trivial: just rotate around local Y axis.
+ * Simple shapes (base, walls, back panel) computed from dimensions.
  *
- * All dimensions derived from: W (width), H (height), D (depth), T (thickness)
- *
- * Reverse-engineered from: 500x300x80mm-folding-box.dxf
- * Verified to 4 decimal places against DXF reference.
- *
- * ─── Panel Layout (flat, Y+ = up) ────────────────────────────
- *
- *              ┌──────── Tongue ────────┐
- *              │                        │
- *              ├──── Back Panel ────────┤
- *              │  ◄ BackFlapL  BackFlapR ►  │
- *              ├────── Depth Strip ─────┤
- *   ┌──────┬──┼────── FRONT FACE ──────┼──┬──────┐
- *   │GlueL │DL│   (with ear tabs)      │DR│GlueR │
- *   └──────┴──┼────────────────────────┼──┴──────┘
- *              └──── Bottom Flap ──────┘
+ * ALL functions return { shape, cx, cy } where cx,cy = DXF-global center.
  */
 
-// ─── Derived dimensions ─────────────────────────────────────
-function dims(W, H, D, T = 3) {
-  const tabW = D * 0.13125;           // 10.5  ear-lock tab width
-  const tabH = D * 0.75;              // 60    ear-lock tab height
-  const faceW = W + 2 * tabW;         // 521   front face width (incl tabs)
-  const faceH = H + 2 * T;            // 306   front face height
-  const seg = (faceH - D - 2 * tabH) / 2; // 53 edge segment
-  const tab1Bot = seg;                 // 53
-  const tab1Top = seg + tabH;          // 113
-  const tab2Bot = tab1Top + D;         // 193
-  const tab2Top = tab2Bot + tabH;      // 253
-  const depthW = D + T;                // 83    depth panel width
-  const glueTransW = T * 3;            // 9     glue transition bevel
-  const glueFlapW = D + 1.5;           // 81.5  glue flap body
-  const earBump = 4.5;                 // fixed ear bump depth
-  const earInset = tabH * 0.0433;      // ~2.6  ear bump rounded entry
-  const backInset = tabW + 1.5;        // 12    back panel inset from face edge
-  const backW = faceW - 2 * backInset; // 497
-  const backGap = 2 * T;               // 6     gap between depth strip and back panel
-  const tongueInset = T;               // 3
-  const tongueW = faceW - 2 * tongueInset; // 515
-  const tongueGap = 2 * T;             // 6
-  const botInsetX = 2 * T;             // 6     bottom flap inner crease inset
-  const botInsetY = T / 2;             // 1.5   bottom flap overlap
+import { Shape } from 'three';
+import { createDxfScaler } from './dxfScaler';
+
+// ─── Reference vertex data from box.json (500×300×80mm FEFCO 0427) ────
+
+// cut[2]: Left Side Wall — 18 vertices
+const REF_SIDE_L = [
+  [6, 1.5], [0, 0], [-83, 0], [-92, 3], [-173.5, 3],
+  [-173.5, 53], [-178, 55.5980762], [-178, 110.4019238], [-173.5, 113],
+  [-173.5, 193], [-178, 195.5980762], [-178, 250.4019238], [-173.5, 253],
+  [-173.5, 303], [-92, 303], [-83, 306], [0, 306], [3, 304.5],
+];
+
+// cut[3]: Right Side Wall — 18 vertices
+const REF_SIDE_R = [
+  [515, 1.5], [521, 0], [604, 0], [613, 3], [694.5, 3],
+  [694.5, 53], [699, 55.5980762], [699, 110.4019238], [694.5, 113],
+  [694.5, 193], [699, 195.5980762], [699, 250.4019238], [694.5, 253],
+  [694.5, 303], [613, 303], [604, 306], [521, 306], [518, 304.5],
+];
+
+// cut[0] indices 3–38: Right Back Flap — 36 vertices
+const REF_BFLAP_R = [
+  [509, 392],
+  [580.7364819, 404.6490772],
+  [581.5881905434032, 404.8378965162856],
+  [582.4202014925089, 405.1002286111933],
+  [583.2261826427094, 405.4340769794264],
+  [583.9999999918498, 405.83690083375956],
+  [584.7357643236796, 406.3056344419608],
+  [585.4278760283373, 406.8367104588608],
+  [586.0710677187544, 407.4260870759986],
+  [586.6604443186452, 408.06927878221967],
+  [587.1915203169865, 408.76139050111794],
+  [587.6602539054585, 409.4971548455167],
+  [588.063077739042, 410.2709722054587],
+  [588.3969260856629, 411.0769533646112],
+  [588.6592581582605, 411.9089643207513],
+  [588.8480774517079, 412.7606729692177],
+  [588.9619469374185, 413.62559729404296],
+  [589, 414.4971547],
+  [589, 669.5028453],
+  [588.9619469332874, 670.3744027005733],
+  [588.8480774439307, 671.2393270196754],
+  [588.65925814735, 672.0910356621226],
+  [588.3969260721556, 672.9230466119932],
+  [588.063077723494, 673.7290277646739],
+  [587.6602538884417, 674.5028451179907],
+  [587.191520299084, 675.2386094556616],
+  [586.6604443004468, 675.9307211677803],
+  [586.0710677008519, 676.5739128672219],
+  [585.4278760113206, 677.1632894776318],
+  [584.7357643081317, 677.6943654879066],
+  [583.9999999783424, 678.163099089636],
+  [583.2261826317989, 678.5659229376997],
+  [582.4202014847318, 678.8997712999136],
+  [581.5881905392722, 679.1621033890981],
+  [580.7364819, 679.3509227],
+  [509, 692],
+];
+
+// cut[0] indices 109–144: Left Back Flap — 36 vertices
+const REF_BFLAP_L = [
+  [12, 692],
+  [-59.7364819, 679.3509228],
+  [-60.58819054340329, 679.1621034837144],
+  [-61.42020149250899, 678.8997713888067],
+  [-62.2261826427095, 678.5659230205737],
+  [-62.99999999184984, 678.1630991662405],
+  [-63.73576432367969, 677.6943655580392],
+  [-64.42787602833732, 677.1632895411392],
+  [-65.07106771875443, 676.5739129240014],
+  [-65.66044431864526, 675.9307212177803],
+  [-66.19152031698647, 675.238609498882],
+  [-66.66025390545848, 674.5028451544832],
+  [-67.063077739042, 673.7290277945414],
+  [-67.39692608566293, 672.9230466353888],
+  [-67.65925815826054, 672.0910356792488],
+  [-67.84807745170784, 671.2393270307823],
+  [-67.96194693741846, 670.3744027059571],
+  [-68, 669.5028453],
+  [-68, 414.4971547],
+  [-67.96194693328742, 413.6255972994266],
+  [-67.8480774439307, 412.7606729803246],
+  [-67.65925814734999, 411.9089643378774],
+  [-67.3969260721555, 411.0769533880068],
+  [-67.06307772349398, 410.27097223532616],
+  [-66.6602538884417, 409.49715488200934],
+  [-66.19152029908395, 408.76139054433844],
+  [-65.66044430044674, 408.0692788322197],
+  [-65.07106770085191, 407.42608713277815],
+  [-64.42787601132055, 406.83671052236826],
+  [-63.73576430813167, 406.30563451209343],
+  [-62.9999999783424, 405.836900910364],
+  [-62.22618263179894, 405.4340770623003],
+  [-61.420201484731834, 405.1002287000864],
+  [-60.58819053927225, 404.8378966109019],
+  [-59.7364819, 404.6490773],
+  [12, 392],
+];
+
+// cut[0] indices 40–107: Tongue — 68 vertices
+const REF_TONGUE = [
+  [518, 698],
+  [592.5483848, 704.5221385],
+  [593.0549904808477, 704.5927237972195],
+  [593.5517338650081, 704.7146976072916],
+  [594.0334164010973, 704.8867834419135],
+  [594.4949971535037, 705.1071803771431],
+  [594.9316455571192, 705.3735819005449],
+  [595.3387919704838, 705.6832000494556],
+  [595.712175498298, 706.0327945877535],
+  [596.047888582822, 706.4187069157895],
+  [596.3424178975055, 706.8368983586034],
+  [596.5926811148822, 707.2829924317303],
+  [596.7960591639459, 707.7523206422715],
+  [596.9504236394229, 708.2399713459124],
+  [597.0541590760985, 708.7408411485841],
+  [597.1061798550895, 709.2496883148373],
+  [597.1059415651342, 709.7611876239947],
+  [597.0534467000001, 710.2699861],
+  [595.6586120977529, 717.2130172964438],
+  [593.6552342946418, 724.0054927760035],
+  [591.0590120263519, 730.5941857948087],
+  [587.8902896368738, 736.9274664755333],
+  [584.1738976575107, 742.955706386],
+  [579.9389582315229, 748.6316674341954],
+  [575.2186569091284, 753.9108720322592],
+  [570.0499826011059, 758.7519516287961],
+  [564.4734377287549, 763.1169708783611],
+  [558.5327208415213, 766.9717249078882],
+  [552.2743841893341, 770.2860073506364],
+  [545.7474689329665, 773.0338470473098],
+  [539.0031208509582, 775.1937115595254],
+  [532.0941895544728, 776.7486759008725],
+  [525.0748143506953, 777.686555163364],
+  [518, 778.0000000000001],
+  [3, 778],
+  [-4.0748143506952745, 777.686555163364],
+  [-11.094189554472772, 776.7486759008725],
+  [-18.003120850958258, 775.1937115595254],
+  [-24.74746893296658, 773.0338470473098],
+  [-31.274384189334135, 770.2860073506364],
+  [-37.532720841521254, 766.9717249078882],
+  [-43.47343772875493, 763.1169708783611],
+  [-49.049982601105874, 758.7519516287961],
+  [-54.218656909128484, 753.9108720322592],
+  [-58.93895823152292, 748.6316674341954],
+  [-63.17389765751078, 742.955706386],
+  [-66.89028963687385, 736.9274664755333],
+  [-70.05901202635188, 730.5941857948087],
+  [-72.6552342946418, 724.0054927760035],
+  [-74.65861209775291, 717.2130172964438],
+  [-76.05344670000002, 710.2699861],
+  [-76.1059415602706, 709.7611876290348],
+  [-76.10617984590274, 709.2496883253878],
+  [-76.05415906317405, 708.740841165058],
+  [-75.9504236233856, 708.2399713686605],
+  [-75.79605914545311, 707.752320671579],
+  [-75.59268109461685, 707.2829924678139],
+  [-75.34241787616904, 706.8368984016087],
+  [-75.0478885611274, 706.4187069657895],
+  [-74.71217547696168, 706.0327946447484],
+  [-74.33879195021852, 705.683200113372],
+  [-73.93164553862634, 705.3735819712373],
+  [-73.49499713746647, 705.1071804543949],
+  [-73.03341638817285, 704.8867835254396],
+  [-72.55173385582142, 704.7146976967409],
+  [-72.05499047598411, 704.5927238921795],
+  [-71.5483848, 704.5221386],
+  [3, 698],
+];
+
+// ─── Helpers ───────────────────────────────────────────────────
+
+/** Build a THREE.Shape from vertices, centered at bounding-box center.
+ *  Returns { shape, cx, cy } where cx/cy are DXF-global coordinates.
+ */
+function buildShape(vertices) {
+  const xs = vertices.map(p => p[0]);
+  const ys = vertices.map(p => p[1]);
+  const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+  const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+
+  const shape = new Shape();
+  shape.moveTo(vertices[0][0] - cx, vertices[0][1] - cy);
+  for (let i = 1; i < vertices.length; i++) {
+    shape.lineTo(vertices[i][0] - cx, vertices[i][1] - cy);
+  }
+  shape.closePath();
+  return { shape, cx, cy };
+}
+
+/** Build a rectangle shape from DXF-global bounds. */
+function rectShape(x0, y0, x1, y1) {
+  const cx = (x0 + x1) / 2;
+  const cy = (y0 + y1) / 2;
+  const hw = (x1 - x0) / 2;
+  const hh = (y1 - y0) / 2;
+  const shape = new Shape();
+  shape.moveTo(-hw, -hh);
+  shape.lineTo(hw, -hh);
+  shape.lineTo(hw, hh);
+  shape.lineTo(-hw, hh);
+  shape.closePath();
+  return { shape, cx, cy };
+}
+
+/** Scale reference vertices through dxfScaler, return new array. */
+function scaleVerts(refVerts, scalePoint) {
+  return refVerts.map(([x, y]) => scalePoint(x, y));
+}
+
+// ─── Derived dimensions (for rectangular panels) ──────────────
+
+export function deriveDims(W, H, D) {
+  const T = 3;
+  const tabW = D * 0.13125;
+  const faceW = W + 2 * tabW;
+  const faceH = H + 2 * T;
+  const depthW = D + T;
+  const glueTransW = 3 * T;
+  const glueFlapW = D + 1.5;
+  const earBump = 4.5;
+  const backInset = tabW + 1.5;
+  const backW = faceW - 2 * backInset;
+  const foldGap = 2 * T;
+  const tongueInset = T;
+  const tongueW = faceW - 2 * tongueInset;
 
   return {
-    W, H, D, T, tabW, tabH, faceW, faceH, seg,
-    tab1Bot, tab1Top, tab2Bot, tab2Top,
-    depthW, glueTransW, glueFlapW, earBump, earInset,
-    backInset, backW, backGap,
-    tongueInset, tongueW, tongueGap,
-    botInsetX, botInsetY,
+    T, tabW, faceW, faceH, depthW, glueTransW, glueFlapW,
+    earBump, backInset, backW, foldGap, tongueInset, tongueW,
   };
 }
 
-// ─── 1. FRONT FACE ─────────────────────────────────────────
-// Origin: bottom-left corner (0, 0)
-// Hinge LEFT at x=0, hinge RIGHT at x=faceW
-// Hinge BOTTOM at y=0, hinge TOP at y=faceH
-// Includes 4 ear-lock tab protrusions on left/right edges
-function frontFaceShape(d) {
-  const { faceW, faceH, tabW, tab1Bot, tab1Top, tab2Bot, tab2Top } = d;
-  return [
-    // Bottom edge
-    [0, 0], [faceW, 0],
-    // Right edge going up (with 2 tab protrusions)
-    [faceW, tab1Bot],
-    [faceW + tabW, tab1Bot], [faceW + tabW, tab1Top],  // right lower tab
-    [faceW, tab1Top],
-    [faceW, tab2Bot],
-    [faceW + tabW, tab2Bot], [faceW + tabW, tab2Top],  // right upper tab
-    [faceW, tab2Top],
-    // Top edge
-    [faceW, faceH], [0, faceH],
-    // Left edge going down (with 2 tab protrusions)
-    [0, tab2Top],
-    [-tabW, tab2Top], [-tabW, tab2Bot],                 // left upper tab
-    [0, tab2Bot],
-    [0, tab1Top],
-    [-tabW, tab1Top], [-tabW, tab1Bot],                 // left lower tab
-    [0, tab1Bot],
-  ];
+// ═══════════════════════════════════════════════════════════════
+//  1. BASE — rectangle faceW × faceH
+// ═══════════════════════════════════════════════════════════════
+export function createBaseShape(W, H, D) {
+  const { faceW, faceH } = deriveDims(W, H, D);
+  return rectShape(0, 0, faceW, faceH);
 }
 
-// ─── 2. DEPTH PANEL (left or right) ────────────────────────
-// Origin: at hinge line (fold line with front face)
-//   Left:  origin at x=0 (= front face x=0), panel extends to x=-depthW
-//   Right: origin at x=0 (= front face x=faceW), panel extends to x=+depthW
-function depthPanelShape(d, side = 'left') {
-  const { depthW, faceH } = d;
-  const dir = side === 'left' ? -1 : 1;
-  return [
-    [0, 0],
-    [dir * depthW, 0],
-    [dir * depthW, faceH],
-    [0, faceH],
-  ];
+// ═══════════════════════════════════════════════════════════════
+//  2. FRONT WALL — rectangle (faceW + 2·depthW) × D
+// ═══════════════════════════════════════════════════════════════
+export function createFrontWallShape(W, H, D) {
+  const { faceW, depthW } = deriveDims(W, H, D);
+  return rectShape(-depthW, -D, faceW + depthW, 0);
 }
 
-// ─── 3. GLUE FLAP (left or right) ──────────────────────────
-// Origin: at hinge (fold line with depth panel)
-//   Left:  origin at x=0 (= depth panel outer edge), extends to x=-glue
-//   Right: origin at x=0 (= depth panel outer edge), extends to x=+glue
-// Includes: transition bevel + glue body + ear bumps
-function glueFlapShape(d, side = 'left') {
-  const {
-    faceH, T, glueTransW, glueFlapW, earBump, earInset,
-    tab1Bot, tab1Top, tab2Bot, tab2Top,
-  } = d;
-  const dir = side === 'left' ? -1 : 1;
-
-  // Transition from depth edge to glue flap body
-  const transX = dir * glueTransW;     // ±9
-  const bodyX = dir * (glueTransW + glueFlapW);  // ±90.5
-  const earX = dir * (glueTransW + glueFlapW + earBump); // ±95
-
-  const pts = [];
-
-  // Start at origin bottom, go out
-  pts.push([0, 0]);
-  pts.push([transX, T]);               // bevel to body start
-  pts.push([bodyX, T]);                // body bottom edge
-
-  // Body with ear bumps at tab positions
-  pts.push([bodyX, tab1Bot]);
-  // Ear bump 1
-  pts.push([earX, tab1Bot + earInset]);
-  pts.push([earX, tab1Top - earInset]);
-  pts.push([bodyX, tab1Top]);
-
-  pts.push([bodyX, tab2Bot]);
-  // Ear bump 2
-  pts.push([earX, tab2Bot + earInset]);
-  pts.push([earX, tab2Top - earInset]);
-  pts.push([bodyX, tab2Top]);
-
-  pts.push([bodyX, faceH - T]);        // body top edge
-  pts.push([transX, faceH - T]);       // bevel
-  pts.push([0, faceH]);                // back to hinge at top
-
-  return pts;
+// ═══════════════════════════════════════════════════════════════
+//  3. BACK WALL — same size as front wall, above base
+// ═══════════════════════════════════════════════════════════════
+export function createBackWallShape(W, H, D) {
+  const { faceW, faceH, depthW } = deriveDims(W, H, D);
+  return rectShape(-depthW, faceH, faceW + depthW, faceH + D);
 }
 
-// ─── 4. BOTTOM FLAP ────────────────────────────────────────
-// Origin: at hinge (bottom edge of front face, y=0)
-// Extends downward (y negative)
-// Width: faceW + 2 * depthW (wider than front face)
-function bottomFlapShape(d) {
-  const { faceW, D, depthW } = d;
-  const totalW = faceW + 2 * depthW;
-  // Center on front face: offset left by depthW
-  return [
-    [-depthW, 0],
-    [faceW + depthW, 0],
-    [faceW + depthW, -D],
-    [-depthW, -D],
-  ];
+// ═══════════════════════════════════════════════════════════════
+//  4. SIDE WALLS — from DXF reference vertices + dxfScaler
+// ═══════════════════════════════════════════════════════════════
+export function createSideWallShape(W, H, D, side = 'left') {
+  const scale = createDxfScaler(W, H, D);
+  const ref = side === 'left' ? REF_SIDE_L : REF_SIDE_R;
+  const pts = scaleVerts(ref, scale);
+  return buildShape(pts);
 }
 
-// ─── 5. DEPTH STRIP (top, connects front to back) ──────────
-// Origin: at hinge (top edge of front face, y=0 in local coords)
-// Extends upward (y positive)
-// Width same as bottom flap
-function depthStripShape(d) {
-  const { faceW, D, depthW } = d;
-  return [
-    [-depthW, 0],
-    [faceW + depthW, 0],
-    [faceW + depthW, D],
-    [-depthW, D],
-  ];
+// ═══════════════════════════════════════════════════════════════
+//  5. BACK PANEL — rectangle backW × H
+// ═══════════════════════════════════════════════════════════════
+export function createBackPanelShape(W, H, D) {
+  const { faceH, backInset, backW, foldGap } = deriveDims(W, H, D);
+  const y0 = faceH + D + foldGap;
+  return rectShape(backInset, y0, backInset + backW, y0 + H);
 }
 
-// ─── 6. BACK PANEL ─────────────────────────────────────────
-// Origin: at hinge (top of depth strip → bottom of back panel)
-// Width: backW (narrower than front face, inset by backInset)
-// Height: H
-// Position: centered within faceW
-function backPanelShape(d) {
-  const { backW, H, backInset } = d;
-  return [
-    [backInset, 0],
-    [backInset + backW, 0],
-    [backInset + backW, H],
-    [backInset, H],
-  ];
+// ═══════════════════════════════════════════════════════════════
+//  6. BACK FLAPS — from DXF reference vertices + dxfScaler
+// ═══════════════════════════════════════════════════════════════
+export function createBackFlapShape(W, H, D, side = 'left') {
+  const scale = createDxfScaler(W, H, D);
+  const ref = side === 'left' ? REF_BFLAP_L : REF_BFLAP_R;
+  const pts = scaleVerts(ref, scale);
+  return buildShape(pts);
 }
 
-// ─── 7. BACK FLAP (left or right) ──────────────────────────
-// Origin: at hinge (side edge of back panel)
-// Extends outward with curved profile
-// Uses DXF-verified arc geometry via bulge interpolation
-function backFlapShape(d, side = 'left') {
-  const { D, T, H, backInset, backW, backGap } = d;
-  const dir = side === 'left' ? -1 : 1;
-
-  // DXF-derived arc parameters (from 500x300x80 reference, scaled)
-  const reach = D + T;                 // 83: how far flap extends
-  const taperX = D * 0.8967;           // 71.7: x of taper point
-  const taperYBot = backGap + D * 0.158; // 12.6: y offset at bottom taper
-  const straightYBot = backGap + D * 0.281; // 22.5: where straight section starts
-  const straightYTop = H + backGap - D * 0.281;
-  const taperYTop = H + backGap - D * 0.158;
-
-  const pts = [];
-
-  // Hinge at (0, 0) = side edge of back panel
-  // Back panel starts at y=backGap (after the gap)
-  pts.push([0, backGap]);
-
-  // Bottom arc: from hinge to outer edge
-  const arcPts1 = bulgeArc(
-    0, backGap,
-    dir * taperX, taperYBot,
-    dir * reach, straightYBot,
-    8
-  );
-  pts.push(...arcPts1);
-
-  // Straight outer edge
-  pts.push([dir * reach, straightYTop]);
-
-  // Top arc: from outer edge back to hinge
-  const arcPts2 = bulgeArc(
-    dir * reach, straightYTop,
-    dir * taperX, taperYTop,
-    0, H + backGap,
-    8
-  );
-  pts.push(...arcPts2);
-
-  pts.push([0, H + backGap]);
-
-  return pts;
+// ═══════════════════════════════════════════════════════════════
+//  7. TONGUE — from DXF reference vertices + dxfScaler
+// ═══════════════════════════════════════════════════════════════
+export function createTongueShape(W, H, D) {
+  const scale = createDxfScaler(W, H, D);
+  const pts = scaleVerts(REF_TONGUE, scale);
+  return buildShape(pts);
 }
 
-// ─── 8. TONGUE ──────────────────────────────────────────────
-// Origin: at hinge (top edge of back panel)
-// Width: tongueW (slightly narrower than faceW)
-// Height: D
-// Has curved side edges (DXF-verified arcs)
-function tongueShape(d) {
-  const { D, T, tongueInset, tongueW, tongueGap } = d;
-
-  // DXF-derived tongue arc geometry (reverse-engineered from 500x300x80 reference)
-  // The tongue has large circular arcs on left/right sides
-  // Right arc: (518,698) → (592.5,704.5) → (597.1,710.3) → (518,778)
-  // Ratios relative to D:
-  const arcMid1X = D * 0.931;   // 74.5mm: first intermediate X offset
-  const arcMid1Y = D * 0.081;   // 6.5mm: first intermediate Y offset
-  const arcMid2X = D * 0.988;   // 79.1mm: second intermediate X offset (peak)
-  const arcMid2Y = D * 0.154;   // 12.3mm: second intermediate Y offset
-
-  const xL = tongueInset;
-  const xR = tongueInset + tongueW;
-  const yBot = tongueGap;
-  const yTop = tongueGap + D;
-
-  const pts = [];
-
-  // Bottom edge
-  pts.push([xL, yBot]);
-  pts.push([xR, yBot]);
-
-  // Right arc: from (xR, yBot) outward then back to (xR, yTop)
-  // Split into 3 segments through DXF-verified intermediate points
-  const rMid1 = [xR + arcMid1X, yBot + arcMid1Y];
-  const rMid2 = [xR + arcMid2X, yBot + arcMid2Y];
-  pts.push(...arcThroughPoints(xR, yBot, rMid1[0], rMid1[1], 6));
-  pts.push(...arcThroughPoints(rMid1[0], rMid1[1], rMid2[0], rMid2[1], 4));
-  pts.push(...arcThroughPoints(rMid2[0], rMid2[1], xR, yTop, 12));
-
-  // Top edge
-  pts.push([xR, yTop]);
-  pts.push([xL, yTop]);
-
-  // Left arc: from (xL, yTop) outward left then back to (xL, yBot)
-  const lMid2 = [xL - arcMid2X, yTop - arcMid2Y];
-  const lMid1 = [xL - arcMid1X, yTop - arcMid1Y];
-  pts.push(...arcThroughPoints(xL, yTop, lMid2[0], lMid2[1], 4));
-  pts.push(...arcThroughPoints(lMid2[0], lMid2[1], lMid1[0], lMid1[1], 4));
-  pts.push(...arcThroughPoints(lMid1[0], lMid1[1], xL, yBot, 6));
-
-  return pts;
-}
-
-// ─── 9. TAB CUTOUTS (ear locks) ────────────────────────────
-// Returns 4 closed rectangles for the tab cutout slots
-// These are rendered as cut lines (not fills)
-function tabCutoutShapes(d) {
-  const { tabW, tab1Bot, tab1Top, tab2Bot, tab2Top, faceW } = d;
-  return [
-    [[0, tab1Bot], [tabW, tab1Bot], [tabW, tab1Top], [0, tab1Top], [0, tab1Bot]],
-    [[faceW - tabW, tab1Bot], [faceW, tab1Bot], [faceW, tab1Top], [faceW - tabW, tab1Top], [faceW - tabW, tab1Bot]],
-    [[0, tab2Bot], [tabW, tab2Bot], [tabW, tab2Top], [0, tab2Top], [0, tab2Bot]],
-    [[faceW - tabW, tab2Bot], [faceW, tab2Bot], [faceW, tab2Top], [faceW - tabW, tab2Top], [faceW - tabW, tab2Bot]],
-  ];
-}
-
-// ─── Arc helpers ────────────────────────────────────────────
-// Quadratic bezier arc through 3 points
-function bulgeArc(x1, y1, ctrlX, ctrlY, x2, y2, steps) {
-  const pts = [];
-  for (let i = 1; i <= steps; i++) {
-    const t = i / steps;
-    const u = 1 - t;
-    pts.push([
-      u * u * x1 + 2 * u * t * ctrlX + t * t * x2,
-      u * u * y1 + 2 * u * t * ctrlY + t * t * y2,
-    ]);
-  }
-  return pts;
-}
-
-// Arc through two points (simple interpolation for short segments)
-function arcThroughPoints(x1, y1, x2, y2, steps) {
-  const pts = [];
-  for (let i = 1; i <= steps; i++) {
-    const t = i / steps;
-    pts.push([x1 + (x2 - x1) * t, y1 + (y2 - y1) * t]);
-  }
-  return pts;
-}
-
-// ─── Crease lines ───────────────────────────────────────────
-// Returns all crease (fold score) lines as polylines
-function creaseLines(d) {
-  const {
-    faceW, faceH, D, T, depthW, glueTransW,
-    tab1Bot, tab1Top, tab2Bot, tab2Top,
-    backInset, backW, backGap, H,
-    tongueInset, tongueW, tongueGap, botInsetX, botInsetY,
-  } = d;
-
-  const lines = [];
-
-  // Top fold zone rectangle (front→depth strip transition)
-  lines.push([
-    [tongueInset + tongueW, faceH + D],
-    [tongueInset + tongueW, faceH - botInsetY],
-    [tongueInset, faceH - botInsetY],
-    [tongueInset, faceH + D],
-  ]);
-
-  // Bottom fold zone rectangle
-  lines.push([
-    [faceW - botInsetX, -D],
-    [faceW - botInsetX, botInsetY],
-    [botInsetX, botInsetY],
-    [botInsetX, -D],
-  ]);
-
-  // Vertical: left depth panel edge
-  lines.push([[-depthW, 0], [-depthW, faceH]]);
-  // Vertical: left glue transition
-  lines.push([[-depthW - glueTransW, T], [-depthW - glueTransW, faceH - T]]);
-
-  // Vertical: left face edge (interrupted by tab cutouts)
-  lines.push([[0, 0], [0, tab1Bot]]);
-  lines.push([[0, tab1Top], [0, tab2Bot]]);
-  lines.push([[0, tab2Top], [0, faceH]]);
-
-  // Vertical: right face edge (interrupted)
-  lines.push([[faceW, 0], [faceW, tab1Bot]]);
-  lines.push([[faceW, tab1Top], [faceW, tab2Bot]]);
-  lines.push([[faceW, tab2Top], [faceW, faceH]]);
-
-  // Vertical: right depth panel edge
-  lines.push([[faceW + depthW, 0], [faceW + depthW, faceH]]);
-  // Vertical: right glue transition
-  lines.push([[faceW + depthW + glueTransW, T], [faceW + depthW + glueTransW, faceH - T]]);
-
-  // Back panel vertical creases
-  const yBackBot = faceH + D + backGap;
-  const yBackTop = yBackBot + H;
-  lines.push([[backInset, yBackBot], [backInset, yBackTop]]);
-  lines.push([[backInset + backW, yBackBot], [backInset + backW, yBackTop]]);
-
-  // Back panel horizontal creases
-  lines.push([[backInset, faceH + D + botInsetY], [backInset + backW, faceH + D + botInsetY]]);
-  lines.push([[backInset, yBackTop + (tongueGap - botInsetY)], [backInset + backW, yBackTop + (tongueGap - botInsetY)]]);
-
-  // Tongue vertical creases
-  const yTongueBot = yBackTop + tongueGap;
-  lines.push([[tongueInset, yTongueBot], [tongueInset, yTongueBot + D]]);
-  lines.push([[tongueInset + tongueW, yTongueBot], [tongueInset + tongueW, yTongueBot + D]]);
-
-  return lines;
-}
-
-
-// ─── MAIN EXPORT ────────────────────────────────────────────
-
-/**
- * Generate all panel shapes and layout for a die-cut folding box.
- *
- * @param {number} W - Box width (mm)
- * @param {number} H - Box height (mm)
- * @param {number} D - Box depth (mm)
- * @param {number} [T=3] - Paper thickness (mm)
- * @returns {Object} panels, crease lines, tab cutouts, and layout positions
- */
-export function generatePanels(W, H, D, T = 3) {
-  const d = dims(W, H, D, T);
-
-  // Generate shapes (each in local coords with origin at hinge)
-  const panels = {
-    front:      { shape: frontFaceShape(d),       pos: [0, 0] },
-    depthLeft:  { shape: depthPanelShape(d, 'left'),  pos: [0, 0] },
-    depthRight: { shape: depthPanelShape(d, 'right'), pos: [d.faceW, 0] },
-    glueFlapL:  { shape: glueFlapShape(d, 'left'),    pos: [-d.depthW, 0] },
-    glueFlapR:  { shape: glueFlapShape(d, 'right'),   pos: [d.faceW + d.depthW, 0] },
-    bottom:     { shape: bottomFlapShape(d),      pos: [0, 0] },
-    depthStrip: { shape: depthStripShape(d),      pos: [0, d.faceH] },
-    back:       { shape: backPanelShape(d),       pos: [0, d.faceH + D + d.backGap] },
-    backFlapL:  { shape: backFlapShape(d, 'left'),  pos: [d.backInset, d.faceH + D] },
-    backFlapR:  { shape: backFlapShape(d, 'right'), pos: [d.backInset + d.backW, d.faceH + D] },
-    tongue:     { shape: tongueShape(d),          pos: [0, d.faceH + D + d.backGap + H] },
-  };
-
-  const tabCutouts = tabCutoutShapes(d);
-  const creases = creaseLines(d);
-
-  // Compute bounds
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (const { shape, pos } of Object.values(panels)) {
-    for (const [lx, ly] of shape) {
-      const gx = lx + pos[0], gy = ly + pos[1];
-      if (gx < minX) minX = gx;
-      if (gy < minY) minY = gy;
-      if (gx > maxX) maxX = gx;
-      if (gy > maxY) maxY = gy;
-    }
-  }
-
+// ═══════════════════════════════════════════════════════════════
+//  CONVENIENCE: Get all shapes + positioning data
+// ═══════════════════════════════════════════════════════════════
+export function generateAllShapes(W, H, D) {
+  const d = deriveDims(W, H, D);
   return {
-    panels,
-    tabCutouts,
-    creases,
+    base: createBaseShape(W, H, D),
+    frontWall: createFrontWallShape(W, H, D),
+    backWall: createBackWallShape(W, H, D),
+    sideLeft: createSideWallShape(W, H, D, 'left'),
+    sideRight: createSideWallShape(W, H, D, 'right'),
+    backPanel: createBackPanelShape(W, H, D),
+    backFlapLeft: createBackFlapShape(W, H, D, 'left'),
+    backFlapRight: createBackFlapShape(W, H, D, 'right'),
+    tongue: createTongueShape(W, H, D),
     dims: d,
-    bounds: { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY },
   };
 }

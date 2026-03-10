@@ -226,6 +226,115 @@ export default function DielineViewer({ width = 500, height = 300, depth = 80 })
         >
           Reset View
         </button>
+        <button
+          onClick={() => {
+            console.log('%c=== DXF Dieline Analyzer ===', 'color: #ffaa00; font-size: 14px; font-weight: bold');
+
+            const creases = dieline.crease;
+            const cuts = dieline.cut;
+
+            // --- 1. Classify crease lines ---
+            const horizontalCreases = [];
+            const verticalCreases = [];
+            const otherCreases = [];
+
+            creases.forEach((polyline, index) => {
+              const start = polyline[0];
+              const end = polyline[polyline.length - 1];
+              const dx = Math.abs(start[0] - end[0]);
+              const dy = Math.abs(start[1] - end[1]);
+              const len = Math.sqrt(dx * dx + dy * dy);
+
+              if (dy < 0.1 && len > 1) {
+                horizontalCreases.push({
+                  index, y: +start[1].toFixed(2),
+                  x1: +Math.min(start[0], end[0]).toFixed(2),
+                  x2: +Math.max(start[0], end[0]).toFixed(2),
+                  len: +len.toFixed(2),
+                });
+              } else if (dx < 0.1 && len > 1) {
+                verticalCreases.push({
+                  index, x: +start[0].toFixed(2),
+                  y1: +Math.min(start[1], end[1]).toFixed(2),
+                  y2: +Math.max(start[1], end[1]).toFixed(2),
+                  len: +len.toFixed(2),
+                });
+              } else {
+                otherCreases.push({ index, start: [+start[0].toFixed(2), +start[1].toFixed(2)], end: [+end[0].toFixed(2), +end[1].toFixed(2)], len: +len.toFixed(2) });
+              }
+            });
+
+            // Sort for readability
+            horizontalCreases.sort((a, b) => a.y - b.y);
+            verticalCreases.sort((a, b) => a.x - b.x);
+
+            console.log('%c--- Horizontal Creases (sorted by Y) ---', 'color: #22ff44; font-weight: bold');
+            console.table(horizontalCreases);
+
+            console.log('%c--- Vertical Creases (sorted by X) ---', 'color: #22ff44; font-weight: bold');
+            console.table(verticalCreases);
+
+            if (otherCreases.length > 0) {
+              console.log('%c--- Diagonal/Other Creases ---', 'color: #ffaa44; font-weight: bold');
+              console.table(otherCreases);
+            }
+
+            // --- 2. Extract unique Y and X values (structural grid) ---
+            const uniqueY = [...new Set(horizontalCreases.map(l => l.y))].sort((a, b) => a - b);
+            const uniqueX = [...new Set(verticalCreases.map(l => l.x))].sort((a, b) => a - b);
+
+            console.log('%c--- Structural Grid ---', 'color: #ffaa00; font-weight: bold');
+            console.log('Unique Y positions (horizontal folds):', uniqueY);
+            console.log('Unique X positions (vertical folds):', uniqueX);
+
+            // --- 3. Identify base panel candidates ---
+            // Base = largest rectangle formed by crease intersections
+            console.log('%c--- Base Panel Candidates ---', 'color: #44aaff; font-weight: bold');
+            if (uniqueX.length >= 2 && uniqueY.length >= 2) {
+              // Find the widest horizontal creases (likely front face edges)
+              const longH = horizontalCreases.filter(l => l.len > 100).sort((a, b) => b.len - a.len);
+              const longV = verticalCreases.filter(l => l.len > 100).sort((a, b) => b.len - a.len);
+
+              console.log('Longest horizontal creases:', longH.slice(0, 6));
+              console.log('Longest vertical creases:', longV.slice(0, 6));
+
+              // Try to find front face: rectangle where Y spans ~H and X spans ~W
+              for (let i = 0; i < uniqueY.length - 1; i++) {
+                for (let j = i + 1; j < uniqueY.length; j++) {
+                  const spanY = +(uniqueY[j] - uniqueY[i]).toFixed(2);
+                  for (let m = 0; m < uniqueX.length - 1; m++) {
+                    for (let n = m + 1; n < uniqueX.length; n++) {
+                      const spanX = +(uniqueX[n] - uniqueX[m]).toFixed(2);
+                      // Only report rectangles that could be structural panels
+                      if (spanX > 50 && spanY > 50) {
+                        console.log(
+                          `  Rectangle: X[${uniqueX[m]} .. ${uniqueX[n]}] x Y[${uniqueY[i]} .. ${uniqueY[j]}]  =>  ${spanX} x ${spanY} mm`
+                        );
+                      }
+                    }
+                  }
+                }
+              }
+            }
+
+            // --- 4. Cut line summary ---
+            console.log('%c--- Cut Lines Summary ---', 'color: #ff4444; font-weight: bold');
+            cuts.forEach((polyline, i) => {
+              const xs = polyline.map(p => p[0]);
+              const ys = polyline.map(p => p[1]);
+              console.log(
+                `  Cut #${i}: ${polyline.length} pts, X[${Math.min(...xs).toFixed(1)}..${Math.max(...xs).toFixed(1)}], Y[${Math.min(...ys).toFixed(1)}..${Math.max(...ys).toFixed(1)}]`
+              );
+            });
+
+            // --- 5. Full data dump ---
+            console.log('%c--- Full DXF Data (copy from here) ---', 'color: #888; font-weight: bold');
+            console.log(JSON.parse(JSON.stringify(dieline)));
+          }}
+          className="bg-blue-600/80 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-blue-500 text-[11px] font-mono text-white hover:bg-blue-500 transition-colors"
+        >
+          Analyze DXF
+        </button>
       </div>
 
       {/* Dimension info */}
