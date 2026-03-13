@@ -14,6 +14,7 @@ from api.pricing import router as pricing_router
 from api.analyze import router as analyze_router
 from api.orders import router as orders_router
 from api.payments import router as payments_router
+from api.projects import router as projects_router
 
 
 # ===================================
@@ -120,6 +121,7 @@ app.include_router(chat_router, prefix="/api")
 app.include_router(pricing_router, prefix="/api")
 app.include_router(orders_router, prefix="/api")
 app.include_router(payments_router, prefix="/api")
+app.include_router(projects_router, prefix="/api")
 app.include_router(analyze_router)  # /analyze — root level ตาม frontend
 
 

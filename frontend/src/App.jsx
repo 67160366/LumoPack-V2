@@ -6,13 +6,14 @@
  * /login         → Login
  * /register      → Register
  * /checkout      → Checkout (protected)
+ * /projects      → My Projects (protected)
  * /orders        → My Orders (protected)
  * /orders/:id    → Order Detail (protected)
  * /admin         → Admin Dashboard (protected + admin)
  */
 
 import React, { useState } from 'react';
-import { Routes, Route, Link, Navigate, useNavigate } from 'react-router-dom';
+import { Routes, Route, Link, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { ChatbotProvider, useChatbot } from './contexts/ChatbotContext';
@@ -26,8 +27,10 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import CheckoutPage from './pages/CheckoutPage';
 import MyOrdersPage from './pages/MyOrdersPage';
+import MyProjectsPage from './pages/MyProjectsPage';
 import OrderDetailPage from './pages/OrderDetailPage';
 import AdminDashboard from './pages/AdminDashboard';
+import { createProject, updateProject } from './services/api';
 
 
 // ===================================
@@ -64,6 +67,7 @@ function LoadingScreen() {
 
 function AppLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   // --- Old state (Studio panel) ---
   const [formData, setFormData] = useState({
@@ -74,6 +78,11 @@ function AppLayout() {
   const [loading, setLoading] = useState(false);
   const [image, setImage] = useState(null);
   const [boxType, setBoxType] = useState('rsc');
+
+  // --- Active project tracking ---
+  const [activeProjectId, setActiveProjectId] = useState(null);
+  const [activeProjectName, setActiveProjectName] = useState(null);
+  const [saving, setSaving] = useState(false);
 
   // --- Tab state ---
   const [activeTab, setActiveTab] = useState('studio');
@@ -122,6 +131,32 @@ function AppLayout() {
       setBoxType(collectedData.box_type);
     }
   }, [collectedData?.box_type]);
+
+  // --- Load project from navigation state ---
+  React.useEffect(() => {
+    const proj = location.state?.loadProject;
+    if (!proj) return;
+    // Clear navigation state to prevent re-loading on re-render
+    window.history.replaceState({}, '');
+
+    setActiveProjectId(proj.id);
+    setActiveProjectName(proj.name);
+
+    if (proj.box_type) setBoxType(proj.box_type);
+    if (proj.dimensions) {
+      setFormData(prev => ({
+        ...prev,
+        length: proj.dimensions.length ?? prev.length,
+        width: proj.dimensions.width ?? prev.width,
+        height: proj.dimensions.height ?? prev.height,
+        weight: proj.weight_kg ?? prev.weight,
+        flute_type: proj.flute_type ?? prev.flute_type,
+      }));
+    } else {
+      if (proj.weight_kg != null) setFormData(prev => ({ ...prev, weight: proj.weight_kg }));
+      if (proj.flute_type) setFormData(prev => ({ ...prev, flute_type: proj.flute_type }));
+    }
+  }, [location.state?.loadProject]);
 
   const displayDims = hasChatbotDimensions
     ? { width: boxDimensions.width, length: boxDimensions.length, height: boxDimensions.height }
@@ -217,6 +252,55 @@ function AppLayout() {
       return;
     }
     navigate('/checkout', { state: { collectedData } });
+  };
+
+  // --- Save Project ---
+  const handleSaveProject = async () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    setSaving(true);
+    try {
+      const projectData = {
+        box_type: boxType,
+        dimensions: {
+          length: parseFloat(formData.length),
+          width: parseFloat(formData.width),
+          height: parseFloat(formData.height),
+        },
+        weight_kg: parseFloat(formData.weight) || null,
+        flute_type: formData.flute_type,
+        material: collectedData?.material || null,
+        quantity: collectedData?.quantity || null,
+        product_type: collectedData?.product_type || null,
+        mood_tone: collectedData?.mood_tone || null,
+        has_logo: collectedData?.has_logo || false,
+        logo_positions: collectedData?.logo_positions || null,
+        inner_materials: collectedData?.inner || null,
+        special_effects: collectedData?.special_effects || null,
+        collected_data: collectedData || null,
+        pricing: collectedData?.pricing || null,
+        grand_total: collectedData?.pricing?.grand_total || null,
+      };
+
+      if (activeProjectId) {
+        // Update existing
+        const updated = await updateProject(activeProjectId, projectData);
+        setActiveProjectName(updated.name);
+      } else {
+        // Create new — prompt for name
+        const name = prompt('ตั้งชื่อโปรเจค:', `โปรเจค ${new Date().toLocaleDateString('th-TH')}`);
+        if (!name) { setSaving(false); return; }
+        const created = await createProject({ name, ...projectData });
+        setActiveProjectId(created.id);
+        setActiveProjectName(created.name);
+      }
+    } catch {
+      alert('บันทึกไม่สำเร็จ');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const isDanger = analysis?.status === 'DANGER';
@@ -406,6 +490,13 @@ function AppLayout() {
             {user ? (
               <>
                 <Link
+                  to="/projects"
+                  className="text-[10px] text-zinc-500 hover:text-lumo-400 transition-colors"
+                  title="My Projects"
+                >
+                  Projects
+                </Link>
+                <Link
                   to="/orders"
                   className="text-[10px] text-zinc-500 hover:text-lumo-400 transition-colors"
                   title="My Orders"
@@ -488,17 +579,34 @@ function AppLayout() {
           )}
         </div>
 
-        {/* Checkout Button (visible when chatbot is complete) */}
-        {isComplete && collectedData?.pricing && (
-          <div className="flex-shrink-0 border-t border-panel-border p-4">
+        {/* Save Project + Checkout */}
+        <div className="flex-shrink-0 border-t border-panel-border p-4 space-y-2">
+          {/* Active project indicator */}
+          {activeProjectName && (
+            <div className="text-[10px] text-zinc-500 font-mono truncate mb-1">
+              Project: <span className="text-lumo-400">{activeProjectName}</span>
+            </div>
+          )}
+
+          {/* Save project button */}
+          <button
+            onClick={handleSaveProject}
+            disabled={saving}
+            className="w-full py-2.5 rounded-xl border border-panel-border hover:border-lumo-400/40 text-zinc-300 hover:text-lumo-400 text-xs font-display font-semibold transition-colors active:scale-[0.98] disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : activeProjectId ? 'Save Project' : 'Save as Project'}
+          </button>
+
+          {/* Checkout Button (visible when chatbot is complete) */}
+          {isComplete && collectedData?.pricing && (
             <button
               onClick={handleCheckout}
               className="w-full py-3 rounded-xl bg-lumo-400 hover:bg-lumo-300 text-panel-darker text-sm font-display font-semibold transition-colors active:scale-[0.98]"
             >
               Checkout — ฿{collectedData.pricing.grand_total?.toLocaleString()}
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* ===== CENTER: 3D BOX VIEWER ===== */}
@@ -618,6 +726,12 @@ export default function App() {
           <ProtectedRoute>
             <ChatbotProvider><CheckoutPage /></ChatbotProvider>
           </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/projects"
+        element={
+          <ProtectedRoute><MyProjectsPage /></ProtectedRoute>
         }
       />
       <Route

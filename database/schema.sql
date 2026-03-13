@@ -127,6 +127,66 @@ CREATE POLICY "Admins can update payments"
   );
 
 -- =============================================
+-- 5. Projects (user-scoped saved projects)
+-- =============================================
+
+CREATE TABLE public.projects (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  status TEXT DEFAULT 'draft'
+    CHECK (status IN ('draft','quoted','ordered','archived')),
+  -- Box specification
+  box_type TEXT DEFAULT 'rsc',
+  dimensions JSONB,           -- {width, length, height} in cm
+  weight_kg NUMERIC(8,2),
+  flute_type TEXT,
+  material TEXT,
+  quantity INTEGER,
+  -- Design
+  product_type TEXT,
+  mood_tone TEXT,
+  has_logo BOOLEAN DEFAULT FALSE,
+  logo_positions JSONB,       -- ["ด้านบน", ...]
+  -- Extras
+  inner_materials JSONB,      -- [{type, category}, ...]
+  special_effects JSONB,      -- [{type, category, has_block}, ...]
+  -- Full chatbot snapshot (optional)
+  collected_data JSONB,
+  -- Pricing snapshot
+  pricing JSONB,
+  grand_total NUMERIC(12,2),
+  -- Linked order (if placed)
+  order_id UUID REFERENCES public.orders(id) ON DELETE SET NULL,
+  -- Notes
+  notes TEXT,
+  -- Timestamps
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Auto-update updated_at on projects
+CREATE TRIGGER projects_updated_at
+  BEFORE UPDATE ON public.projects
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+
+-- RLS for projects
+ALTER TABLE public.projects ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own projects"
+  ON public.projects FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can create projects"
+  ON public.projects FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own projects"
+  ON public.projects FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own projects"
+  ON public.projects FOR DELETE USING (auth.uid() = user_id);
+CREATE POLICY "Admins can view all projects"
+  ON public.projects FOR SELECT USING (
+    EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+  );
+
+-- =============================================
 -- Storage: Create bucket via Dashboard
 -- Bucket name: "payment-slips", Public: false
 -- =============================================

@@ -178,6 +178,39 @@ export async function calculatePrice(requirement) {
 
 
 // ===================================
+// Projects API
+// ===================================
+
+export async function createProject(data) {
+  return apiFetch('/api/projects', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function listProjects() {
+  return apiFetch('/api/projects');
+}
+
+export async function getProject(projectId) {
+  return apiFetch(`/api/projects/${projectId}`);
+}
+
+export async function updateProject(projectId, data) {
+  return apiFetch(`/api/projects/${projectId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteProject(projectId) {
+  return apiFetch(`/api/projects/${projectId}`, {
+    method: 'DELETE',
+  });
+}
+
+
+// ===================================
 // Health Check
 // ===================================
 
