@@ -95,6 +95,31 @@ export function getContourStepIndex(progress, hasSupport) {
   return Math.min(count - 1, Math.floor(progress / segSize));
 }
 
+/** Fold step labels for RSC box */
+export function getRSCSteps() {
+  return [
+    'กางแผ่นแบนราบ',
+    'พับผนังด้านข้างขวา',
+    'พับผนังด้านหลัง',
+    'พับผนังด้านซ้าย (ปิดท่อ)',
+    'พับฝาล่าง (ด้านกว้าง)',
+    'พับฝาล่าง (ด้านยาว)',
+    'พับฝาบน (ด้านกว้าง)',
+    'พับฝาบน (ด้านยาว)',
+  ];
+}
+
+export function getRSCStepIndex(progress) {
+  if (progress === 0) return 0;
+  if (progress < 0.12) return 1;
+  if (progress < 0.20) return 2;
+  if (progress < 0.30) return 3;
+  if (progress < 0.42) return 4;
+  if (progress < 0.55) return 5;
+  if (progress < 0.70) return 6;
+  return 7;
+}
+
 export function getBowStepIndex(progress, hasSupport) {
   if (hasSupport) {
     if (progress === 0) return 0;

@@ -6,7 +6,7 @@ Steps:
 1. Greeting
 2. Product Type (บังคับ)
 3. Box Type + Material (บังคับ, มี sub_step)
-4. Inner (Optional, เฉพาะ Die-cut)
+4. Inner (Optional, สำหรับ box types ที่มี has_inner=True)
 5. Dimensions + Quantity (บังคับ, รับแยกรอบได้ผ่าน partial_data)
 6. Checkpoint 1 (สรุป + รองรับแก้ไข/เพิ่ม ผ่าน edit_mode)
 """
@@ -21,6 +21,7 @@ from services.data_extractor import (
     is_add_request, detect_edit_target,
 )
 from api.analyze import analyze_box_strength, suggest_alternatives, format_analysis_for_chat, FLUTE_SPECS
+from utils.constants import BOX_TYPES
 from utils.prompts import SYSTEM_PROMPT, get_prompt_for_step
 
 
@@ -67,7 +68,12 @@ class StructureStepHandlers:
                 response += (
                     "\n\nคุณต้องการกล่องประเภทไหนคะ?\n"
                     "1. RSC (มาตรฐาน) — ประหยัด แข็งแรง เหมาะขนส่ง\n"
-                    "2. Die-cut (ไดคัท) — พรีเมียม โชว์แบรนด์"
+                    "2. Die-cut (ฝาเสียบ) — พรีเมียม โชว์แบรนด์\n"
+                    "3. Heart (หัวใจ) — ของขวัญ/เครื่องสำอาง\n"
+                    "4. Star (ดาว) — โดดเด่น ดึงดูดสายตา\n"
+                    "5. Bear (หมี) — น่ารัก สินค้าเด็ก/ของขวัญ\n"
+                    "6. Circle (ทรงกลม) — คลาสสิก หรูหรา\n"
+                    "7. Bow (ซัพพอร์ท) — ฝาเสียบพร้อมซัพพอร์ทภายใน"
                 )
 
             result = _make_result(
@@ -145,14 +151,9 @@ class StructureStepHandlers:
 
             # เพิ่ม transition ตาม path (ถ้าไม่ได้อยู่ใน edit mode)
             if not state.edit_mode:
-                if box_type == "rsc":
-                    # RSC ข้าม Inner → ไปถามขนาดเลย
-                    response += (
-                        "\n\n📐 ต่อไป ขอทราบขนาดกล่องที่ต้องการนะคะ "
-                        "(กว้าง×ยาว×สูง เป็น ซม.) และจำนวนที่ต้องการผลิต (ขั้นต่ำ 500 ชิ้น)"
-                    )
-                else:
-                    # Die-cut → ถาม Inner ครบ 3 กลุ่มตาม Requirement
+                box_info = BOX_TYPES.get(box_type, {})
+                if box_info.get("has_inner", False):
+                    # Die-cut / Heart / Star / Bear / Circle / Bow → ถาม Inner
                     response += (
                         "\n\nต้องการ Inner เพิ่มในกล่องไหมคะ? เลือกได้หลายตัวเลือก "
                         "เพียงพิมพ์หมายเลขรวมกัน เช่น '1' หรือ '2, 5'\n\n"
@@ -172,6 +173,12 @@ class StructureStepHandlers:
                         "  11. Grease-resistant Coating\n\n"
                         "*(หรือพิมพ์ 'ไม่ต้องการ' เพื่อข้ามค่ะ)*"
                     )
+                else:
+                    # RSC ข้าม Inner → ไปถามขนาดเลย
+                    response += (
+                        "\n\n📐 ต่อไป ขอทราบขนาดกล่องที่ต้องการนะคะ "
+                        "(กว้าง×ยาว×สูง เป็น ซม.) และจำนวนที่ต้องการผลิต (ขั้นต่ำ 500 ชิ้น)"
+                    )
 
             result = _make_result(
                 response=response, advance=True,
@@ -189,7 +196,8 @@ class StructureStepHandlers:
         )
 
     def _get_material_options(self, box_type: str) -> dict:
-        if box_type == "rsc":
+        material_group = BOX_TYPES.get(box_type, {}).get("material_group", "die_cut")
+        if material_group == "rsc":
             return {
                 "corrugated_2layer": "กระดาษลูกฟูก 2 ชั้น (แข็งแรง ราคาประหยัด)",
                 "kraft_200gsm": "กระดาษคราฟท์ 200 GSM (ลุค Eco-friendly)",
@@ -208,7 +216,7 @@ class StructureStepHandlers:
         return "\n".join(lines)
 
     # ===================================
-    # Step 4: Inner (Optional, เฉพาะ Die-cut)
+    # Step 4: Inner (Optional, สำหรับ box types ที่มี has_inner=True)
     # ===================================
     async def handle_inner(self, user_message: str, state: ConversationState):
         inner = extract_inner(user_message)

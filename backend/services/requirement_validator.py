@@ -209,7 +209,7 @@ class RequirementValidator:
     
     def _validate_box_type(self, box_type: Optional[str]) -> bool:
         """ตรวจสอบ box_type"""
-        valid_types = ["rsc", "die_cut"]
+        valid_types = ["rsc", "die_cut", "heart", "star", "bear", "circle", "bow"]
         return box_type in valid_types
     
     def _validate_dimensions(
@@ -349,9 +349,9 @@ class RequirementValidator:
         product_type = collected_data.get("product_type")
         box_type = collected_data.get("box_type")
         
-        # Food-grade ควรใช้ die-cut และวัสดุที่เหมาะสม
+        # Food-grade ควรใช้กล่องที่ไม่ใช่ RSC
         if product_type == "food_grade":
-            if box_type != "die_cut":
+            if box_type == "rsc":
                 # เตือน แต่ไม่ error
                 return True, ""  # ผ่านได้แต่อาจเตือน
         

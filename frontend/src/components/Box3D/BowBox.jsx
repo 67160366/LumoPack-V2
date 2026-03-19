@@ -12,6 +12,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
 import { getBowPhases } from '../../engine/animationPhases';
+import { buildSupportHoles } from '../../engine/supportHoles';
 
 const HP = Math.PI / 2;
 const CARD_COLOR = '#dfb48c';
@@ -57,6 +58,7 @@ export default function BowBox({
   depth,
   foldProgress = 0,
   showSupport = false,
+  supportConfig,
 }) {
   const group = useRef();
 
@@ -143,19 +145,19 @@ export default function BowBox({
     return { base, back, front, left, right, lft, lbt, rft, rbt, lid, tuck, earL, earR };
   }, [W, H, D]);
 
-  // Build support shapes
+  // Build support shapes (uses supportConfig for hole design)
   const suppShapes = useMemo(() => {
     const sw = W * 0.96;
     const sd = D * 0.96;
-    const sh = H * 0.78;
-    const holeRadius = Math.min(sw, sd) * 0.3;
+    const sh = H * (supportConfig?.wallHeight || 0.78);
 
     const top = new THREE.Shape();
     top.moveTo(-sw / 2, -sd / 2); top.lineTo(sw / 2, -sd / 2);
     top.lineTo(sw / 2, sd / 2); top.lineTo(-sw / 2, sd / 2);
-    const holePath = new THREE.Path();
-    holePath.absarc(0, 0, holeRadius, 0, Math.PI * 2, false);
-    top.holes.push(holePath);
+
+    // Build holes from supportConfig
+    const holes = buildSupportHoles(sw, sd, supportConfig);
+    holes.forEach(h => top.holes.push(h));
 
     const suppFront = new THREE.Shape();
     suppFront.moveTo(-sw / 2, 0); suppFront.lineTo(sw / 2, 0);
@@ -174,7 +176,7 @@ export default function BowBox({
     suppRight.lineTo(sh, sd / 2); suppRight.lineTo(0, sd / 2);
 
     return { top, suppFront, suppBack, suppLeft, suppRight, sw, sd, sh };
-  }, [W, H, D]);
+  }, [W, H, D, supportConfig]);
 
   // Fold angles
   const p = foldProgress;

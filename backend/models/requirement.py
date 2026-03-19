@@ -18,7 +18,7 @@ class BoxStructure(BaseModel):
     product_type: Literal["general", "non_food", "food_grade", "cosmetic"]
     
     # ขั้นที่ 3: ประเภทกล่อง
-    box_type: Literal["rsc", "die_cut"]
+    box_type: Literal["rsc", "die_cut", "heart", "star", "bear", "circle", "bow"]
     
     # ขั้นที่ 4: Inner (Optional) — List เพื่อรองรับ multi-select (Approach B)
     # แต่ละ item: {"type": "shredded_paper", "category": "cushion"} เป็นต้น
@@ -252,10 +252,12 @@ class CompleteRequirement(BaseModel):
     
     def _select_default_material(self) -> str:
         """เลือกวัสดุเริ่มต้นตาม box_type"""
-        if self.structure.box_type == "rsc":
+        from utils.constants import BOX_TYPES
+        material_group = BOX_TYPES.get(self.structure.box_type, {}).get("material_group", "die_cut")
+        if material_group == "rsc":
             return "corrugated_2layer"
-        else:  # die_cut
-            # เลือกตาม product_type
+        else:
+            # die_cut / heart / star / bear / circle / bow
             if self.structure.product_type in ["food_grade", "cosmetic"]:
                 return "art_300gsm"
             else:

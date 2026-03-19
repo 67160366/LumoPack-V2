@@ -66,8 +66,8 @@ class PricingCalculator:
         Returns:
             Factor สำหรับคูณราคา
         """
-        # ดึงค่า production factor (RSC=1.1, Die-cut=1.5)
-        production_factor = BOX_TYPES[box_type]["production_factor"]
+        # ดึงค่า production factor (RSC=1.1, Die-cut=1.5, Heart=1.8 ...)
+        production_factor = BOX_TYPES.get(box_type, {}).get("production_factor", 1.1)
         
         # พื้นที่กล่องมาตรฐาน 10x10x10 + factor
         standard_with_factor = self.standard_area * production_factor
@@ -110,8 +110,9 @@ class PricingCalculator:
                 "ratio": Factor ที่ใช้คำนวณ
             }
         """
-        # เลือก material database
-        materials_db = RSC_MATERIALS if box_type == "rsc" else DIE_CUT_MATERIALS
+        # เลือก material database ตาม material_group ของ box type
+        material_group = BOX_TYPES.get(box_type, {}).get("material_group", "die_cut")
+        materials_db = RSC_MATERIALS if material_group == "rsc" else DIE_CUT_MATERIALS
         
         if material not in materials_db:
             raise ValueError(f"ไม่มีวัสดุ '{material}' สำหรับกล่อง {box_type}")
@@ -154,7 +155,7 @@ class PricingCalculator:
         """
         # คำนวณพื้นที่ + production factor
         surface_area = self.calculate_surface_area(width, length, height)
-        production_factor = BOX_TYPES[box_type]["production_factor"]
+        production_factor = BOX_TYPES.get(box_type, {}).get("production_factor", 1.1)
         area_with_factor = surface_area * production_factor
         
         # คำนวณน้ำหนักกระดาษ

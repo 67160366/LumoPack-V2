@@ -9,6 +9,12 @@ import { supabase } from '../lib/supabase';
 import { STATUS_COLORS } from './CheckoutPage';
 import { STATUS_LABELS } from './MyOrdersPage';
 
+const BOX_TYPE_LABELS = {
+  rsc: 'RSC (กล่องลูกฟูก)', die_cut: 'Die-cut (ฝาเสียบ)',
+  heart: 'Heart (หัวใจ)', star: 'Star (ดาว)', bear: 'Bear (หมี)',
+  circle: 'Circle (ทรงกลม)', bow: 'Bow (ซัพพอร์ท)',
+};
+
 const TIMELINE_STEPS = [
   { key: 'pending', label: 'รอตรวจสอบ' },
   { key: 'deposit_paid', label: 'ชำระมัดจำ' },
@@ -154,7 +160,7 @@ export default function OrderDetailPage() {
               <Row label="ขนาด" value={`${order.collected_data.dimensions.width} x ${order.collected_data.dimensions.length} x ${order.collected_data.dimensions.height} cm`} />
             )}
             {order.collected_data?.quantity && <Row label="จำนวน" value={`${order.collected_data.quantity.toLocaleString()} ชิ้น`} />}
-            {order.collected_data?.box_type && <Row label="ประเภทกล่อง" value={order.collected_data.box_type} />}
+            {order.collected_data?.box_type && <Row label="ประเภทกล่อง" value={BOX_TYPE_LABELS[order.collected_data.box_type] || order.collected_data.box_type} />}
             {order.collected_data?.material && <Row label="วัสดุ" value={order.collected_data.material} />}
           </div>
         </div>

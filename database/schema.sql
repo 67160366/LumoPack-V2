@@ -140,7 +140,8 @@ CREATE TABLE public.projects (
   status TEXT DEFAULT 'draft'
     CHECK (status IN ('draft','quoted','ordered','archived')),
   -- Box specification
-  box_type TEXT DEFAULT 'rsc',
+  box_type TEXT DEFAULT 'rsc'
+    CHECK (box_type IN ('rsc','die_cut','heart','star','bear','circle','bow')),
   dimensions JSONB,           -- {width, length, height} in cm
   weight_kg NUMERIC(8,2),
   flute_type TEXT,

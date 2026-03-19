@@ -24,6 +24,7 @@ import {
   animateCircleChain,
 } from '../../engine/hingeChain';
 import { getContourPhases } from '../../engine/animationPhases';
+import { buildSupportHoles, buildCircleSupportHoles } from '../../engine/supportHoles';
 
 const HP = Math.PI / 2;
 
@@ -79,7 +80,7 @@ function buildCircleParts(radius, height, material) {
 /**
  * Build support structure for contour shapes
  */
-function buildContourSupport(points, scale, holeRadius, legHeight, material) {
+function buildContourSupport(points, scale, holeRadius, legHeight, material, supportConfig) {
   const group = new THREE.Group();
   const innerScale = 0.96;
 
@@ -92,9 +93,25 @@ function buildContourSupport(points, scale, holeRadius, legHeight, material) {
     else shape.lineTo(x, y);
   }
 
-  const holePath = new THREE.Path();
-  holePath.absarc(0, 0, holeRadius, 0, Math.PI * 2, false);
-  shape.holes.push(holePath);
+  // Use supportConfig for holes, fallback to single circle
+  if (supportConfig) {
+    // Estimate plate bounding box for hole placement
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const p of points) {
+      minX = Math.min(minX, p.x * innerScale);
+      maxX = Math.max(maxX, p.x * innerScale);
+      minY = Math.min(minY, p.y * innerScale);
+      maxY = Math.max(maxY, p.y * innerScale);
+    }
+    const plateW = maxX - minX;
+    const plateD = maxY - minY;
+    const holes = buildSupportHoles(plateW, plateD, supportConfig);
+    holes.forEach(h => shape.holes.push(h));
+  } else {
+    const holePath = new THREE.Path();
+    holePath.absarc(0, 0, holeRadius, 0, Math.PI * 2, false);
+    shape.holes.push(holePath);
+  }
 
   const plateMesh = new THREE.Mesh(new THREE.ShapeGeometry(shape), material);
   plateMesh.rotation.x = -HP;
@@ -118,16 +135,22 @@ function buildContourSupport(points, scale, holeRadius, legHeight, material) {
 /**
  * Build support for circle shape
  */
-function buildCircleSupport(radius, holeRadius, supportHeight, material) {
+function buildCircleSupport(radius, holeRadius, supportHeight, material, supportConfig) {
   const group = new THREE.Group();
   const innerRadius = radius * 0.96;
 
   // Perforated disk
   const shape = new THREE.Shape();
   shape.absarc(0, 0, innerRadius, 0, Math.PI * 2, false);
-  const holePath = new THREE.Path();
-  holePath.absarc(0, 0, holeRadius, 0, Math.PI * 2, false);
-  shape.holes.push(holePath);
+
+  if (supportConfig) {
+    const holes = buildCircleSupportHoles(innerRadius, supportConfig);
+    holes.forEach(h => shape.holes.push(h));
+  } else {
+    const holePath = new THREE.Path();
+    holePath.absarc(0, 0, holeRadius, 0, Math.PI * 2, false);
+    shape.holes.push(holePath);
+  }
 
   const plateMesh = new THREE.Mesh(new THREE.ShapeGeometry(shape), material);
   plateMesh.rotation.x = -HP;
@@ -158,6 +181,7 @@ export default function ContourBox({
   radius: radiusProp,
   foldProgress = 0,
   showSupport = false,
+  supportConfig,
 }) {
   const rootRef = useRef();
   const isCircle = shapeType === 'circle';
@@ -184,15 +208,15 @@ export default function ContourBox({
     side: THREE.DoubleSide,
   }), [config.supportColor]);
 
-  // Build geometry (imperative, memoized on dimensions)
+  // Build geometry (imperative, memoized on dimensions + supportConfig)
   const assembly = useMemo(() => {
     if (isCircle) {
       const base = buildCircleParts(radius, boxHeight, matBox);
       const lid = buildCircleParts(radius + config.lidRadiusOffset, config.lidHeight, matBox);
 
       const holeR = radius * 0.3;
-      const supportH = boxHeight * 0.4;
-      const support = buildCircleSupport(radius, holeR, supportH, matSupport);
+      const supportH = boxHeight * (supportConfig?.wallHeight || 0.4);
+      const support = buildCircleSupport(radius, holeR, supportH, matSupport, supportConfig);
       support.position.y = boxHeight + 10;
 
       return { base, lid, support, isCircle: true };
@@ -213,11 +237,11 @@ export default function ContourBox({
 
     const holeR = scale * 3;
     const legH = Math.max(0.01, (boxHeight - (boxHeight * 0.5)) / 2);
-    const support = buildContourSupport(points, scale, holeR, legH, matSupport);
+    const support = buildContourSupport(points, scale, holeR, legH, matSupport, supportConfig);
     support.position.y = boxHeight + 10;
 
     return { base, lid, support, isCircle: false };
-  }, [shapeType, scale, boxHeight, radius, matBox, matSupport, config, isCircle]);
+  }, [shapeType, scale, boxHeight, radius, matBox, matSupport, config, isCircle, supportConfig]);
 
   // Auto-rotate
   useFrame((_s, dt) => {

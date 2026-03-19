@@ -46,7 +46,7 @@ export default function ResetPasswordPage() {
       {/* ===== Left — Visual ===== */}
       <div style={{ width: '50%', position: 'relative', display: 'none' }} className="hidden md:!block">
         <Link to="/" style={{ position: 'absolute', top: 28, left: 32, zIndex: 10, display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none' }}>
-          <img src="/logo.png" alt="LumoPack" style={{ height: 44, width: 44, objectFit: 'contain' }} />
+          <img src="/logo.png" alt="LumoPack" style={{ height: 100, width: 100, objectFit: 'contain' }} />
           <span style={{ color: '#fff', fontSize: 24, fontWeight: 700 }} className="font-display">LumoPack</span>
         </Link>
 

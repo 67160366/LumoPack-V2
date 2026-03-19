@@ -75,7 +75,14 @@ def get_box_type_prompt(user_message: str, product_type: str) -> str:
 ประเภทสินค้า: {product_type}
 
 ภารกิจของคุณ:
-1. วิเคราะห์ว่าลูกค้าเลือกกล่องประเภทไหน (rsc หรือ die_cut)
+1. วิเคราะห์ว่าลูกค้าเลือกกล่องประเภทไหน (7 ประเภท):
+   - rsc: กล่องมาตรฐาน RSC (ประหยัด แข็งแรง)
+   - die_cut: กล่องไดคัท/ฝาเสียบ (โชว์แบรนด์)
+   - heart: กล่องหัวใจ (ของขวัญ/เครื่องสำอาง)
+   - star: กล่องดาว (โดดเด่น)
+   - bear: กล่องหมี (น่ารัก สินค้าเด็ก)
+   - circle: กล่องทรงกลม (คลาสสิก หรูหรา)
+   - bow: กล่อง Bow พร้อมซัพพอร์ท
 2. ยืนยันการเลือกด้วยประโยคสั้นๆ (1 ประโยค)
 
 ⚠️ ห้ามถามคำถามถัดไป (ระบบจะถามวัสดุหรือ Inner เอง)
@@ -159,7 +166,12 @@ def get_checkpoint1_prompt(collected_data: Dict[str, Any]) -> str:
     
     box_type_th = {
         "rsc": "กล่องมาตรฐาน RSC",
-        "die_cut": "กล่องไดคัท (Die-cut)"
+        "die_cut": "กล่องไดคัท (Die-cut)",
+        "heart": "กล่องหัวใจ (Heart Box)",
+        "star": "กล่องดาว (Star Box)",
+        "bear": "กล่องหมี (Bear Box)",
+        "circle": "กล่องทรงกลม (Circle Box)",
+        "bow": "กล่อง Bow (พร้อมซัพพอร์ท)",
     }
     
     dims = collected_data.get("dimensions", {})

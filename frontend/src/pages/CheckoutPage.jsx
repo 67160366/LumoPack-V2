@@ -19,6 +19,12 @@ const STATUS_COLORS = {
 
 export { STATUS_COLORS };
 
+const BOX_TYPE_LABELS = {
+  rsc: 'RSC (กล่องลูกฟูก)', die_cut: 'Die-cut (ฝาเสียบ)',
+  heart: 'Heart (หัวใจ)', star: 'Star (ดาว)', bear: 'Bear (หมี)',
+  circle: 'Circle (ทรงกลม)', bow: 'Bow (ซัพพอร์ท)',
+};
+
 export default function CheckoutPage() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -122,7 +128,7 @@ export default function CheckoutPage() {
           <h3 className="text-sm font-display font-semibold text-purple-700 mb-4">สรุปสเปคกล่อง</h3>
           <div className="space-y-2 text-xs">
             {collectedData.product_type && <Row label="ประเภทสินค้า" value={collectedData.product_type} />}
-            {collectedData.box_type && <Row label="ประเภทกล่อง" value={collectedData.box_type} />}
+            {collectedData.box_type && <Row label="ประเภทกล่อง" value={BOX_TYPE_LABELS[collectedData.box_type] || collectedData.box_type} />}
             {collectedData.material && <Row label="วัสดุ" value={collectedData.material} />}
             {collectedData.dimensions && (
               <Row label="ขนาด" value={`${collectedData.dimensions.width} x ${collectedData.dimensions.length} x ${collectedData.dimensions.height} cm`} />

@@ -21,7 +21,7 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      await signIn(email, password);
+      await signIn(email, password, remember);
       navigate('/');
     } catch (err) {
       setError(err.message || 'เข้าสู่ระบบไม่สำเร็จ');
@@ -36,7 +36,7 @@ export default function LoginPage() {
       <div style={{ width: '50%', position: 'relative', display: 'none' }} className="hidden md:!block">
         {/* Logo */}
         <Link to="/" style={{ position: 'absolute', top: 28, left: 32, zIndex: 10, display: 'flex', alignItems: 'center', gap: 12, textDecoration: 'none' }}>
-          <img src="/logo.png" alt="LumoPack" style={{ height: 44, width: 44, objectFit: 'contain' }} />
+          <img src="/logo.png" alt="LumoPack" style={{ height: 100, width: 100, objectFit: 'contain' }} />
           <span style={{ color: '#fff', fontSize: 24, fontWeight: 700 }} className="font-display">LumoPack</span>
         </Link>
 
@@ -45,7 +45,7 @@ export default function LoginPage() {
           to="/"
           style={{ position: 'absolute', top: 28, right: 32, zIndex: 10, background: 'rgba(255,255,255,0.1)', backdropFilter: 'blur(8px)', color: '#fff', padding: '12px 24px', borderRadius: 9999, fontSize: 14, textDecoration: 'none', transition: 'background 0.2s' }}
         >
-          กลับหน้าหลัก →
+          กลับหน้าหลัก
         </Link>
 
         {/* Gradient bg */}

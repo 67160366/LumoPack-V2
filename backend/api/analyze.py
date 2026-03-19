@@ -56,11 +56,11 @@ class AnalyzeResponse(BaseModel):
 # ===================================
 def mckee_bct(ect_kn_m: float, caliper_mm: float, perimeter_mm: float) -> float:
     """
-    คำนวณ Box Compression Test (BCT) ด้วย McKee Formula
+    คำนวณ Box Compression Test (BCT) ด้วย Simplified McKee Formula
+    (McKee, Gander & Wachuta, 1963)
 
-    BCT = k × ECT^a × Z^(1-a) × h^a
+    BCT = 5.87 × ECT × √(h × Z)
 
-    k = 2.028, a = 0.746
     ECT = Edge Crush Test (kN/m → lbf/in)
     Z   = box perimeter (mm → in)
     h   = caliper thickness (mm → in)
@@ -71,10 +71,7 @@ def mckee_bct(ect_kn_m: float, caliper_mm: float, perimeter_mm: float) -> float:
     z_in = perimeter_mm / 25.4          # mm → in
     h_in = caliper_mm / 25.4            # mm → in
 
-    k = 2.028
-    a = 0.746
-
-    bct_lbf = k * (ect_lbf_in ** a) * (z_in ** (1 - a)) * (h_in ** a)
+    bct_lbf = 5.87 * ect_lbf_in * math.sqrt(h_in * z_in)
     bct_kgf = bct_lbf * 0.453592
 
     return bct_kgf
@@ -126,14 +123,20 @@ def analyze_box_strength(
         )
     else:
         status = "DANGER"
-        better = [
-            f for f, s in FLUTE_SPECS.items()
-            if s["ect"] > flute["ect"] and f != flute_type.upper()
-        ]
-        if better:
-            suggestion = f"แนะนำเปลี่ยนเป็น {FLUTE_SPECS[better[0]]['name']}"
+        # Find a flute that would actually be SAFE (sf >= 1.5) at this box size
+        better_option = None
+        for fk, fs in sorted(FLUTE_SPECS.items(), key=lambda x: x[1]["ect"]):
+            if fs["ect"] <= flute["ect"]:
+                continue
+            alt_bct = mckee_bct(fs["ect"], fs["caliper"], perimeter_mm)
+            alt_max = alt_bct / stacking_factor
+            if weight_kg > 0 and alt_max / weight_kg >= 1.5:
+                better_option = fs["name"]
+                break
+        if better_option:
+            suggestion = f"แนะนำเปลี่ยนเป็น {better_option}"
         else:
-            suggestion = "แนะนำใช้กล่อง 2 ชั้น (BC flute)"
+            suggestion = "แนะนำเพิ่มขนาดกล่อง หรือใช้ลอน BC (2 ชั้น)"
         recommendation = (
             f"⚠️ กล่อง {flute['name']} ไม่แข็งแรงพอสำหรับ {weight_kg:.1f} kg — {suggestion}"
         )

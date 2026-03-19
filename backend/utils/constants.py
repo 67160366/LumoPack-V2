@@ -22,15 +22,59 @@ BOX_TYPES = {
     "rsc": {
         "name": "กล่องมาตรฐาน RSC",
         "suitable_for": ["general"],
-        "production_factor": 1.1,  # เผื่อผลิตจริง
-        "description": "ประหยัด แข็งแรง เหมาะกับการขนส่ง"
+        "production_factor": 1.1,
+        "description": "ประหยัด แข็งแรง เหมาะกับการขนส่ง",
+        "material_group": "rsc",
+        "has_inner": False,
     },
     "die_cut": {
         "name": "กล่องไดคัท (Die-cut)",
         "suitable_for": ["non_food", "food_grade", "cosmetic"],
         "production_factor": 1.5,
-        "description": "เน้นโชว์แบรนด์ ไม่ต้องใช้เทปปิด"
-    }
+        "description": "เน้นโชว์แบรนด์ ไม่ต้องใช้เทปปิด",
+        "material_group": "die_cut",
+        "has_inner": True,
+    },
+    "heart": {
+        "name": "กล่องหัวใจ (Heart Box)",
+        "suitable_for": ["cosmetic", "non_food", "food_grade"],
+        "production_factor": 1.8,
+        "description": "กล่องทรงหัวใจ เหมาะของขวัญ/เครื่องสำอาง",
+        "material_group": "die_cut",
+        "has_inner": True,
+    },
+    "star": {
+        "name": "กล่องดาว (Star Box)",
+        "suitable_for": ["cosmetic", "non_food"],
+        "production_factor": 2.0,
+        "description": "กล่องทรงดาว โดดเด่น ดึงดูดสายตา",
+        "material_group": "die_cut",
+        "has_inner": True,
+    },
+    "bear": {
+        "name": "กล่องหมี (Bear Box)",
+        "suitable_for": ["cosmetic", "non_food", "food_grade"],
+        "production_factor": 2.0,
+        "description": "กล่องทรงหมี น่ารัก เหมาะสินค้าเด็ก/ของขวัญ",
+        "material_group": "die_cut",
+        "has_inner": True,
+    },
+    "circle": {
+        "name": "กล่องทรงกลม (Circle Box)",
+        "suitable_for": ["cosmetic", "non_food", "food_grade"],
+        "production_factor": 1.6,
+        "description": "กล่องทรงกลม คลาสสิก หรูหรา",
+        "material_group": "die_cut",
+        "has_inner": True,
+    },
+    "bow": {
+        "name": "กล่อง Bow (พร้อมซัพพอร์ท)",
+        "suitable_for": ["non_food", "food_grade", "cosmetic"],
+        "production_factor": 1.5,
+        "description": "กล่องฝาเสียบพร้อมซัพพอร์ทภายใน",
+        "material_group": "die_cut",
+        "has_inner": True,
+    },
 }
 
 # ===================================
@@ -83,7 +127,7 @@ DIE_CUT_MATERIALS = {
         "labor_cost": 0.6,
         "base_size": "10*10*10"
     },
-    "ivory_350gsm": {
+    "whiteboard_350gsm": {
         "name": "กระดาษกล่องขาว/กล่องแป้ง 350 GSM",
         "gsm": 350,
         "density": 0.85,

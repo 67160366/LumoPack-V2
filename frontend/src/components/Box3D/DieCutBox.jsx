@@ -11,6 +11,7 @@ import { useMemo } from 'react';
 import * as THREE from 'three';
 
 import { getBowPhases } from '../../engine/animationPhases';
+import { buildSupportHoles } from '../../engine/supportHoles';
 
 const HP = Math.PI / 2;
 const CARD_COLOR = '#dfb48c';
@@ -51,7 +52,7 @@ function SupportPanel({ shape }) {
 }
 
 /* ── Main component ── */
-export default function DieCutBox({ width, height, depth, foldProgress = 0, showSupport = false }) {
+export default function DieCutBox({ width, height, depth, foldProgress = 0, showSupport = false, supportConfig }) {
   // Convert cm props → scene units
   const W = (width || 50) / 10;
   const H = (height || 30) / 10;
@@ -136,20 +137,19 @@ export default function DieCutBox({ width, height, depth, foldProgress = 0, show
     return { base, back, front, left, right, lft, lbt, rft, rbt, lid, tuck, earL, earR };
   }, [W, H, D]);
 
-  // Build support shapes (same pattern as BowBox)
+  // Build support shapes (uses supportConfig for hole design)
   const suppShapes = useMemo(() => {
     const sw = W * 0.96;
     const sd = D * 0.96;
-    const sh = H * 0.78;
-    const holeRadius = Math.min(sw, sd) * 0.3;
+    const sh = H * (supportConfig?.wallHeight || 0.78);
 
-    // Top plate with center hole
+    // Top plate with configurable holes
     const top = new THREE.Shape();
     top.moveTo(-sw / 2, -sd / 2); top.lineTo(sw / 2, -sd / 2);
     top.lineTo(sw / 2, sd / 2); top.lineTo(-sw / 2, sd / 2);
-    const holePath = new THREE.Path();
-    holePath.absarc(0, 0, holeRadius, 0, Math.PI * 2, false);
-    top.holes.push(holePath);
+
+    const holes = buildSupportHoles(sw, sd, supportConfig);
+    holes.forEach(h => top.holes.push(h));
 
     // Front wall
     const suppFront = new THREE.Shape();
@@ -172,7 +172,7 @@ export default function DieCutBox({ width, height, depth, foldProgress = 0, show
     suppRight.lineTo(sh, sd / 2); suppRight.lineTo(0, sd / 2);
 
     return { top, suppFront, suppBack, suppLeft, suppRight, sw, sd, sh };
-  }, [W, H, D]);
+  }, [W, H, D, supportConfig]);
 
   // Animation phases (reuse BowBox phases — same fold sequence)
   const p = foldProgress;

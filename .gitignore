@@ -8,49 +8,41 @@ venv/
 # Node
 node_modules/
 dist/
+dist-ssr/
 .vite/
+*.local
 
-# IDE
-.vscode/
-.idea/
-
-# VS Code Local History
-.history/
-
-# Root package files (not needed)
+# Root package files (auto-generated)
 /package.json
 /package-lock.json
 
 # OS
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # Logs
-logs
 *.log
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
 pnpm-debug.log*
-lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
-
-# Editor directories and files
-.vscode/*
+# IDE
+.vscode/
 !.vscode/extensions.json
-.idea
-.DS_Store
+.idea/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+.history/
 
-.claude
+# Claude Code
+.claude/
 
-# Extracted temp files
+# Temp
 _extracted/
+*.tmp
+
+.agents/

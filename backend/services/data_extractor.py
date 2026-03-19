@@ -54,22 +54,37 @@ def extract_product_type(message: str) -> Optional[str]:
 def extract_box_type(message: str) -> Optional[str]:
     """
     Extract ประเภทกล่อง
-    Returns: "rsc" | "die_cut" | None
+    Returns: "rsc" | "die_cut" | "heart" | "star" | "bear" | "circle" | "bow" | None
     """
     msg = message.lower().strip()
-    
-    if any(w in msg for w in ["rsc", "มาตรฐาน", "standard"]):
+
+    # Contour / special shapes — check before generic keywords
+    if any(w in msg for w in ["heart", "หัวใจ", "heart box"]):
+        return "heart"
+    if any(w in msg for w in ["star", "ดาว", "star box"]):
+        return "star"
+    if any(w in msg for w in ["bear", "หมี", "bear box"]):
+        return "bear"
+    if any(w in msg for w in ["circle", "ทรงกลม", "กลม", "วงกลม", "circle box"]):
+        return "circle"
+    if any(w in msg for w in ["bow", "bow box", "ซัพพอร์ท"]):
+        return "bow"
+
+    if any(w in msg for w in ["rsc", "มาตรฐาน", "standard", "ลูกฟูก"]):
         return "rsc"
-    
+
     # เช็ค die-cut / die cut / ไดคัท เป็นคำรวม
-    if re.search(r'die[\s-]?cut|ไดคัท|ไดค์ท', msg):
+    if re.search(r'die[\s-]?cut|ไดคัท|ไดค์ท|ฝาเสียบ', msg):
         return "die_cut"
-    
-    # Match ตัวเลข
-    match = re.match(r'^\s*([12])\s*$', msg)
+
+    # Match ตัวเลข (1-7)
+    match = re.match(r'^\s*([1-7])\s*$', msg)
     if match:
-        return {"1": "rsc", "2": "die_cut"}[match.group(1)]
-    
+        return {
+            "1": "rsc", "2": "die_cut", "3": "heart",
+            "4": "star", "5": "bear", "6": "circle", "7": "bow",
+        }[match.group(1)]
+
     return None
 
 

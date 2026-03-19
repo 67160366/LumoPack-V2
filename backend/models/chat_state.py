@@ -24,7 +24,7 @@ class ChatbotStep(IntEnum):
     GREETING = 1
     COLLECT_PRODUCT_TYPE = 2
     COLLECT_BOX_TYPE = 3            # + เลือกวัสดุ
-    COLLECT_INNER = 4               # Optional, เฉพาะ Die-cut
+    COLLECT_INNER = 4               # Optional, สำหรับ box types ที่มี has_inner
     COLLECT_DIMENSIONS = 5          # ขนาดกล่อง + จำนวนผลิต
     CHECKPOINT_1 = 6
     COLLECT_MOOD_TONE = 7           # Optional
@@ -213,8 +213,11 @@ class ConversationState(BaseModel):
         return self.current_step in OPTIONAL_STEPS
     
     def should_skip_inner(self) -> bool:
-        """RSC ไม่ต้องถาม Inner"""
-        return self.collected_data.get("box_type") == "rsc"
+        """ข้าม Inner ถ้า box type ไม่รองรับ (เช่น RSC)"""
+        from utils.constants import BOX_TYPES
+        box_type = self.collected_data.get("box_type", "rsc")
+        box_info = BOX_TYPES.get(box_type, {})
+        return not box_info.get("has_inner", False)
     
     def is_structure_complete(self) -> bool:
         required = ["product_type", "box_type", "dimensions", "quantity"]

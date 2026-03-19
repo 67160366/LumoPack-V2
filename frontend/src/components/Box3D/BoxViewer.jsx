@@ -23,12 +23,15 @@ import useCorrugatedTexture from './useCorrugatedTexture';
 import DieCutBox from './DieCutBox';
 import ContourBox from './ContourBox';
 import BowBox from './BowBox';
+import RSCBox from './RSCBox';
 
 import {
   getContourSteps,
   getContourStepIndex,
   getBowSteps,
   getBowStepIndex,
+  getRSCSteps,
+  getRSCStepIndex,
 } from '../../engine/animationPhases';
 
 // Box type labels (for fallback badge)
@@ -43,7 +46,7 @@ const BOX_TYPE_LABELS = {
 };
 
 // Box types that support fold animation
-const FOLDABLE_TYPES = ['die_cut', 'heart', 'star', 'bear', 'circle', 'bow'];
+const FOLDABLE_TYPES = ['rsc', 'die_cut', 'heart', 'star', 'bear', 'circle', 'bow'];
 // Box types that are contour-based (not panel-based)
 const CONTOUR_TYPES = ['heart', 'star', 'bear', 'circle'];
 // Box types that support the support structure toggle
@@ -78,10 +81,12 @@ function TexturedBox({ width, height, depth, textureUrl }) {
 /* ============================================================
  * PanelBox — dispatcher ตาม boxType
  * ========================================================== */
-function PanelBox({ width, height, depth, boxType, foldProgress, showSupport }) {
+function PanelBox({ width, height, depth, boxType, foldProgress, showSupport, supportConfig }) {
   switch (boxType) {
+    case 'rsc':
+      return <RSCBox width={width} height={height} depth={depth} foldProgress={foldProgress} />;
     case 'bow':
-      return <BowBox width={width} height={height} depth={depth} foldProgress={foldProgress} showSupport={showSupport} />;
+      return <BowBox width={width} height={height} depth={depth} foldProgress={foldProgress} showSupport={showSupport} supportConfig={supportConfig} />;
     case 'heart':
     case 'star':
     case 'bear':
@@ -92,6 +97,7 @@ function PanelBox({ width, height, depth, boxType, foldProgress, showSupport }) 
           height={height / 10}
           foldProgress={foldProgress}
           showSupport={showSupport}
+          supportConfig={supportConfig}
         />
       );
     case 'circle':
@@ -102,11 +108,12 @@ function PanelBox({ width, height, depth, boxType, foldProgress, showSupport }) 
           height={height / 10}
           foldProgress={foldProgress}
           showSupport={showSupport}
+          supportConfig={supportConfig}
         />
       );
     case 'die_cut':
     default:
-      return <DieCutBox width={width} height={height} depth={depth} foldProgress={foldProgress} showSupport={showSupport} />;
+      return <DieCutBox width={width} height={height} depth={depth} foldProgress={foldProgress} showSupport={showSupport} supportConfig={supportConfig} />;
   }
 }
 
@@ -117,26 +124,26 @@ function PanelBox({ width, height, depth, boxType, foldProgress, showSupport }) 
 /* ============================================================
  * BoxViewer Container
  * ========================================================== */
-export default function BoxViewer({ width, height, depth, image, isDanger, boxType = 'rsc' }) {
+export default function BoxViewer({ width, height, depth, image, isDanger, boxType = 'rsc', supportConfig }) {
   const [foldProgress, setFoldProgress] = useState(0);
   const [showSupport, setShowSupport] = useState(false);
 
   const showTexture = image && !isDanger;
-  const usePanelBox = boxType !== 'rsc' && !showTexture && !isDanger;
+  const usePanelBox = !showTexture && !isDanger;
   const showFoldSlider = usePanelBox && FOLDABLE_TYPES.includes(boxType);
   const isContour = CONTOUR_TYPES.includes(boxType);
   const canShowSupport = SUPPORT_TYPES.includes(boxType);
 
   // Dynamic fold steps based on box type
   const foldSteps = useMemo(() => {
+    if (boxType === 'rsc') return getRSCSteps();
     if (isContour) return getContourSteps(showSupport);
-    // die_cut and bow share the same phase system
     return getBowSteps(showSupport);
   }, [boxType, isContour, showSupport]);
 
   const activeStep = useMemo(() => {
+    if (boxType === 'rsc') return getRSCStepIndex(foldProgress);
     if (isContour) return getContourStepIndex(foldProgress, showSupport);
-    // die_cut and bow share the same step index
     return getBowStepIndex(foldProgress, showSupport);
   }, [foldProgress, boxType, isContour, showSupport]);
 
@@ -146,7 +153,7 @@ export default function BoxViewer({ width, height, depth, image, isDanger, boxTy
         camera={{ position: [6, 6, 6], fov: 45 }}
         gl={{ preserveDrawingBuffer: true }}
       >
-        <color attach="background" args={['#1a1d23']} />
+        <color attach="background" args={['#5c5c5c']} />
         <ambientLight intensity={0.5} />
         <spotLight position={[10, 10, 10]} angle={0.15} />
         <Environment preset="studio" />
@@ -164,6 +171,7 @@ export default function BoxViewer({ width, height, depth, image, isDanger, boxTy
               boxType={boxType}
               foldProgress={foldProgress}
               showSupport={showSupport}
+              supportConfig={supportConfig}
             />
           ) : (
             <PlainBox width={width} height={height} depth={depth} />
@@ -197,7 +205,7 @@ export default function BoxViewer({ width, height, depth, image, isDanger, boxTy
           }}
         >
           {/* Step label */}
-          <span style={{ fontSize: 11, fontFamily: 'monospace', color: '#7c3aed', whiteSpace: 'nowrap', minWidth: 80 }}>
+          <span style={{ fontSize: 14, fontFamily: 'monospace', color: '#7c3aed', whiteSpace: 'nowrap', minWidth: 100 }}>
             {foldSteps[activeStep]}
           </span>
 

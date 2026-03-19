@@ -19,12 +19,29 @@ import { supabase } from '../lib/supabase';
 
 const AuthContext = createContext(null);
 
-// Remove all Supabase auth keys from localStorage (fallback cleanup)
+// Remove all Supabase auth keys from both storages (fallback cleanup)
 function clearSupabaseStorage() {
   try {
     Object.keys(localStorage).forEach((key) => {
       if (key.startsWith('sb-') && key.endsWith('-auth-token')) {
         localStorage.removeItem(key);
+      }
+    });
+    Object.keys(sessionStorage).forEach((key) => {
+      if (key.startsWith('sb-') && key.endsWith('-auth-token')) {
+        sessionStorage.removeItem(key);
+      }
+    });
+  } catch { /* ignore */ }
+}
+
+// Restore sessionStorage token → localStorage so Supabase can read it
+// (Supabase only reads localStorage by default)
+function restoreSessionToken() {
+  try {
+    Object.keys(sessionStorage).forEach((key) => {
+      if (key.startsWith('sb-') && key.endsWith('-auth-token') && !localStorage.getItem(key)) {
+        localStorage.setItem(key, sessionStorage.getItem(key));
       }
     });
   } catch { /* ignore */ }
@@ -52,6 +69,9 @@ export function AuthProvider({ children }) {
       setLoading(false);
       return;
     }
+
+    // Restore session-only token to localStorage so Supabase can read it
+    restoreSessionToken();
 
     // Get initial session (no-op lock prevents deadlocks now)
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -82,8 +102,21 @@ export function AuthProvider({ children }) {
       }
     );
 
+    // If session lives only in sessionStorage, clean localStorage on tab close
+    const handleUnload = () => {
+      try {
+        Object.keys(sessionStorage).forEach((key) => {
+          if (key.startsWith('sb-') && key.endsWith('-auth-token')) {
+            localStorage.removeItem(key);
+          }
+        });
+      } catch { /* ignore */ }
+    };
+    window.addEventListener('beforeunload', handleUnload);
+
     return () => {
       subscription.unsubscribe();
+      window.removeEventListener('beforeunload', handleUnload);
     };
   }, [fetchProfile]);
 
@@ -108,14 +141,29 @@ export function AuthProvider({ children }) {
     return data;
   }, []);
 
-  // Sign in
-  const signIn = useCallback(async (email, password) => {
+  // Sign in — remember=false ให้ session หมดเมื่อปิดแท็บ
+  const signIn = useCallback(async (email, password, remember = false) => {
     if (!supabase) throw new Error('Supabase not configured');
     const { data, error } = await withTimeout(supabase.auth.signInWithPassword({
       email,
       password,
     }));
     if (error) throw error;
+
+    // ไม่ติ๊กจดจำฉัน → ย้าย token จาก localStorage ไปยัง sessionStorage
+    // เพื่อให้หมดเมื่อปิดแท็บ
+    if (!remember && data?.session) {
+      try {
+        const ref = new URL(import.meta.env.VITE_SUPABASE_URL).hostname.split('.')[0];
+        const storageKey = `sb-${ref}-auth-token`;
+        const raw = localStorage.getItem(storageKey);
+        if (raw) {
+          sessionStorage.setItem(storageKey, raw);
+          localStorage.removeItem(storageKey);
+        }
+      } catch { /* ignore */ }
+    }
+
     return data;
   }, []);
 

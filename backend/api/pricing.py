@@ -61,17 +61,18 @@ class StampingModel(BaseModel):
 class PricingRequest(BaseModel):
     """Request model สำหรับคำนวณราคา"""
     dimensions: DimensionsModel = Field(..., description="ขนาดกล่อง")
-    box_type: str = Field(..., description="ประเภทกล่อง (rsc, die_cut)")
+    box_type: str = Field(..., description="ประเภทกล่อง (rsc, die_cut, heart, star, bear, circle, bow)")
     material: str = Field(..., description="วัสดุ")
     quantity: int = Field(..., gt=0, description="จำนวนกล่อง")
     inner: Optional[str] = Field(None, description="Inner (Optional)")
     coatings: Optional[List[CoatingModel]] = Field(None, description="การเคลือบ (Optional)")
     stampings: Optional[List[StampingModel]] = Field(None, description="การป๊ัม (Optional)")
-    
+
     @validator('box_type')
     def validate_box_type(cls, v):
-        if v not in ['rsc', 'die_cut']:
-            raise ValueError('box_type must be "rsc" or "die_cut"')
+        valid = ['rsc', 'die_cut', 'heart', 'star', 'bear', 'circle', 'bow']
+        if v not in valid:
+            raise ValueError(f'box_type must be one of {valid}')
         return v
     
     @validator('quantity')
@@ -146,7 +147,7 @@ async def calculate_pricing(request: PricingRequest):
     คำนวณราคากล่อง
     
     - **dimensions**: ขนาดกล่อง (width, length, height)
-    - **box_type**: ประเภทกล่อง (rsc, die_cut)
+    - **box_type**: ประเภทกล่อง (rsc, die_cut, heart, star, bear, circle, bow)
     - **material**: วัสดุ
     - **quantity**: จำนวนกล่อง (ขั้นต่ำ 500)
     - **inner**: Inner (Optional)
@@ -228,22 +229,29 @@ async def get_available_materials():
     Returns:
     - รายการวัสดุทั้งหมด
     """
+    rsc_materials = [
+        {"id": "corrugated_2layer", "name": "กระดาษลูกฟูก 2 ชั้น"},
+        {"id": "kraft_200gsm", "name": "กระดาษคราฟท์ 200 GSM"},
+    ]
+    die_cut_materials = [
+        {"id": "corrugated_2layer", "name": "กระดาษลูกฟูก 2 ชั้น"},
+        {"id": "cardboard", "name": "กระดาษแข็ง (จั่วปัง)"},
+        {"id": "art_300gsm", "name": "กระดาษอาร์ต 300 GSM"},
+        {"id": "ivory_350gsm", "name": "กระดาษกล่องขาว 350 GSM"},
+    ]
     materials = {
-        "rsc": [
-            {"id": "corrugated_2layer", "name": "กระดาษลูกฟูก 2 ชั้น"},
-            {"id": "kraft_200gsm", "name": "กระดาษคราฟท์ 200 GSM"}
-        ],
-        "die_cut": [
-            {"id": "corrugated_2layer", "name": "กระดาษลูกฟูก 2 ชั้น"},
-            {"id": "chipboard", "name": "กระดาษแข็ง (จั่วปัง)"},
-            {"id": "art_300gsm", "name": "กระดาษอาร์ต 300 GSM"},
-            {"id": "white_box_350gsm", "name": "กระดาษกล่องขาว 350 GSM"}
-        ]
+        "rsc": rsc_materials,
+        "die_cut": die_cut_materials,
+        "heart": die_cut_materials,
+        "star": die_cut_materials,
+        "bear": die_cut_materials,
+        "circle": die_cut_materials,
+        "bow": die_cut_materials,
     }
-    
+
     return {
         "materials": materials,
-        "note": "เลือกวัสดุตามประเภทกล่อง"
+        "note": "RSC ใช้วัสดุลูกฟูก/คราฟท์ | กล่องอื่นๆ ใช้วัสดุ die-cut ทั้งหมด"
     }
 
 

@@ -20,7 +20,6 @@ import { ChatbotProvider, useChatbot } from './contexts/ChatbotContext';
 import { useAuth } from './contexts/AuthContext';
 import ChatWindow from './components/Chatbot/ChatWindow';
 import StudioPanel from './components/Panels/StudioPanel';
-import SummaryPanel from './components/Panels/SummaryPanel';
 import BoxViewer from './components/Box3D/BoxViewer';
 import DielineViewer from './components/Dieline/DielineViewer';
 import LoginPage from './pages/LoginPage';
@@ -56,7 +55,7 @@ function AdminRoute({ children }) {
 
 function LoadingScreen() {
   return (
-    <div className="min-h-screen bg-purple-50 flex items-center justify-center">
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="flex flex-col items-center gap-3">
         <div className="w-8 h-8 border-2 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
         <span className="text-purple-400 text-sm font-display">Loading...</span>
@@ -84,16 +83,18 @@ function AppLayout() {
   const [image, setImage] = useState(null);
   const [boxType, setBoxType] = useState('rsc');
 
+  // --- Support design config ---
+  const [supportConfig, setSupportConfig] = useState({
+    wallHeight: 0.78,      // 0.4 – 0.95 (ratio of box height)
+    holes: [
+      { id: 1, type: 'circle', x: 0, y: 0, r: 2.5 },
+    ],
+  });
+
   // --- Active project tracking ---
   const [activeProjectId, setActiveProjectId] = useState(null);
   const [activeProjectName, setActiveProjectName] = useState(null);
   const [saving, setSaving] = useState(false);
-
-  // --- Tab state ---
-  const [activeTab, setActiveTab] = useState('studio');
-
-  // --- Panel visibility (responsive) ---
-  const [leftPanelOpen, setLeftPanelOpen] = useState(true);
 
   // --- Mobile view toggle ---
   const [mobileView, setMobileView] = useState('chat'); // 'chat' | '3d'
@@ -330,7 +331,7 @@ function AppLayout() {
   const pdfGrandTotal = pdfPricing?.grand_total ?? (parseFloat(formData.length) * parseFloat(formData.width) * parseFloat(formData.height) * 0.005);
 
   return (
-    <div className="flex w-screen h-screen bg-purple-50 overflow-hidden">
+    <div className="flex w-screen h-screen bg-gray-50 overflow-hidden">
 
       {/* ===== HIDDEN PDF TEMPLATE ===== */}
       <div
@@ -485,121 +486,7 @@ function AppLayout() {
         </div>
       </div>
 
-      {/* ===== LEFT PANEL (Tabs: Studio | Summary) ===== */}
-      <div
-        className={`
-          flex-shrink-0 flex-col border-r border-purple-100 bg-white
-          transition-all duration-300 ease-in-out overflow-hidden
-          ${leftPanelOpen
-            ? 'w-[24vw] min-w-[300px] max-w-[380px] flex'
-            : 'w-0 min-w-0 max-w-0 border-r-0 hidden'
-          }
-          max-md:hidden
-        `}
-      >
-        {/* Logo + Title + Auth */}
-        <div className="flex-shrink-0 border-b border-purple-100 flex items-center justify-between px-5 py-3">
-          <h1 className="font-display font-bold text-sm">
-            <span className="text-purple-700">LumoPack</span>
-            <span className="text-purple-400 text-xs font-normal ml-1">Studio</span>
-          </h1>
-          <div className="flex items-center gap-3">
-            {user ? (
-              <>
-                <Link
-                  to="/orders"
-                  className="text-xs text-purple-400 hover:text-purple-700 transition-colors"
-                >
-                  Orders
-                </Link>
-                {profile?.role === 'admin' && (
-                  <Link
-                    to="/admin"
-                    className="text-xs text-purple-400 hover:text-purple-700 transition-colors"
-                  >
-                    Admin
-                  </Link>
-                )}
-                <button
-                  onClick={signOut}
-                  className="text-xs text-purple-400 hover:text-red-500 transition-colors"
-                >
-                  Logout
-                </button>
-              </>
-            ) : (
-              <Link
-                to="/login"
-                className="text-xs text-purple-600 hover:text-purple-800 transition-colors"
-              >
-                Login
-              </Link>
-            )}
-          </div>
-        </div>
-
-        {/* Tab Headers */}
-        <div className="flex-shrink-0 flex border-b border-purple-100">
-          <button
-            onClick={() => setActiveTab('studio')}
-            className={`
-              flex-1 py-2.5 text-xs font-display font-medium transition-colors relative
-              ${activeTab === 'studio'
-                ? 'text-purple-700 tab-active'
-                : 'text-purple-400 hover:text-purple-600'
-              }
-            `}
-          >
-            Studio
-          </button>
-          <button
-            onClick={() => setActiveTab('summary')}
-            className={`
-              flex-1 py-2.5 text-xs font-display font-medium transition-colors relative
-              ${activeTab === 'summary'
-                ? 'text-purple-700 tab-active'
-                : 'text-purple-400 hover:text-purple-600'
-              }
-            `}
-          >
-            Summary
-          </button>
-        </div>
-
-        {/* Tab Content */}
-        <div className="flex-1 overflow-hidden">
-          {activeTab === 'studio' ? (
-            <StudioPanel
-              formData={formData}
-              onFormChange={handleFormChange}
-              analysis={analysis}
-              onAnalyze={handleAnalyze}
-              loading={loading}
-              image={image}
-              onImageUpload={handleImageUpload}
-              onGeneratePDF={handleGeneratePDF}
-              boxType={boxType}
-              onBoxTypeChange={(e) => setBoxType(e.target.value)}
-            />
-          ) : (
-            <SummaryPanel />
-          )}
-        </div>
-
-        {/* Checkout Button (visible when chatbot is complete) */}
-        {isComplete && collectedData?.pricing && (
-          <div className="flex-shrink-0 border-t border-purple-100 p-4">
-            <button
-              onClick={handleCheckout}
-              className="w-full py-3 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-sm font-display font-semibold transition-colors active:scale-[0.98]"
-            >
-              Checkout — ฿{collectedData.pricing.grand_total?.toLocaleString()}
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* ===== CENTER: 3D BOX VIEWER ===== */}
+      {/* ===== CENTER: 3D BOX VIEWER + FLOATING SIDEBAR ===== */}
       <div
         className={`
           flex-1 relative min-w-0
@@ -607,6 +494,28 @@ function AppLayout() {
           ${mobileView === '3d' ? 'max-md:block' : 'max-md:hidden md:block'}
         `}
       >
+        {/* Floating icon-rail + flyout panel (overlaid on 3D) */}
+        <div className="max-md:hidden">
+          <StudioPanel
+            formData={formData}
+            onFormChange={handleFormChange}
+            analysis={analysis}
+            onAnalyze={handleAnalyze}
+            loading={loading}
+            image={image}
+            onImageUpload={handleImageUpload}
+            onGeneratePDF={handleGeneratePDF}
+            boxType={boxType}
+            onBoxTypeChange={(e) => setBoxType(e.target.value)}
+            supportConfig={supportConfig}
+            onSupportConfigChange={setSupportConfig}
+            onSignOut={signOut}
+            isComplete={isComplete}
+            collectedData={collectedData}
+            onCheckout={handleCheckout}
+          />
+        </div>
+
         {centerView === '3d' ? (
           <BoxViewer
             width={displayDims.length}
@@ -615,6 +524,7 @@ function AppLayout() {
             image={image}
             isDanger={isDanger}
             boxType={boxType}
+            supportConfig={supportConfig}
           />
         ) : (
           <DielineViewer
@@ -644,27 +554,6 @@ function AppLayout() {
           </button>
         </div>
 
-        {/* Left panel toggle button */}
-        <button
-          onClick={() => setLeftPanelOpen(!leftPanelOpen)}
-          className={`
-            absolute top-3 left-3 z-10
-            w-9 h-9 rounded-lg bg-white/80 backdrop-blur-sm
-            border border-purple-200 shadow-sm
-            flex items-center justify-center
-            text-purple-400 hover:text-purple-700 transition-colors
-            text-sm
-            max-md:hidden
-          `}
-          title={leftPanelOpen ? 'Hide Panel' : 'Show Panel'}
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            {leftPanelOpen
-              ? <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7" />
-              : <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7" />
-            }
-          </svg>
-        </button>
       </div>
 
       {/* ===== RIGHT PANEL: CHATBOT + PROJECT ===== */}

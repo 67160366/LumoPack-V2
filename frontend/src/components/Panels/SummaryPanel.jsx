@@ -155,7 +155,11 @@ function formatProductType(val) {
 }
 
 function formatBoxType(val) {
-  const map = { rsc: 'RSC (กล่องลูกฟูก)', die_cut: 'Die-cut (ฝาเสียบ)' };
+  const map = {
+    rsc: 'RSC (กล่องลูกฟูก)', die_cut: 'Die-cut (ฝาเสียบ)',
+    heart: 'Heart (หัวใจ)', star: 'Star (ดาว)', bear: 'Bear (หมี)',
+    circle: 'Circle (ทรงกลม)', bow: 'Bow (ซัพพอร์ท)',
+  };
   return map[val] || val || null;
 }
 

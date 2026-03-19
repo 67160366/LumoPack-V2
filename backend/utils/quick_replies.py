@@ -73,8 +73,16 @@ def get_quick_replies(
     # ===================================
     if current_step == 3:
         if sub_step == 0:
-            # ถามประเภทกล่อง
-            return ["RSC (มาตรฐาน)", "Die-cut (พรีเมียม)"]
+            # ถามประเภทกล่อง (7 ประเภท)
+            return [
+                "RSC (มาตรฐาน)",
+                "Die-cut (ฝาเสียบ)",
+                "Heart (หัวใจ)",
+                "Star (ดาว)",
+                "Bear (หมี)",
+                "Circle (ทรงกลม)",
+                "Bow (ซัพพอร์ท)",
+            ]
         if sub_step == 1:
             # ถามวัสดุ — ตัวเลือกขึ้นอยู่กับ box_type
             box_type = partial.get("box_type", data.get("box_type", ""))
@@ -84,7 +92,7 @@ def get_quick_replies(
                     "กระดาษคราฟท์ 200 GSM",
                 ]
             else:
-                # die-cut มี 4 ตัวเลือก
+                # die_cut / heart / star / bear / circle / bow ใช้วัสดุกลุ่มเดียวกัน
                 return [
                     "กระดาษลูกฟูก 2 ชั้น",
                     "กระดาษแข็ง/จั่วปัง",

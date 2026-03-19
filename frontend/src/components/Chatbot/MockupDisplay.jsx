@@ -1,13 +1,19 @@
 /**
  * MockupDisplay — Card แสดงพรีวิวรูปทรงกล่องใน chat
  */
+const BOX_TYPE_LABELS = {
+  rsc: 'RSC (กล่องลูกฟูก)', die_cut: 'Die-cut (ฝาเสียบ)',
+  heart: 'Heart (หัวใจ)', star: 'Star (ดาว)', bear: 'Bear (หมี)',
+  circle: 'Circle (ทรงกลม)', bow: 'Bow (ซัพพอร์ท)',
+};
+
 export default function MockupDisplay({ boxType, dimensions }) {
   return (
     <div className="w-full max-w-[300px] bg-white rounded-xl border border-purple-100 overflow-hidden animate-slide-up">
       <div className="px-4 py-3 flex items-center justify-between">
         <h4 className="font-display font-semibold text-purple-800 text-xs">พรีวิวรูปทรงกล่อง</h4>
         <span className="text-xs text-purple-400 font-mono">
-          {boxType || 'standard'}
+          {BOX_TYPE_LABELS[boxType] || boxType || 'standard'}
         </span>
       </div>
 
@@ -20,7 +26,7 @@ export default function MockupDisplay({ boxType, dimensions }) {
           </svg>
           <div>
             <p className="text-sm font-medium text-purple-800">
-              {boxType ? `ทรง ${boxType}` : 'ทรงกล่องมาตรฐาน'}
+              {boxType ? `ทรง ${BOX_TYPE_LABELS[boxType] || boxType}` : 'ทรงกล่องมาตรฐาน'}
             </p>
             {dimensions ? (
               <p className="text-xs text-purple-500 font-mono mt-0.5">
