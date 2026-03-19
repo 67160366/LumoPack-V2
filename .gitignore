@@ -51,3 +51,6 @@ dist-ssr
 *.sw?
 
 .claude
+
+# Extracted temp files
+_extracted/

@@ -1,5 +1,5 @@
 /**
- * MyOrdersPage — รายการคำสั่งซื้อของลูกค้า
+ * MyOrdersPage — รายการคำสั่งซื้อของลูกค้า (Light Purple Theme)
  */
 
 import { useState, useEffect } from 'react';
@@ -26,10 +26,7 @@ export default function MyOrdersPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!supabase || !user) {
-      setLoading(false);
-      return;
-    }
+    if (!supabase || !user) { setLoading(false); return; }
 
     let cancelled = false;
 
@@ -50,32 +47,25 @@ export default function MyOrdersPage() {
       }
     }
 
-    // Timeout fallback — ถ้า query ค้างเกิน 8 วินาที ให้หยุด loading
     const timeout = setTimeout(() => {
-      if (!cancelled) {
-        cancelled = true;
-        setLoading(false);
-      }
+      if (!cancelled) { cancelled = true; setLoading(false); }
     }, 8000);
 
     fetchOrders().then(() => clearTimeout(timeout));
 
-    return () => {
-      cancelled = true;
-      clearTimeout(timeout);
-    };
+    return () => { cancelled = true; clearTimeout(timeout); };
   }, [user]);
 
   return (
-    <div className="min-h-screen bg-panel-darker">
+    <div className="min-h-screen bg-purple-50">
       {/* Header */}
-      <div className="border-b border-panel-border bg-panel-dark">
+      <div className="border-b border-purple-100 bg-white shadow-sm">
         <div className="max-w-3xl mx-auto px-8 sm:px-12 py-5 flex items-center justify-between">
           <div>
-            <h1 className="font-display font-bold text-lg text-gradient-lumo">My Orders</h1>
-            <p className="text-zinc-500 text-xs mt-0.5">ติดตามสถานะคำสั่งซื้อ</p>
+            <h1 className="font-display font-bold text-lg text-purple-700">My Orders</h1>
+            <p className="text-purple-400 text-xs mt-0.5">ติดตามสถานะคำสั่งซื้อ</p>
           </div>
-          <Link to="/" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
+          <Link to="/" className="text-xs text-purple-500 hover:text-purple-700 transition-colors">
             กลับหน้าหลัก
           </Link>
         </div>
@@ -83,15 +73,14 @@ export default function MyOrdersPage() {
 
       <div className="max-w-3xl mx-auto px-8 sm:px-12 py-8">
         {loading ? (
-          <div className="text-center py-12">
-            <p className="text-zinc-500 text-sm">Loading...</p>
+          <div className="flex justify-center py-16">
+            <div className="w-7 h-7 border-2 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
           </div>
         ) : orders.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="text-3xl mb-3">📦</div>
-            <p className="text-zinc-400 text-sm mb-4">ยังไม่มีคำสั่งซื้อ</p>
-            <Link to="/" className="text-lumo-400 hover:text-lumo-300 text-sm">
-              เริ่มออกแบบกล่อง
+          <div className="text-center py-16">
+            <p className="text-purple-400 text-sm mb-4">ยังไม่มีคำสั่งซื้อ</p>
+            <Link to="/" className="text-sm text-purple-600 hover:text-purple-800 font-medium">
+              เริ่มออกแบบกล่อง →
             </Link>
           </div>
         ) : (
@@ -100,28 +89,28 @@ export default function MyOrdersPage() {
               <Link
                 key={order.id}
                 to={`/orders/${order.id}`}
-                className="block bg-panel-dark rounded-xl border border-panel-border p-4 hover:border-lumo-400/30 transition-colors"
+                className="block bg-white rounded-xl border border-purple-100 p-4 hover:border-purple-300 hover:shadow-md transition-all"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-mono text-zinc-500">
+                  <span className="text-xs font-mono text-purple-400">
                     #{order.id.slice(0, 8)}
                   </span>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full border ${STATUS_COLORS[order.status] || 'text-zinc-400'}`}>
+                  <span className={`text-xs px-2 py-0.5 rounded-full border ${STATUS_COLORS[order.status] || 'text-purple-400'}`}>
                     {STATUS_LABELS[order.status] || order.status}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <div className="text-xs text-zinc-400">
+                  <div className="text-xs text-purple-500">
                     {new Date(order.created_at).toLocaleDateString('th-TH', {
                       day: 'numeric', month: 'short', year: 'numeric',
                     })}
                   </div>
-                  <div className="text-sm font-semibold text-lumo-400">
+                  <div className="text-sm font-semibold text-purple-700">
                     ฿{order.grand_total?.toLocaleString()}
                   </div>
                 </div>
                 {order.collected_data?.dimensions && (
-                  <div className="text-[11px] text-zinc-600 mt-1">
+                  <div className="text-xs text-purple-400 mt-1">
                     {order.collected_data.dimensions.width} x {order.collected_data.dimensions.length} x {order.collected_data.dimensions.height} cm
                     {order.collected_data.quantity && ` | ${order.collected_data.quantity.toLocaleString()} ชิ้น`}
                   </div>

@@ -6,19 +6,22 @@
 -- 1. Profiles (extends Supabase Auth users)
 CREATE TABLE public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT,
   full_name TEXT,
-  phone TEXT,
-  company TEXT,
   role TEXT DEFAULT 'customer' CHECK (role IN ('customer', 'admin')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Auto-create profile on signup
+-- Auto-create profile on signup (copies email + all metadata)
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, full_name)
-  VALUES (NEW.id, NEW.raw_user_meta_data->>'full_name');
+  INSERT INTO public.profiles (id, email, full_name)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    NEW.raw_user_meta_data->>'full_name'
+  );
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
@@ -29,8 +32,8 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- Backfill: insert profiles for users who registered before trigger existed
-INSERT INTO public.profiles (id, full_name)
-SELECT id, raw_user_meta_data->>'full_name'
+INSERT INTO public.profiles (id, email, full_name)
+SELECT id, email, raw_user_meta_data->>'full_name'
 FROM auth.users
 WHERE id NOT IN (SELECT id FROM public.profiles)
 ON CONFLICT (id) DO NOTHING;

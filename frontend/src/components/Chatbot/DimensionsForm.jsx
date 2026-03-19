@@ -1,14 +1,5 @@
 /**
- * DimensionsForm — Structured input สำหรับ Step 5
- *
- * ช่องบังคับ: กว้าง / ยาว / สูง / จำนวน
- * ช่อง optional: น้ำหนักสินค้า (kg) / ลอนกระดาษ (A/B/C/E/BC)
- *
- * format output: "กว้าง 20 ยาว 10 สูง 30 จำนวน 500 ชิ้น น้ำหนัก 2 kg ลอน C"
- *
- * Props:
- *   onSubmit(formattedText: string)
- *   showQuantity — แสดงช่องจำนวนหรือไม่
+ * DimensionsForm — Structured input สำหรับ Step 5 (Teal/Purple Theme)
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -32,17 +23,14 @@ export default function DimensionsForm({ onSubmit, showQuantity = true }) {
   const [length,   setLength]   = useState('');
   const [height,   setHeight]   = useState('');
   const [quantity, setQuantity] = useState('');
-  const [weight,   setWeight]   = useState('');   // optional
-  const [flute,    setFlute]    = useState('');    // optional
+  const [weight,   setWeight]   = useState('');
+  const [flute,    setFlute]    = useState('');
   const [errors,   setErrors]   = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const firstInputRef = useRef(null);
   useEffect(() => { firstInputRef.current?.focus(); }, []);
 
-  // =====================
-  // Validation
-  // =====================
   const validate = () => {
     const newErrors = {};
     const w = parseFloat(width);
@@ -64,7 +52,6 @@ export default function DimensionsForm({ onSubmit, showQuantity = true }) {
         newErrors.quantity = `สูงสุด ${MAX_QUANTITY.toLocaleString()} ชิ้น`;
     }
 
-    // weight optional — validate เฉพาะถ้ากรอกมา
     if (weight !== '') {
       const wt = parseFloat(weight);
       if (isNaN(wt) || wt <= 0 || wt > 9999)
@@ -75,9 +62,6 @@ export default function DimensionsForm({ onSubmit, showQuantity = true }) {
     return Object.keys(newErrors).length === 0;
   };
 
-  // =====================
-  // Submit
-  // =====================
   const handleSubmit = () => {
     if (isSubmitting) return;
     if (!validate()) return;
@@ -111,22 +95,19 @@ export default function DimensionsForm({ onSubmit, showQuantity = true }) {
     }
   };
 
-  // =====================
-  // Render
-  // =====================
   return (
     <div className="ml-9 mb-3 animate-slide-up">
-      <div className="bg-panel-surface border border-panel-border rounded-2xl p-4 max-w-sm">
+      <div className="bg-white border border-teal-200 rounded-xl p-4 max-w-sm shadow-sm">
 
         {/* Header */}
         <div className="flex items-center gap-2 mb-3">
           <span className="text-sm">📐</span>
-          <span className="text-xs font-display font-semibold text-zinc-300">
+          <span className="text-xs font-display font-semibold text-teal-800">
             กรอกขนาดกล่อง
           </span>
         </div>
 
-        {/* ── บังคับ: กว้าง / ยาว / สูง ── */}
+        {/* บังคับ: กว้าง / ยาว / สูง */}
         <div className="grid grid-cols-3 gap-2 mb-2">
           <DimInput ref={firstInputRef} name="width"  label="กว้าง" unit="ซม."
             value={width}  error={errors.width}
@@ -139,7 +120,7 @@ export default function DimensionsForm({ onSubmit, showQuantity = true }) {
             onChange={handleNumberChange(setHeight, 'height')} onKeyDown={handleKeyDown} />
         </div>
 
-        {/* ── บังคับ: จำนวน ── */}
+        {/* บังคับ: จำนวน */}
         {showQuantity && (
           <div className="mb-3">
             <DimInput name="quantity" label="จำนวน" unit="ชิ้น"
@@ -149,42 +130,40 @@ export default function DimensionsForm({ onSubmit, showQuantity = true }) {
           </div>
         )}
 
-        {/* ── Divider: optional section ── */}
+        {/* Divider: optional section */}
         <div className="flex items-center gap-2 mb-3">
-          <div className="h-px flex-1 bg-panel-border" />
-          <span className="text-[10px] text-zinc-600 font-body whitespace-nowrap">
+          <div className="h-px flex-1 bg-teal-100" />
+          <span className="text-xs text-teal-400 font-body whitespace-nowrap">
             ไม่บังคับ — ใช้วิเคราะห์ความแข็งแรง
           </span>
-          <div className="h-px flex-1 bg-panel-border" />
+          <div className="h-px flex-1 bg-teal-100" />
         </div>
 
-        {/* ── Optional: น้ำหนัก + ลอนกระดาษ ── */}
+        {/* Optional: น้ำหนัก + ลอนกระดาษ */}
         <div className="grid grid-cols-2 gap-2 mb-3">
-          {/* น้ำหนักสินค้า */}
           <DimInput name="weight" label="น้ำหนักสินค้า" unit="kg"
             value={weight} error={errors.weight}
             onChange={handleNumberChange(setWeight, 'weight')} onKeyDown={handleKeyDown}
             placeholder="เว้นว่างได้" />
 
-          {/* ลอนกระดาษ */}
           <div>
-            <label htmlFor="dim-flute" className="block text-[11px] text-zinc-500 font-body mb-1">
+            <label htmlFor="dim-flute" className="block text-xs text-teal-600 font-body mb-1">
               ลอนกระดาษ
-              <span className="text-zinc-600 ml-0.5">(ชั้น)</span>
+              <span className="text-teal-400 ml-0.5">(ชั้น)</span>
             </label>
             <select
               id="dim-flute"
               value={flute}
               onChange={(e) => setFlute(e.target.value)}
               className="
-                w-full px-2 py-2 rounded-lg text-xs font-body text-zinc-200
-                bg-panel-darker border border-panel-border
-                focus:outline-none focus:ring-1 focus:border-lumo-400/50 focus:ring-lumo-400/20
-                transition-colors duration-150 appearance-none cursor-pointer
+                w-full px-2 py-2 rounded-xl text-xs font-body text-teal-900
+                bg-teal-50/50 border border-teal-200
+                focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent
+                transition-colors duration-200 appearance-none cursor-pointer
               "
             >
               {FLUTE_OPTIONS.map(opt => (
-                <option key={opt.value} value={opt.value} className="bg-panel-darker">
+                <option key={opt.value} value={opt.value}>
                   {opt.label}
                 </option>
               ))}
@@ -198,10 +177,10 @@ export default function DimensionsForm({ onSubmit, showQuantity = true }) {
           disabled={isSubmitting}
           className={`
             w-full py-2.5 rounded-xl text-xs font-display font-semibold
-            transition-all duration-200
+            transition-all duration-200 shadow-sm
             ${isSubmitting
-              ? 'bg-panel-border text-zinc-500 cursor-not-allowed'
-              : 'bg-lumo-400 text-panel-darker hover:bg-lumo-300 active:scale-[0.98]'
+              ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+              : 'bg-teal-600 hover:bg-teal-700 text-white active:scale-[0.98]'
             }
           `}
         >
@@ -222,9 +201,9 @@ const DimInput = React.forwardRef(function DimInput(
 ) {
   return (
     <div className={fullWidth ? 'w-full' : ''}>
-      <label htmlFor={`dim-${name}`} className="block text-[11px] text-zinc-500 font-body mb-1">
+      <label htmlFor={`dim-${name}`} className="block text-xs text-teal-600 font-body mb-1">
         {label}
-        <span className="text-zinc-600 ml-0.5">({unit})</span>
+        <span className="text-teal-400 ml-0.5">({unit})</span>
       </label>
       <input
         ref={ref}
@@ -238,18 +217,18 @@ const DimInput = React.forwardRef(function DimInput(
         placeholder={placeholder || '0'}
         autoComplete="off"
         className={`
-          w-full px-2.5 py-2 rounded-lg text-sm font-body text-zinc-200
-          bg-panel-darker border placeholder-zinc-600
-          focus:outline-none focus:ring-1
-          transition-colors duration-150
+          w-full px-2.5 py-2 rounded-xl text-sm font-body text-teal-900
+          bg-teal-50/50 border placeholder-teal-300
+          focus:outline-none focus:ring-2 focus:border-transparent
+          transition-colors duration-200
           ${error
-            ? 'border-red-500/60 focus:border-red-400 focus:ring-red-400/20'
-            : 'border-panel-border focus:border-lumo-400/50 focus:ring-lumo-400/20'
+            ? 'border-red-300 focus:ring-red-400'
+            : 'border-teal-200 focus:ring-teal-500'
           }
         `}
       />
       {error && (
-        <p className="text-[10px] text-red-400 mt-0.5 font-body">{error}</p>
+        <p className="text-xs text-red-500 mt-0.5 font-body">{error}</p>
       )}
     </div>
   );

@@ -60,7 +60,7 @@ async def list_orders(user: AuthUser = Depends(get_current_user)):
     if not supabase:
         raise HTTPException(status_code=503, detail="Supabase not configured")
 
-    query = supabase.table("orders").select("*, profiles(full_name, phone, company)")
+    query = supabase.table("orders").select("*, profiles(email, full_name)")
 
     if user.role != "admin":
         query = query.eq("user_id", user.id)

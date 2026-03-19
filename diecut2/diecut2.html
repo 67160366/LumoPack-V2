@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Perfect 3D Circular Box Assembly - Resizable</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: radial-gradient(circle at center, #ffffff 0%, #e2e8f0 100%);
+            font-family: 'Segoe UI', Prompt, Tahoma, sans-serif;
+        }
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+        #ui-container {
+            position: absolute;
+            top: 30px;
+            left: 30px;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 25px;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.08);
+            border: 1px solid rgba(255,255,255,0.6);
+            width: 330px;
+            color: #334155;
+            z-index: 10;
+        }
+        h2 {
+            margin: 0 0 15px 0;
+            font-size: 18px;
+            color: #0f172a;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .percent {
+            color: #0284c7;
+            font-size: 22px;
+            font-weight: bold;
+        }
+        input[type="range"] {
+            width: 100%;
+            cursor: pointer;
+            accent-color: #38bdf8;
+            height: 6px;
+            border-radius: 4px;
+            background: #cbd5e1;
+            margin-bottom: 20px;
+            appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #0284c7;
+            border: 3px solid #fff;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            font-size: 14px;
+            color: #94a3b8;
+        }
+        li {
+            margin-bottom: 10px;
+            padding-left: 20px;
+            position: relative;
+            transition: all 0.3s;
+        }
+        li::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 6px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #cbd5e1;
+            transition: all 0.3s;
+        }
+        li.active {
+            color: #0f172a;
+            font-weight: 600;
+        }
+        li.active::before {
+            background: #38bdf8;
+            box-shadow: 0 0 8px rgba(56, 189, 248, 0.6);
+        }
+        .hint {
+            text-align: center;
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 20px;
+        }
+        
+        /* สไตล์สำหรับส่วนปรับขนาดที่เพิ่มเข้ามาใหม่ */
+        .size-control {
+            margin-top: 15px; 
+            border-top: 1px solid #cbd5e1; 
+            padding-top: 15px;
+        }
+        .size-label-row {
+            display: flex; 
+            justify-content: space-between; 
+            font-size: 14px; 
+            font-weight: bold;
+            margin-bottom: 8px;
+            margin-top: 5px;
+        }
+        .size-val { color: #ea580c; }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <div id="ui-container">
+        <h2>กระบวนการประกอบ <span id="percent-label" class="percent">0%</span></h2>
+        <input type="range" id="slider" min="0" max="100" step="0.5" value="0">
+        
+        <ul id="steps">
+            <li id="step1" class="active">1. พับตั้งผนังกล่อง (Fold Walls Up)</li>
+            <li id="step2">2. ม้วนเข้าเป็นทรงกระบอก (Roll into Tubes)</li>
+            <li id="step3">3. ยกและพลิกฝากลับด้าน (Invert Lid)</li>
+            <li id="step4">4. สวมฝาปิดกล่อง (Close Box)</li>
+        </ul>
+
+        <div class="size-control">
+            <h2 style="font-size: 16px; margin-bottom: 5px;">📏 ปรับขนาดกล่อง</h2>
+            
+            <div class="size-label-row">
+                <label>↔️ รัศมี (กว้าง/ลึก):</label>
+                <span id="r-label" class="size-val">2.5</span>
+            </div>
+            <input type="range" id="size-r" min="1.5" max="5.0" step="0.1" value="2.5" style="accent-color: #ea580c;">
+
+            <div class="size-label-row">
+                <label>↕️ ความสูงฐาน (Height):</label>
+                <span id="h-label" class="size-val">4.0</span>
+            </div>
+            <input type="range" id="size-h" min="2.0" max="8.0" step="0.1" value="4.0" style="accent-color: #ea580c;">
+        </div>
+
+        <div class="hint">🖱️ ลากซ้าย-ขวา เพื่อหมุนดูมุมต่างๆ</div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- 1. Setup Scene ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(12, 12, 18);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxPolarAngle = Math.PI / 2 + 0.05;
+
+        // --- 2. Lighting ---
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(10, 20, 15);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        scene.add(dirLight);
+
+        // --- 3. Floor ---
+        const floor = new THREE.Mesh(
+            new THREE.PlaneGeometry(100, 100),
+            new THREE.ShadowMaterial({ opacity: 0.08 })
+        );
+        floor.rotation.x = -Math.PI / 2;
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        // --- 4. Material ---
+        const material = new THREE.MeshStandardMaterial({ 
+            color: 0x8a6f58, 
+            roughness: 0.9,
+            side: THREE.DoubleSide
+        });
+
+        // --- 5. Box Builder Engine ---
+        const SEGMENTS = 64; 
+        
+        // ตัวแปรสำหรับเก็บ Object และค่าขนาดปัจจุบัน
+        let base, lid;
+        let current_R = 2.5;
+        let current_H = 4.0;
+        const H_LID = 1.5; // ล็อคความสูงฝาไว้ที่ 1.5 เพื่อความสวยงาม
+
+        function createTubeParts(radius, height) {
+            const group = new THREE.Group();
+            
+            const circle = new THREE.Mesh(new THREE.CircleGeometry(radius, 64), material);
+            circle.rotation.x = -Math.PI / 2;
+            circle.receiveShadow = true; circle.castShadow = true;
+            group.add(circle);
+
+            const W = (2 * Math.PI * radius) / SEGMENTS;
+            const R_circum = W / (2 * Math.tan(Math.PI / SEGMENTS));
+            
+            const wallGroup = new THREE.Group();
+            wallGroup.position.set(0, 0, R_circum);
+            group.add(wallGroup);
+
+            const centerGeo = new THREE.PlaneGeometry(W, height);
+            centerGeo.translate(0, height/2, 0);
+            const centerMesh = new THREE.Mesh(centerGeo, material);
+            centerMesh.castShadow = true; centerMesh.receiveShadow = true;
+            wallGroup.add(centerMesh);
+
+            const wallData = { rightSegs: [], leftSegs: [], group: wallGroup };
+
+            let prevRight = wallGroup;
+            const geoRight = new THREE.PlaneGeometry(W, height);
+            geoRight.translate(W/2, height/2, 0);
+            for(let i=0; i<31; i++) {
+                let pivot = new THREE.Group();
+                pivot.position.set(i === 0 ? W/2 : W, 0, 0);
+                let mesh = new THREE.Mesh(geoRight, material);
+                mesh.castShadow = true; mesh.receiveShadow = true;
+                pivot.add(mesh);
+                prevRight.add(pivot);
+                wallData.rightSegs.push(pivot);
+                prevRight = pivot;
+            }
+
+            let prevLeft = wallGroup;
+            const geoLeft = new THREE.PlaneGeometry(W, height);
+            geoLeft.translate(-W/2, height/2, 0);
+            for(let i=0; i<32; i++) {
+                let pivot = new THREE.Group();
+                pivot.position.set(i === 0 ? -W/2 : -W, 0, 0);
+                let mesh = new THREE.Mesh(geoLeft, material);
+                mesh.castShadow = true; mesh.receiveShadow = true;
+                pivot.add(mesh);
+                prevLeft.add(pivot);
+                wallData.leftSegs.push(pivot);
+                prevLeft = pivot;
+            }
+
+            return { group, wallData };
+        }
+
+        // 🟢 ฟังก์ชันทำลาย Object เก่าทิ้งเพื่อคืน RAM (กันเครื่องค้างตอนเลื่อน Slider)
+        function disposeGroup(group) {
+            group.traverse((child) => {
+                if (child.isMesh) {
+                    child.geometry.dispose();
+                }
+            });
+        }
+
+        // 🟢 ฟังก์ชันหลักในการสร้างกล่องใหม่เมื่อมีการปรับขนาด
+        function buildBox() {
+            // ลบของเก่าทิ้ง
+            if (base) { disposeGroup(base.group); scene.remove(base.group); }
+            if (lid) { disposeGroup(lid.group); scene.remove(lid.group); }
+
+            // ดึงค่าจาก Slider
+            current_R = parseFloat(document.getElementById('size-r').value);
+            current_H = parseFloat(document.getElementById('size-h').value);
+
+            // อัปเดตตัวเลขบน UI
+            document.getElementById('r-label').innerText = current_R.toFixed(1);
+            document.getElementById('h-label').innerText = current_H.toFixed(1);
+
+            // สร้างชิ้นส่วนใหม่
+            base = createTubeParts(current_R, current_H);
+            lid = createTubeParts(current_R + 0.04, H_LID); // ฝาต้องใหญ่กว่าฐานนิดนึง (0.04) จะได้ครอบได้
+
+            scene.add(base.group);
+            scene.add(lid.group);
+
+            base.group.position.set(0, 0, 0);
+            lid.group.position.set(0, 0, -8); 
+
+            // บังคับให้อนิเมชันอัปเดตรูปทรงให้ตรงกับ % ปัจจุบันทันที
+            updateAnimation();
+        }
+
+
+        // --- 6. Animation Engine ---
+        const slider = document.getElementById('slider');
+        const percentLabel = document.getElementById('percent-label');
+        const ease = (t) => t * t * (3 - 2 * t);
+
+        function updateAnimation() {
+            if(!base || !lid) return;
+
+            const p = parseFloat(slider.value) / 100;
+            percentLabel.innerText = Math.round(p * 100) + '%';
+
+            document.querySelectorAll('#steps li').forEach(el => el.classList.remove('active'));
+            if(p < 0.15) document.getElementById('step1').classList.add('active');
+            else if(p < 0.45) document.getElementById('step2').classList.add('active');
+            else if(p < 0.70) document.getElementById('step3').classList.add('active');
+            else document.getElementById('step4').classList.add('active');
+
+            let p1 = Math.max(0, Math.min(1, p / 0.15));
+            let p2 = Math.max(0, Math.min(1, (p - 0.15) / 0.30));
+            let p3 = Math.max(0, Math.min(1, (p - 0.45) / 0.25));
+            let p4 = Math.max(0, Math.min(1, (p - 0.70) / 0.30));
+
+            let wallAngleX = (-Math.PI / 2) * (1 - ease(p1));
+            base.wallData.group.rotation.x = wallAngleX;
+            lid.wallData.group.rotation.x = wallAngleX;
+
+            let rollAngle = ease(p2) * ((Math.PI * 2) / SEGMENTS);
+            
+            base.wallData.rightSegs.forEach(seg => seg.rotation.y = rollAngle);
+            base.wallData.leftSegs.forEach(seg => seg.rotation.y = -rollAngle);
+            
+            lid.wallData.rightSegs.forEach(seg => seg.rotation.y = rollAngle);
+            lid.wallData.leftSegs.forEach(seg => seg.rotation.y = -rollAngle);
+
+            let liftEase = ease(p3);
+            let dropEase = ease(p4);
+
+            lid.group.rotation.x = Math.PI * liftEase; 
+            lid.group.position.z = -8 * (1 - liftEase);
+
+            // 🟢 อัปเดตการคำนวณความสูงให้แปรผันตาม Slider
+            let peakY = current_H + H_LID + 2;
+            let finalY = current_H + 0.1;
+
+            if (p <= 0.70) {
+                lid.group.position.y = peakY * liftEase;
+            } else {
+                lid.group.position.y = peakY * (1 - dropEase) + finalY * dropEase;
+            }
+        }
+
+        // --- Event Listeners ของ Slider ทั้งหมด ---
+        slider.addEventListener('input', updateAnimation);
+        document.getElementById('size-r').addEventListener('input', buildBox);
+        document.getElementById('size-h').addEventListener('input', buildBox);
+
+        // สร้างกล่องครั้งแรกตอนโหลดหน้าเว็บ
+        buildBox();
+
+        // --- 7. Render Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>

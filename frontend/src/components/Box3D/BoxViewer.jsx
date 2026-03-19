@@ -10,34 +10,52 @@
  * - PlainBox:    RSC ปกติ (boxGeometry + corrugated texture)
  * - TexturedBox: มี texture จาก image upload
  * - HeatmapBox:  danger mode (heatmap shader)
- * - PanelBox:    กล่องจากแผ่นพับ (die-cut, tuck-end, ear-lock)
+ * - PanelBox:    กล่องจากแผ่นพับ (die-cut, bow)
+ * - ContourBox:  กล่องรูปทรงพิเศษ (heart, star, bear, circle)
  */
-  
-import { useRef, useState, Suspense } from 'react';
-import { Canvas, useFrame, useLoader } from '@react-three/fiber';
+
+import { useState, useMemo, Suspense } from 'react';
+import { Canvas, useLoader } from '@react-three/fiber';
 import { OrbitControls, ContactShadows, Environment } from '@react-three/drei';
-import { TextureLoader, DoubleSide } from 'three';
+import { TextureLoader } from 'three';
 import HeatmapBox from './HeatmapBox';
 import useCorrugatedTexture from './useCorrugatedTexture';
 import DieCutBox from './DieCutBox';
+import ContourBox from './ContourBox';
+import BowBox from './BowBox';
+
+import {
+  getContourSteps,
+  getContourStepIndex,
+  getBowSteps,
+  getBowStepIndex,
+} from '../../engine/animationPhases';
 
 // Box type labels (for fallback badge)
 const BOX_TYPE_LABELS = {
   rsc: 'RSC',
   die_cut: 'Die-cut',
-  tuck_end: 'ฝาชน',
-  ear_lock: 'หูช้าง',
+  heart: 'Heart Box',
+  star: 'Star Box',
+  bear: 'Bear Box',
+  circle: 'Circle Box',
+  bow: 'Bow Box',
 };
+
+// Box types that support fold animation
+const FOLDABLE_TYPES = ['die_cut', 'heart', 'star', 'bear', 'circle', 'bow'];
+// Box types that are contour-based (not panel-based)
+const CONTOUR_TYPES = ['heart', 'star', 'bear', 'circle'];
+// Box types that support the support structure toggle
+const SUPPORT_TYPES = ['die_cut', 'heart', 'star', 'bear', 'circle', 'bow'];
 
 /* ============================================================
  * PlainBox  (RSC — simple boxGeometry)
  * ========================================================== */
 function PlainBox({ width, height, depth }) {
-  const mesh = useRef();
   const corrugatedMap = useCorrugatedTexture();
-  useFrame((_state, delta) => (mesh.current.rotation.y += delta * 0.1));
   return (
-    <mesh ref={mesh} position={[0, height / 20, 0]}>
+    <mesh position={[0, height / 20, 0]}>
       <boxGeometry args={[width / 10, height / 10, depth / 10]} />
       <meshStandardMaterial map={corrugatedMap} roughness={0.85} />
     </mesh>
@@ -48,11 +66,9 @@ function PlainBox({ width, height, depth }) {
  * TexturedBox
  * ========================================================== */
 function TexturedBox({ width, height, depth, textureUrl }) {
-  const mesh = useRef();
   const texture = useLoader(TextureLoader, textureUrl);
-  useFrame((_state, delta) => (mesh.current.rotation.y += delta * 0.1));
   return (
-    <mesh ref={mesh} position={[0, height / 20, 0]}>
+    <mesh position={[0, height / 20, 0]}>
       <boxGeometry args={[width / 10, height / 10, depth / 10]} />
       <meshStandardMaterial map={texture} roughness={0.5} />
     </mesh>
@@ -60,259 +76,69 @@ function TexturedBox({ width, height, depth, textureUrl }) {
 }
 
 /* ============================================================
- * PanelBox — Panel-based folding box system
- *
- * แต่ละแผ่นพับต่อจาก panel ก่อนหน้าผ่าน pivot (ขอบร่วม)
- * chain หลักวนรอบกล่อง:
- *   FRONT → BOTTOM → BACK → TOP LID → TUCK FLAP
- * แผ่นข้างพับจาก FRONT:
- *   LEFT SIDE (+ ear flaps)
- *   RIGHT SIDE (+ ear flaps)
- * ========================================================== */
-
-/* ============================================================
- * TuckEndPanelBox — กล่องฝาชน (tuck-end)
- *
- * คล้าย die-cut แต่มีฝาเสียบทั้งบนและล่าง
- * chain: FRONT → BOTTOM FLAP(tuck) + FRONT → TOP FLAP(tuck)
- *        LEFT/RIGHT sides เป็นแผ่นเต็ม
- * ========================================================== */
-
-function TuckEndPanelBox({ width, height, depth }) {
-  const mesh = useRef();
-  const map = useCorrugatedTexture();
-  useFrame((_state, delta) => (mesh.current.rotation.y += delta * 0.1));
-
-  const w = width / 10;
-  const h = height / 10;
-  const d = depth / 10;
-
-  const HP = Math.PI / 2;
-  const tuck = Math.min(d * 0.4, h * 0.3);
-  const lidOpen = 0.44;
-
-  return (
-    <group ref={mesh} position={[0, h / 2, 0]}>
-
-      {/* FRONT */}
-      <mesh>
-        <planeGeometry args={[w, h]} />
-        <meshStandardMaterial map={map} roughness={0.85} side={DoubleSide} />
-      </mesh>
-
-      {/* BACK */}
-      <mesh position={[0, 0, -d]}>
-        <planeGeometry args={[w, h]} />
-        <meshStandardMaterial map={map} roughness={0.85} side={DoubleSide} />
-      </mesh>
-
-      {/* BOTTOM */}
-      <mesh position={[0, -h / 2, -d / 2]} rotation={[HP, 0, 0]}>
-        <planeGeometry args={[w, d]} />
-        <meshStandardMaterial map={map} roughness={0.85} side={DoubleSide} />
-      </mesh>
-
-      {/* LEFT SIDE */}
-      <group position={[-w / 2, 0, 0]} rotation={[0, HP, 0]}>
-        <mesh position={[d / 2, 0, 0]}>
-          <planeGeometry args={[d, h]} />
-          <meshStandardMaterial map={map} roughness={0.85} side={DoubleSide} />
-        </mesh>
-      </group>
-
-      {/* RIGHT SIDE */}
-      <group position={[w / 2, 0, 0]} rotation={[0, -HP, 0]}>
-        <mesh position={[-d / 2, 0, 0]}>
-          <planeGeometry args={[d, h]} />
-          <meshStandardMaterial map={map} roughness={0.85} side={DoubleSide} />
-        </mesh>
-      </group>
-
-      {/* TOP FLAP — pivot ที่ขอบบนของ front, เปิดเล็กน้อย */}
-      <group position={[0, h / 2, 0]} rotation={[-HP + lidOpen, 0, 0]}>
-        <mesh position={[0, d / 2, 0]}>
-          <planeGeometry args={[w, d]} />
-          <meshStandardMaterial map={map} roughness={0.85} side={DoubleSide} />
-        </mesh>
-        {/* TUCK — pivot ที่ขอบไกลของ top flap */}
-        <group position={[0, d, 0]} rotation={[HP, 0, 0]}>
-          <mesh position={[0, tuck / 2, 0]}>
-            <planeGeometry args={[w * 0.92, tuck]} />
-            <meshStandardMaterial map={map} roughness={0.85} side={DoubleSide} />
-          </mesh>
-        </group>
-      </group>
-
-      {/* BOTTOM TUCK FLAP — pivot ที่ขอบล่างของ front */}
-      <group position={[0, -h / 2, 0]} rotation={[HP, 0, 0]}>
-        <group position={[0, d, 0]} rotation={[-HP, 0, 0]}>
-          <mesh position={[0, -tuck / 2, 0]}>
-            <planeGeometry args={[w * 0.92, tuck]} />
-            <meshStandardMaterial map={map} roughness={0.85} side={DoubleSide} />
-          </mesh>
-        </group>
-      </group>
-    </group>
-  );
-}
-
-/* ============================================================
- * EarLockPanelBox — กล่องหูช้าง (ear-lock)
- *
- * กล่องที่ก้นล็อกตัวเอง + ฝาเสียบด้านบน
- * มี "หู" (ear tabs) ที่มุมก้นกล่อง
- * ========================================================== */
-
-function EarLockPanelBox({ width, height, depth }) {
-  const mesh = useRef();
-  const map = useCorrugatedTexture();
-  useFrame((_state, delta) => (mesh.current.rotation.y += delta * 0.1));
-
-  const w = width / 10;
-  const h = height / 10;
-  const d = depth / 10;
-
-  const HP = Math.PI / 2;
-  const tuck = Math.min(d * 0.4, h * 0.3);
-  const earW = Math.min(d * 0.35, w * 0.2); // ขนาดหูช้าง
-  const lidOpen = 0.44;
-
-  return (
-    <group ref={mesh} position={[0, h / 2, 0]}>
-
-      {/* FRONT */}
-      <mesh>
-        <planeGeometry args={[w, h]} />
-        <meshStandardMaterial map={map} roughness={0.85} side={DoubleSide} />
-      </mesh>
-
-      {/* BACK */}
-      <mesh position={[0, 0, -d]}>
-        <planeGeometry args={[w, h]} />
-        <meshStandardMaterial map={map} roughness={0.85} side={DoubleSide} />
-      </mesh>
-
-      {/* BOTTOM */}
-      <mesh position={[0, -h / 2, -d / 2]} rotation={[HP, 0, 0]}>
-        <planeGeometry args={[w, d]} />
-        <meshStandardMaterial map={map} roughness={0.85} side={DoubleSide} />
-      </mesh>
-
-      {/* LEFT SIDE */}
-      <group position={[-w / 2, 0, 0]} rotation={[0, HP, 0]}>
-        <mesh position={[d / 2, 0, 0]}>
-          <planeGeometry args={[d, h]} />
-          <meshStandardMaterial map={map} roughness={0.85} side={DoubleSide} />
-        </mesh>
-      </group>
-
-      {/* RIGHT SIDE */}
-      <group position={[w / 2, 0, 0]} rotation={[0, -HP, 0]}>
-        <mesh position={[-d / 2, 0, 0]}>
-          <planeGeometry args={[d, h]} />
-          <meshStandardMaterial map={map} roughness={0.85} side={DoubleSide} />
-        </mesh>
-      </group>
-
-      {/* TOP FLAP + TUCK (เหมือน tuck-end) */}
-      <group position={[0, h / 2, 0]} rotation={[-HP + lidOpen, 0, 0]}>
-        <mesh position={[0, d / 2, 0]}>
-          <planeGeometry args={[w, d]} />
-          <meshStandardMaterial map={map} roughness={0.85} side={DoubleSide} />
-        </mesh>
-        <group position={[0, d, 0]} rotation={[HP, 0, 0]}>
-          <mesh position={[0, tuck / 2, 0]}>
-            <planeGeometry args={[w * 0.92, tuck]} />
-            <meshStandardMaterial map={map} roughness={0.85} side={DoubleSide} />
-          </mesh>
-        </group>
-      </group>
-
-      {/* ───── EAR TABS ที่ก้นกล่อง (4 มุม) ───── */}
-      {/* หูซ้ายหน้า */}
-      <group position={[-w / 2, -h / 2, 0]} rotation={[HP, 0, 0]}>
-        <group rotation={[0, HP * 0.85, 0]}>
-          <mesh position={[earW / 2, d * 0.15, 0]}>
-            <planeGeometry args={[earW, d * 0.3]} />
-            <meshStandardMaterial map={map} roughness={0.85} side={DoubleSide} />
-          </mesh>
-        </group>
-      </group>
-      {/* หูขวาหน้า */}
-      <group position={[w / 2, -h / 2, 0]} rotation={[HP, 0, 0]}>
-        <group rotation={[0, -HP * 0.85, 0]}>
-          <mesh position={[-earW / 2, d * 0.15, 0]}>
-            <planeGeometry args={[earW, d * 0.3]} />
-            <meshStandardMaterial map={map} roughness={0.85} side={DoubleSide} />
-          </mesh>
-        </group>
-      </group>
-      {/* หูซ้ายหลัง */}
-      <group position={[-w / 2, -h / 2, -d]} rotation={[HP, 0, 0]}>
-        <group rotation={[0, HP * 0.85, 0]}>
-          <mesh position={[earW / 2, -d * 0.15, 0]}>
-            <planeGeometry args={[earW, d * 0.3]} />
-            <meshStandardMaterial map={map} roughness={0.85} side={DoubleSide} />
-          </mesh>
-        </group>
-      </group>
-      {/* หูขวาหลัง */}
-      <group position={[w / 2, -h / 2, -d]} rotation={[HP, 0, 0]}>
-        <group rotation={[0, -HP * 0.85, 0]}>
-          <mesh position={[-earW / 2, -d * 0.15, 0]}>
-            <planeGeometry args={[earW, d * 0.3]} />
-            <meshStandardMaterial map={map} roughness={0.85} side={DoubleSide} />
-          </mesh>
-        </group>
-      </group>
-    </group>
-  );
-}
-
-/* ============================================================
  * PanelBox — dispatcher ตาม boxType
  * ========================================================== */
-function PanelBox({ width, height, depth, boxType, foldProgress }) {
+function PanelBox({ width, height, depth, boxType, foldProgress, showSupport }) {
   switch (boxType) {
-    case 'tuck_end':
-      return <TuckEndPanelBox width={width} height={height} depth={depth} />;
-    case 'ear_lock':
-      return <EarLockPanelBox width={width} height={height} depth={depth} />;
+    case 'bow':
+      return <BowBox width={width} height={height} depth={depth} foldProgress={foldProgress} showSupport={showSupport} />;
+    case 'heart':
+    case 'star':
+    case 'bear':
+      return (
+        <ContourBox
+          shapeType={boxType}
+          scale={Math.min(width, depth) / 100}
+          height={height / 10}
+          foldProgress={foldProgress}
+          showSupport={showSupport}
+        />
+      );
+    case 'circle':
+      return (
+        <ContourBox
+          shapeType="circle"
+          radius={Math.min(width, depth) / 20}
+          height={height / 10}
+          foldProgress={foldProgress}
+          showSupport={showSupport}
+        />
+      );
     case 'die_cut':
     default:
-      return <DieCutBox width={width} height={height} depth={depth} foldProgress={foldProgress} />;
+      return <DieCutBox width={width} height={height} depth={depth} foldProgress={foldProgress} showSupport={showSupport} />;
   }
 }
 
 /* ============================================================
+ * Die-cut now uses same phases as BowBox (getBowSteps/getBowStepIndex)
+ * ========================================================== */
+
+/* ============================================================
  * BoxViewer Container
  * ========================================================== */
-const FOLD_STEPS = [
-  'กางกล่องแบนราบ',
-  'ตั้งผนังด้านข้าง',
-  'พับปีกยึดด้านข้าง',
-  'พับผนังหน้า-หลัง',
-  'พับปีกฝากล่อง',
-  'ปิดฝากล่อง',
-  'เสียบตัวล็อค',
-];
-
-function getFoldStepIndex(p) {
-  if (p === 0) return 0;
-  if (p < 0.15) return 1;
-  if (p < 0.30) return 2;
-  if (p < 0.45) return 3;
-  if (p < 0.60) return 4;
-  if (p < 0.80) return 5;
-  return 6;
-}
-
 export default function BoxViewer({ width, height, depth, image, isDanger, boxType = 'rsc' }) {
   const [foldProgress, setFoldProgress] = useState(0);
+  const [showSupport, setShowSupport] = useState(false);
+
   const showTexture = image && !isDanger;
   const usePanelBox = boxType !== 'rsc' && !showTexture && !isDanger;
-  const showFoldSlider = usePanelBox && boxType === 'die_cut';
-  const activeStep = getFoldStepIndex(foldProgress);
+  const showFoldSlider = usePanelBox && FOLDABLE_TYPES.includes(boxType);
+  const isContour = CONTOUR_TYPES.includes(boxType);
+  const canShowSupport = SUPPORT_TYPES.includes(boxType);
+
+  // Dynamic fold steps based on box type
+  const foldSteps = useMemo(() => {
+    if (isContour) return getContourSteps(showSupport);
+    // die_cut and bow share the same phase system
+    return getBowSteps(showSupport);
+  }, [boxType, isContour, showSupport]);
+
+  const activeStep = useMemo(() => {
+    if (isContour) return getContourStepIndex(foldProgress, showSupport);
+    // die_cut and bow share the same step index
+    return getBowStepIndex(foldProgress, showSupport);
+  }, [foldProgress, boxType, isContour, showSupport]);
 
   return (
     <div className="w-full h-full relative">
@@ -331,24 +157,51 @@ export default function BoxViewer({ width, height, depth, image, isDanger, boxTy
           ) : isDanger ? (
             <HeatmapBox width={width} height={height} depth={depth} />
           ) : usePanelBox ? (
-            <PanelBox width={width} height={height} depth={depth} boxType={boxType} foldProgress={foldProgress} />
+            <PanelBox
+              width={width}
+              height={height}
+              depth={depth}
+              boxType={boxType}
+              foldProgress={foldProgress}
+              showSupport={showSupport}
+            />
           ) : (
             <PlainBox width={width} height={height} depth={depth} />
           )}
         </Suspense>
 
         <ContactShadows opacity={0.4} scale={10} blur={2.5} />
-        <OrbitControls makeDefault />
-        <gridHelper args={[20, 20, '#2e3139', '#22252d']} />
+        <OrbitControls makeDefault autoRotate={false} />
+        <gridHelper args={[20, 20, '#e9d5ff', '#f3e8ff']} />
       </Canvas>
 
-      {/* Fold slider overlay */}
+      {/* Fold slider — bottom bar (pacdora style) */}
       {showFoldSlider && (
-        <div className="absolute top-3 right-3 bg-panel-darker/85 backdrop-blur-sm rounded-xl px-4 py-3 border border-panel-border w-56">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-[11px] font-mono text-zinc-400">การพับกล่อง</span>
-            <span className="text-[11px] font-mono text-emerald-400">{Math.round(foldProgress * 100)}%</span>
-          </div>
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 56,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(255,255,255,0.95)',
+            backdropFilter: 'blur(12px)',
+            borderRadius: 16,
+            padding: '12px 24px',
+            border: '1px solid rgba(147,51,234,0.15)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 16,
+            minWidth: 380,
+            maxWidth: '90%',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+          }}
+        >
+          {/* Step label */}
+          <span style={{ fontSize: 11, fontFamily: 'monospace', color: '#7c3aed', whiteSpace: 'nowrap', minWidth: 80 }}>
+            {foldSteps[activeStep]}
+          </span>
+
+          {/* Slider */}
           <input
             type="range"
             min="0"
@@ -356,34 +209,43 @@ export default function BoxViewer({ width, height, depth, image, isDanger, boxTy
             step="0.5"
             value={foldProgress * 100}
             onChange={(e) => setFoldProgress(parseFloat(e.target.value) / 100)}
-            className="w-full h-1.5 rounded-full appearance-none cursor-pointer accent-emerald-500 bg-zinc-700"
+            style={{ flex: 1, height: 6, accentColor: '#7c3aed', cursor: 'pointer' }}
           />
-          <ul className="mt-3 space-y-0.5">
-            {FOLD_STEPS.map((label, i) => (
-              <li
-                key={i}
-                className={`text-[10px] font-mono ${
-                  i === activeStep ? 'text-emerald-400 font-semibold' : 'text-zinc-500'
-                }`}
-              >
-                {i + 1}. {label}
-              </li>
-            ))}
-          </ul>
+
+          {/* Percentage */}
+          <span style={{ fontSize: 12, fontFamily: 'monospace', color: '#6b21a8', fontWeight: 600, minWidth: 36, textAlign: 'right' }}>
+            {Math.round(foldProgress * 100)}%
+          </span>
+
+          {/* Support toggle */}
+          {canShowSupport && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', borderLeft: '1px solid rgba(147,51,234,0.2)', paddingLeft: 16, whiteSpace: 'nowrap' }}>
+              <input
+                type="checkbox"
+                checked={showSupport}
+                onChange={(e) => setShowSupport(e.target.checked)}
+                style={{ accentColor: '#7c3aed' }}
+              />
+              <span style={{ fontSize: 11, color: '#7c3aed' }}>ซัพพอร์ท</span>
+            </label>
+          )}
         </div>
       )}
 
       {/* Dimension label overlay */}
-      <div className="absolute bottom-3 left-3 bg-panel-darker/80 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-panel-border">
-        <span className="text-[11px] font-mono text-zinc-400">
-          {width} × {depth} × {height} cm
+      <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-purple-200 shadow-sm">
+        <span className="text-[11px] font-mono text-purple-500">
+          {isContour
+            ? `${width} × ${height} cm`
+            : `${width} × ${depth} × ${height} cm`
+          }
         </span>
       </div>
 
       {/* Box type badge (when not RSC) */}
       {boxType !== 'rsc' && (
-        <div className="absolute top-3 left-3 bg-panel-darker/80 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-panel-border">
-          <span className="text-[11px] font-mono text-lumo-400">
+        <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-purple-200 shadow-sm">
+          <span className="text-[11px] font-mono text-purple-700 font-semibold">
             {BOX_TYPE_LABELS[boxType] || boxType}
           </span>
         </div>

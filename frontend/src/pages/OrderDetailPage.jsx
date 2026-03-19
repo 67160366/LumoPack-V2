@@ -1,5 +1,5 @@
 /**
- * OrderDetailPage — รายละเอียดคำสั่งซื้อ + Timeline + Payment History + Upload Slip
+ * OrderDetailPage — รายละเอียดคำสั่งซื้อ (Light Purple Theme)
  */
 
 import { useState, useEffect } from 'react';
@@ -39,11 +39,8 @@ export default function OrderDetailPage() {
     setLoading(false);
   };
 
-  useEffect(() => {
-    fetchData();
-  }, [id, user]);
+  useEffect(() => { fetchData(); }, [id, user]);
 
-  // Upload slip and create payment record
   const handleUploadSlip = async () => {
     if (!slipFile || !supabase || !order) return;
     setUploading(true);
@@ -53,38 +50,21 @@ export default function OrderDetailPage() {
       const fileExt = slipFile.name.split('.').pop();
       const filePath = `${user.id}/${Date.now()}.${fileExt}`;
 
-      console.log('[slip] uploading to:', filePath);
-      const { error: uploadErr } = await supabase.storage
-        .from('payment-slips')
-        .upload(filePath, slipFile);
+      const { error: uploadErr } = await supabase.storage.from('payment-slips').upload(filePath, slipFile);
+      if (uploadErr) throw uploadErr;
 
-      if (uploadErr) {
-        console.error('[slip] upload error:', uploadErr);
-        throw uploadErr;
-      }
-      console.log('[slip] upload OK');
-
-      // Store file path (private bucket — use signed URL to view)
-      const { error: paymentErr } = await supabase
-        .from('payments')
-        .insert({
-          order_id: order.id,
-          amount: order.deposit_amount || Math.ceil((order.grand_total || 0) * 0.5),
-          type: 'deposit',
-          slip_url: filePath,
-          status: 'pending',
-        });
-
-      if (paymentErr) {
-        console.error('[slip] payment insert error:', paymentErr);
-        throw paymentErr;
-      }
-      console.log('[slip] payment record created');
+      const { error: paymentErr } = await supabase.from('payments').insert({
+        order_id: order.id,
+        amount: order.deposit_amount || Math.ceil((order.grand_total || 0) * 0.5),
+        type: 'deposit',
+        slip_url: filePath,
+        status: 'pending',
+      });
+      if (paymentErr) throw paymentErr;
 
       setSlipFile(null);
       await fetchData();
     } catch (err) {
-      console.error('[slip] error:', err);
       setUploadError(err.message || err.error || 'อัปโหลดไม่สำเร็จ กรุณาลองใหม่');
     }
     setUploading(false);
@@ -92,20 +72,18 @@ export default function OrderDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-panel-darker flex items-center justify-center">
-        <p className="text-zinc-500 text-sm">Loading...</p>
+      <div className="min-h-screen bg-purple-50 flex items-center justify-center">
+        <div className="w-7 h-7 border-2 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
       </div>
     );
   }
 
   if (!order) {
     return (
-      <div className="min-h-screen bg-panel-darker flex items-center justify-center">
+      <div className="min-h-screen bg-purple-50 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-zinc-400 text-sm mb-4">ไม่พบคำสั่งซื้อ</p>
-          <Link to="/orders" className="text-lumo-400 hover:text-lumo-300 text-sm">
-            กลับรายการ
-          </Link>
+          <p className="text-purple-400 text-sm mb-4">ไม่พบคำสั่งซื้อ</p>
+          <Link to="/orders" className="text-purple-600 hover:text-purple-800 text-sm font-semibold">กลับรายการ</Link>
         </div>
       </div>
     );
@@ -114,17 +92,15 @@ export default function OrderDetailPage() {
   const currentStepIndex = TIMELINE_STEPS.findIndex(s => s.key === order.status);
 
   return (
-    <div className="min-h-screen bg-panel-darker">
+    <div className="min-h-screen bg-purple-50">
       {/* Header */}
-      <div className="border-b border-panel-border bg-panel-dark">
+      <div className="border-b border-purple-100 bg-white shadow-sm">
         <div className="max-w-2xl mx-auto px-6 py-4 flex items-center justify-between">
           <div>
-            <h1 className="font-display font-bold text-lg text-gradient-lumo">Order Detail</h1>
-            <p className="text-zinc-600 text-[11px] font-mono mt-0.5">#{order.id.slice(0, 8)}</p>
+            <h1 className="font-display font-bold text-lg text-purple-700">Order Detail</h1>
+            <p className="text-purple-400 text-xs font-mono mt-0.5">#{order.id.slice(0, 8)}</p>
           </div>
-          <Link to="/orders" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
-            กลับรายการ
-          </Link>
+          <Link to="/orders" className="text-xs text-purple-500 hover:text-purple-700 transition-colors">กลับรายการ</Link>
         </div>
       </div>
 
@@ -137,39 +113,28 @@ export default function OrderDetailPage() {
         </div>
 
         {/* Timeline */}
-        <div className="bg-panel-dark rounded-2xl border border-panel-border p-6">
-          <h3 className="text-xs font-display font-semibold text-zinc-400 uppercase tracking-wider mb-4">
-            สถานะการผลิต
-          </h3>
+        <div className="bg-white rounded-2xl border border-purple-100 p-6 shadow-sm">
+          <h3 className="text-xs font-display font-semibold text-purple-600 uppercase tracking-wider mb-4">สถานะการผลิต</h3>
           <div className="flex items-center justify-between">
             {TIMELINE_STEPS.map((step, i) => {
               const isCompleted = i <= currentStepIndex;
               const isCurrent = i === currentStepIndex;
               return (
                 <div key={step.key} className="flex-1 flex flex-col items-center relative">
-                  {/* Connector line */}
                   {i > 0 && (
-                    <div
-                      className={`absolute top-3 right-1/2 w-full h-0.5 -translate-y-1/2 ${
-                        i <= currentStepIndex ? 'bg-lumo-400' : 'bg-panel-border'
-                      }`}
-                    />
+                    <div className={`absolute top-3 right-1/2 w-full h-0.5 -translate-y-1/2 ${i <= currentStepIndex ? 'bg-purple-500' : 'bg-purple-100'}`} />
                   )}
-                  {/* Dot */}
-                  <div
-                    className={`relative z-10 w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold
-                      ${isCurrent
-                        ? 'bg-lumo-400 text-panel-darker ring-4 ring-lumo-400/20'
-                        : isCompleted
-                          ? 'bg-lumo-400/60 text-panel-darker'
-                          : 'bg-panel-border text-zinc-600'
-                      }
-                    `}
-                  >
+                  <div className={`relative z-10 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
+                    ${isCurrent
+                      ? 'bg-purple-600 text-white ring-4 ring-purple-200'
+                      : isCompleted
+                        ? 'bg-purple-400 text-white'
+                        : 'bg-purple-100 text-purple-400'
+                    }
+                  `}>
                     {isCompleted ? '✓' : i + 1}
                   </div>
-                  {/* Label */}
-                  <span className={`text-[10px] mt-1.5 ${isCurrent ? 'text-lumo-400 font-semibold' : 'text-zinc-600'}`}>
+                  <span className={`text-xs mt-1.5 ${isCurrent ? 'text-purple-700 font-semibold' : 'text-purple-400'}`}>
                     {step.label}
                   </span>
                 </div>
@@ -179,44 +144,33 @@ export default function OrderDetailPage() {
         </div>
 
         {/* Order Info */}
-        <div className="bg-panel-dark rounded-2xl border border-panel-border p-6">
-          <h3 className="text-xs font-display font-semibold text-zinc-400 uppercase tracking-wider mb-3">
-            รายละเอียดคำสั่งซื้อ
-          </h3>
+        <div className="bg-white rounded-2xl border border-purple-100 p-6 shadow-sm">
+          <h3 className="text-xs font-display font-semibold text-purple-600 uppercase tracking-wider mb-3">รายละเอียดคำสั่งซื้อ</h3>
           <div className="space-y-2 text-xs">
             <Row label="วันที่สั่ง" value={new Date(order.created_at).toLocaleString('th-TH')} />
             <Row label="ราคารวม" value={`฿${order.grand_total?.toLocaleString()}`} />
             <Row label="มัดจำ 50%" value={`฿${order.deposit_amount?.toLocaleString()}`} />
             {order.collected_data?.dimensions && (
-              <Row
-                label="ขนาด"
-                value={`${order.collected_data.dimensions.width} x ${order.collected_data.dimensions.length} x ${order.collected_data.dimensions.height} cm`}
-              />
+              <Row label="ขนาด" value={`${order.collected_data.dimensions.width} x ${order.collected_data.dimensions.length} x ${order.collected_data.dimensions.height} cm`} />
             )}
-            {order.collected_data?.quantity && (
-              <Row label="จำนวน" value={`${order.collected_data.quantity.toLocaleString()} ชิ้น`} />
-            )}
-            {order.collected_data?.box_type && (
-              <Row label="ประเภทกล่อง" value={order.collected_data.box_type} />
-            )}
-            {order.collected_data?.material && (
-              <Row label="วัสดุ" value={order.collected_data.material} />
-            )}
+            {order.collected_data?.quantity && <Row label="จำนวน" value={`${order.collected_data.quantity.toLocaleString()} ชิ้น`} />}
+            {order.collected_data?.box_type && <Row label="ประเภทกล่อง" value={order.collected_data.box_type} />}
+            {order.collected_data?.material && <Row label="วัสดุ" value={order.collected_data.material} />}
           </div>
         </div>
 
-        {/* Upload Slip — show when status is pending and no deposit payment yet */}
+        {/* Upload Slip */}
         {order.status === 'pending' && !payments.some(p => p.type === 'deposit') && (
-          <div className="bg-lumo-400/5 rounded-2xl border border-lumo-400/20 p-6">
-            <h3 className="text-sm font-display font-semibold text-lumo-400 mb-2">ชำระมัดจำ 50%</h3>
-            <p className="text-2xl font-bold text-lumo-400 mb-4">
+          <div className="bg-purple-50 rounded-2xl border border-purple-200 p-6">
+            <h3 className="text-sm font-display font-semibold text-purple-700 mb-2">ชำระมัดจำ 50%</h3>
+            <p className="text-2xl font-bold text-purple-700 mb-4">
               ฿{(order.deposit_amount || Math.ceil((order.grand_total || 0) * 0.5)).toLocaleString()}
             </p>
 
             <div className="space-y-3">
               <div>
-                <p className="text-xs text-zinc-400 mb-2">โอนเงินมาที่:</p>
-                <div className="bg-panel-darker rounded-lg p-3 text-xs text-zinc-300 space-y-1">
+                <p className="text-xs text-purple-500 mb-2">โอนเงินมาที่:</p>
+                <div className="bg-white rounded-xl p-3 text-xs text-purple-700 space-y-1 border border-purple-100">
                   <div>ธนาคารกสิกรไทย</div>
                   <div className="font-mono">XXX-X-XXXXX-X</div>
                   <div>บจก. ลูโม่แพค</div>
@@ -224,32 +178,25 @@ export default function OrderDetailPage() {
               </div>
 
               <div>
-                <p className="text-xs text-zinc-400 mb-2">อัปโหลดสลิปโอนเงิน:</p>
+                <p className="text-xs text-purple-500 mb-2">อัปโหลดสลิปโอนเงิน:</p>
                 <label className="block w-full cursor-pointer">
-                  <div className="border border-dashed border-panel-border rounded-lg p-4 text-center hover:border-lumo-400/40 transition-colors">
-                    <div className="text-zinc-500 text-xs">
+                  <div className="border border-dashed border-purple-300 rounded-xl p-4 text-center hover:border-purple-500 transition-colors duration-200 bg-white">
+                    <div className="text-purple-400 text-xs">
                       {slipFile ? slipFile.name : 'คลิกเพื่อเลือกไฟล์สลิป'}
                     </div>
                   </div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => { setSlipFile(e.target.files[0]); setUploadError(null); }}
-                    className="hidden"
-                  />
+                  <input type="file" accept="image/*" onChange={(e) => { setSlipFile(e.target.files[0]); setUploadError(null); }} className="hidden" />
                 </label>
               </div>
 
               {uploadError && (
-                <div className="p-3 rounded-lg bg-red-900/30 border border-red-800/40 text-red-300 text-xs">
-                  {uploadError}
-                </div>
+                <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-xs">{uploadError}</div>
               )}
 
               <button
                 onClick={handleUploadSlip}
                 disabled={!slipFile || uploading}
-                className="w-full py-3 rounded-xl bg-lumo-400 hover:bg-lumo-300 text-panel-darker text-sm font-display font-semibold transition-colors disabled:opacity-50 active:scale-[0.98]"
+                className="w-full py-3 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-sm font-display font-semibold transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] shadow-sm"
               >
                 {uploading ? 'กำลังอัปโหลด...' : 'ส่งสลิปมัดจำ'}
               </button>
@@ -258,27 +205,25 @@ export default function OrderDetailPage() {
         )}
 
         {/* Payment History */}
-        <div className="bg-panel-dark rounded-2xl border border-panel-border p-6">
-          <h3 className="text-xs font-display font-semibold text-zinc-400 uppercase tracking-wider mb-3">
-            ประวัติการชำระเงิน
-          </h3>
+        <div className="bg-white rounded-2xl border border-purple-100 p-6 shadow-sm">
+          <h3 className="text-xs font-display font-semibold text-purple-600 uppercase tracking-wider mb-3">ประวัติการชำระเงิน</h3>
           {payments.length === 0 ? (
-            <p className="text-xs text-zinc-600">ยังไม่มีรายการ</p>
+            <p className="text-xs text-purple-400">ยังไม่มีรายการ</p>
           ) : (
             <div className="space-y-3">
               {payments.map((payment) => (
-                <div key={payment.id} className="flex items-center justify-between bg-panel-darker rounded-lg p-3">
+                <div key={payment.id} className="flex items-center justify-between bg-purple-50 rounded-lg p-3">
                   <div>
-                    <div className="text-xs text-zinc-300 font-medium">
+                    <div className="text-xs text-purple-700 font-medium">
                       {payment.type === 'deposit' ? 'มัดจำ' : payment.type === 'remaining' ? 'ชำระส่วนที่เหลือ' : 'คืนเงิน'}
                     </div>
-                    <div className="text-[10px] text-zinc-600 mt-0.5">
+                    <div className="text-xs text-purple-400 mt-0.5">
                       {new Date(payment.created_at).toLocaleString('th-TH')}
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-xs font-semibold text-zinc-200">฿{payment.amount?.toLocaleString()}</div>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded border ${STATUS_COLORS[payment.status] || 'text-zinc-400'}`}>
+                    <div className="text-xs font-semibold text-purple-800">฿{payment.amount?.toLocaleString()}</div>
+                    <span className={`text-xs px-1.5 py-0.5 rounded border ${STATUS_COLORS[payment.status] || 'text-purple-400'}`}>
                       {payment.status === 'pending' ? 'รอตรวจสอบ' : payment.status === 'approved' ? 'อนุมัติ' : 'ปฏิเสธ'}
                     </span>
                   </div>
@@ -295,8 +240,8 @@ export default function OrderDetailPage() {
 function Row({ label, value }) {
   return (
     <div className="flex justify-between">
-      <span className="text-zinc-500">{label}</span>
-      <span className="text-zinc-200 font-medium">{value}</span>
+      <span className="text-purple-400">{label}</span>
+      <span className="text-purple-800 font-medium">{value}</span>
     </div>
   );
 }

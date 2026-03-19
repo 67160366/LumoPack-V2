@@ -3,13 +3,15 @@
  *
  * State:
  * - user       : Supabase auth user object | null
- * - profile    : { id, full_name, phone, company, role } | null
+ * - profile    : { id, email, full_name, role } | null
  * - loading    : boolean
  *
  * Actions:
- * - signUp(email, password, fullName, phone, company)
+ * - signUp(email, password, fullName)
  * - signIn(email, password)
  * - signOut()
+ * - resetPassword(email)        — sends reset link
+ * - updatePassword(newPassword)  — sets new password (after clicking reset link)
  */
 
 import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
@@ -92,8 +94,8 @@ export function AuthProvider({ children }) {
       new Promise((_, reject) => setTimeout(() => reject(new Error('Request timed out')), ms)),
     ]);
 
-  // Sign up
-  const signUp = useCallback(async (email, password, fullName, phone, company) => {
+  // Sign up — pass all fields via metadata so trigger handles profile creation
+  const signUp = useCallback(async (email, password, fullName) => {
     if (!supabase) throw new Error('Supabase not configured');
     const { data, error } = await withTimeout(supabase.auth.signUp({
       email,
@@ -103,15 +105,6 @@ export function AuthProvider({ children }) {
       },
     }));
     if (error) throw error;
-
-    // Update profile with phone & company (trigger auto-creates row)
-    if (data.user) {
-      await withTimeout(supabase
-        .from('profiles')
-        .update({ phone, company, full_name: fullName })
-        .eq('id', data.user.id));
-    }
-
     return data;
   }, []);
 
@@ -124,6 +117,24 @@ export function AuthProvider({ children }) {
     }));
     if (error) throw error;
     return data;
+  }, []);
+
+  // Reset password — sends email with reset link
+  const resetPassword = useCallback(async (email) => {
+    if (!supabase) throw new Error('Supabase not configured');
+    const { error } = await withTimeout(supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    }));
+    if (error) throw error;
+  }, []);
+
+  // Update password — called after user clicks reset link
+  const updatePassword = useCallback(async (newPassword) => {
+    if (!supabase) throw new Error('Supabase not configured');
+    const { error } = await withTimeout(supabase.auth.updateUser({
+      password: newPassword,
+    }));
+    if (error) throw error;
   }, []);
 
   // Sign out
@@ -151,7 +162,9 @@ export function AuthProvider({ children }) {
     signUp,
     signIn,
     signOut,
-  }), [user, profile, loading, isAdmin, signUp, signIn, signOut]);
+    resetPassword,
+    updatePassword,
+  }), [user, profile, loading, isAdmin, signUp, signIn, signOut, resetPassword, updatePassword]);
 
   return (
     <AuthContext.Provider value={value}>

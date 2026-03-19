@@ -222,7 +222,7 @@ export default function DielineViewer({ width = 500, height = 300, depth = 80 })
       <div className="absolute top-3 right-3 flex flex-col gap-2">
         <button
           onClick={resetView}
-          className="bg-panel-darker/80 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-panel-border text-[11px] font-mono text-zinc-400 hover:text-white transition-colors"
+          className="bg-white/90 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-purple-200 text-[11px] font-mono text-purple-500 hover:text-purple-700 transition-colors shadow-sm"
         >
           Reset View
         </button>
@@ -338,21 +338,21 @@ export default function DielineViewer({ width = 500, height = 300, depth = 80 })
       </div>
 
       {/* Dimension info */}
-      <div className="absolute bottom-3 left-3 bg-panel-darker/80 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-panel-border">
-        <span className="text-[11px] font-mono text-zinc-400">
+      <div className="absolute bottom-3 left-3 bg-white/90 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-purple-200 shadow-sm">
+        <span className="text-[11px] font-mono text-purple-500">
           {width} x {depth} x {height} mm (DXF reference: 500x80x300)
         </span>
       </div>
 
       {/* Legend */}
-      <div className="absolute bottom-3 right-3 bg-panel-darker/80 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-panel-border flex gap-3">
+      <div className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-purple-200 shadow-sm flex gap-3">
         <span className="text-[10px] font-mono flex items-center gap-1">
           <span className="inline-block w-3 h-0.5" style={{ backgroundColor: CUT_COLOR }} />
-          <span className="text-zinc-400">Cut</span>
+          <span className="text-purple-500">Cut</span>
         </span>
         <span className="text-[10px] font-mono flex items-center gap-1">
           <span className="inline-block w-3 h-0.5 border-t border-dashed" style={{ borderColor: CREASE_COLOR }} />
-          <span className="text-zinc-400">Crease</span>
+          <span className="text-purple-500">Crease</span>
         </span>
       </div>
     </div>

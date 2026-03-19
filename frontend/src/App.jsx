@@ -30,7 +30,9 @@ import MyOrdersPage from './pages/MyOrdersPage';
 import MyProjectsPage from './pages/MyProjectsPage';
 import OrderDetailPage from './pages/OrderDetailPage';
 import AdminDashboard from './pages/AdminDashboard';
-import { createProject, updateProject } from './services/api';
+import ForgotpasswordPage from './pages/ForgotpasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
+import { supabase } from './lib/supabase';
 
 
 // ===================================
@@ -54,8 +56,11 @@ function AdminRoute({ children }) {
 
 function LoadingScreen() {
   return (
-    <div className="min-h-screen bg-panel-darker flex items-center justify-center">
-      <div className="text-zinc-500 text-sm font-display">Loading...</div>
+    <div className="min-h-screen bg-purple-50 flex items-center justify-center">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-8 h-8 border-2 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
+        <span className="text-purple-400 text-sm font-display">Loading...</span>
+      </div>
     </div>
   );
 }
@@ -254,9 +259,9 @@ function AppLayout() {
     navigate('/checkout', { state: { collectedData } });
   };
 
-  // --- Save Project ---
+  // --- Save Project (via Supabase client directly) ---
   const handleSaveProject = async () => {
-    if (!user) {
+    if (!user || !supabase) {
       navigate('/login');
       return;
     }
@@ -286,18 +291,30 @@ function AppLayout() {
 
       if (activeProjectId) {
         // Update existing
-        const updated = await updateProject(activeProjectId, projectData);
-        setActiveProjectName(updated.name);
+        const { data, error } = await supabase
+          .from('projects')
+          .update(projectData)
+          .eq('id', activeProjectId)
+          .select()
+          .single();
+        if (error) throw error;
+        setActiveProjectName(data.name);
       } else {
         // Create new — prompt for name
         const name = prompt('ตั้งชื่อโปรเจค:', `โปรเจค ${new Date().toLocaleDateString('th-TH')}`);
         if (!name) { setSaving(false); return; }
-        const created = await createProject({ name, ...projectData });
-        setActiveProjectId(created.id);
-        setActiveProjectName(created.name);
+        const { data, error } = await supabase
+          .from('projects')
+          .insert({ user_id: user.id, name, ...projectData })
+          .select()
+          .single();
+        if (error) throw error;
+        setActiveProjectId(data.id);
+        setActiveProjectName(data.name);
       }
-    } catch {
-      alert('บันทึกไม่สำเร็จ');
+    } catch (err) {
+      console.error('[SaveProject] error:', err);
+      alert('บันทึกไม่สำเร็จ: ' + (err.message || ''));
     } finally {
       setSaving(false);
     }
@@ -313,7 +330,7 @@ function AppLayout() {
   const pdfGrandTotal = pdfPricing?.grand_total ?? (parseFloat(formData.length) * parseFloat(formData.width) * parseFloat(formData.height) * 0.005);
 
   return (
-    <div className="flex w-screen h-screen bg-panel-darker overflow-hidden">
+    <div className="flex w-screen h-screen bg-purple-50 overflow-hidden">
 
       {/* ===== HIDDEN PDF TEMPLATE ===== */}
       <div
@@ -471,51 +488,41 @@ function AppLayout() {
       {/* ===== LEFT PANEL (Tabs: Studio | Summary) ===== */}
       <div
         className={`
-          flex-shrink-0 flex-col border-r border-panel-border bg-panel-dark
+          flex-shrink-0 flex-col border-r border-purple-100 bg-white
           transition-all duration-300 ease-in-out overflow-hidden
           ${leftPanelOpen
-            ? 'w-[22vw] min-w-[260px] max-w-[360px] flex'
+            ? 'w-[24vw] min-w-[300px] max-w-[380px] flex'
             : 'w-0 min-w-0 max-w-0 border-r-0 hidden'
           }
           max-md:hidden
         `}
       >
         {/* Logo + Title + Auth */}
-        <div className="flex-shrink-0 border-b border-panel-border flex items-center justify-between" style={{ padding: '12px 24px' }}>
-          <h1 className="font-display font-bold text-base">
-            <span className="text-gradient-lumo">LumoPack</span>
-            <span className="text-zinc-500 text-xs font-normal ml-1.5">Studio</span>
+        <div className="flex-shrink-0 border-b border-purple-100 flex items-center justify-between px-5 py-3">
+          <h1 className="font-display font-bold text-sm">
+            <span className="text-purple-700">LumoPack</span>
+            <span className="text-purple-400 text-xs font-normal ml-1">Studio</span>
           </h1>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {user ? (
               <>
                 <Link
-                  to="/projects"
-                  className="text-[10px] text-zinc-500 hover:text-lumo-400 transition-colors"
-                  title="My Projects"
-                >
-                  Projects
-                </Link>
-                <Link
                   to="/orders"
-                  className="text-[10px] text-zinc-500 hover:text-lumo-400 transition-colors"
-                  title="My Orders"
+                  className="text-xs text-purple-400 hover:text-purple-700 transition-colors"
                 >
                   Orders
                 </Link>
                 {profile?.role === 'admin' && (
                   <Link
                     to="/admin"
-                    className="text-[10px] text-zinc-500 hover:text-lumo-400 transition-colors"
-                    title="Admin"
+                    className="text-xs text-purple-400 hover:text-purple-700 transition-colors"
                   >
                     Admin
                   </Link>
                 )}
                 <button
                   onClick={signOut}
-                  className="text-[10px] text-zinc-600 hover:text-red-400 transition-colors"
-                  title="Logout"
+                  className="text-xs text-purple-400 hover:text-red-500 transition-colors"
                 >
                   Logout
                 </button>
@@ -523,7 +530,7 @@ function AppLayout() {
             ) : (
               <Link
                 to="/login"
-                className="text-[10px] text-lumo-400 hover:text-lumo-300 transition-colors"
+                className="text-xs text-purple-600 hover:text-purple-800 transition-colors"
               >
                 Login
               </Link>
@@ -532,14 +539,14 @@ function AppLayout() {
         </div>
 
         {/* Tab Headers */}
-        <div className="flex-shrink-0 flex border-b border-panel-border">
+        <div className="flex-shrink-0 flex border-b border-purple-100">
           <button
             onClick={() => setActiveTab('studio')}
             className={`
               flex-1 py-2.5 text-xs font-display font-medium transition-colors relative
               ${activeTab === 'studio'
-                ? 'text-lumo-400 tab-active'
-                : 'text-zinc-500 hover:text-zinc-300'
+                ? 'text-purple-700 tab-active'
+                : 'text-purple-400 hover:text-purple-600'
               }
             `}
           >
@@ -550,8 +557,8 @@ function AppLayout() {
             className={`
               flex-1 py-2.5 text-xs font-display font-medium transition-colors relative
               ${activeTab === 'summary'
-                ? 'text-lumo-400 tab-active'
-                : 'text-zinc-500 hover:text-zinc-300'
+                ? 'text-purple-700 tab-active'
+                : 'text-purple-400 hover:text-purple-600'
               }
             `}
           >
@@ -579,34 +586,17 @@ function AppLayout() {
           )}
         </div>
 
-        {/* Save Project + Checkout */}
-        <div className="flex-shrink-0 border-t border-panel-border p-4 space-y-2">
-          {/* Active project indicator */}
-          {activeProjectName && (
-            <div className="text-[10px] text-zinc-500 font-mono truncate mb-1">
-              Project: <span className="text-lumo-400">{activeProjectName}</span>
-            </div>
-          )}
-
-          {/* Save project button */}
-          <button
-            onClick={handleSaveProject}
-            disabled={saving}
-            className="w-full py-2.5 rounded-xl border border-panel-border hover:border-lumo-400/40 text-zinc-300 hover:text-lumo-400 text-xs font-display font-semibold transition-colors active:scale-[0.98] disabled:opacity-50"
-          >
-            {saving ? 'Saving...' : activeProjectId ? 'Save Project' : 'Save as Project'}
-          </button>
-
-          {/* Checkout Button (visible when chatbot is complete) */}
-          {isComplete && collectedData?.pricing && (
+        {/* Checkout Button (visible when chatbot is complete) */}
+        {isComplete && collectedData?.pricing && (
+          <div className="flex-shrink-0 border-t border-purple-100 p-4">
             <button
               onClick={handleCheckout}
-              className="w-full py-3 rounded-xl bg-lumo-400 hover:bg-lumo-300 text-panel-darker text-sm font-display font-semibold transition-colors active:scale-[0.98]"
+              className="w-full py-3 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-sm font-display font-semibold transition-colors active:scale-[0.98]"
             >
               Checkout — ฿{collectedData.pricing.grand_total?.toLocaleString()}
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* ===== CENTER: 3D BOX VIEWER ===== */}
@@ -635,19 +625,19 @@ function AppLayout() {
         )}
 
         {/* View mode toggle (3D / 2D Dieline) */}
-        <div className="absolute top-3 right-3 z-10 flex rounded-lg overflow-hidden border border-panel-border bg-panel-darker/80 backdrop-blur-sm">
+        <div className="absolute top-3 right-3 z-10 flex rounded-lg overflow-hidden border border-purple-200 bg-white/80 backdrop-blur-sm shadow-sm">
           <button
             onClick={() => setCenterView('3d')}
-            className={`px-3 py-1.5 text-[11px] font-mono transition-colors ${
-              centerView === '3d' ? 'text-lumo-400 bg-panel-surface' : 'text-zinc-500 hover:text-zinc-300'
+            className={`px-3 py-1.5 text-xs font-mono transition-colors ${
+              centerView === '3d' ? 'text-purple-700 bg-purple-50' : 'text-purple-400 hover:text-purple-600'
             }`}
           >
             3D
           </button>
           <button
             onClick={() => setCenterView('dieline')}
-            className={`px-3 py-1.5 text-[11px] font-mono transition-colors ${
-              centerView === 'dieline' ? 'text-lumo-400 bg-panel-surface' : 'text-zinc-500 hover:text-zinc-300'
+            className={`px-3 py-1.5 text-xs font-mono transition-colors ${
+              centerView === 'dieline' ? 'text-purple-700 bg-purple-50' : 'text-purple-400 hover:text-purple-600'
             }`}
           >
             2D Dieline
@@ -659,38 +649,61 @@ function AppLayout() {
           onClick={() => setLeftPanelOpen(!leftPanelOpen)}
           className={`
             absolute top-3 left-3 z-10
-            w-9 h-9 rounded-lg bg-panel-darker/80 backdrop-blur-sm
-            border border-panel-border
+            w-9 h-9 rounded-lg bg-white/80 backdrop-blur-sm
+            border border-purple-200 shadow-sm
             flex items-center justify-center
-            text-zinc-400 hover:text-lumo-400 transition-colors
+            text-purple-400 hover:text-purple-700 transition-colors
             text-sm
             max-md:hidden
           `}
           title={leftPanelOpen ? 'Hide Panel' : 'Show Panel'}
         >
-          {leftPanelOpen ? '—' : '▶'}
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            {leftPanelOpen
+              ? <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7" />
+              : <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7" />
+            }
+          </svg>
         </button>
       </div>
 
-      {/* ===== RIGHT PANEL: CHATBOT ===== */}
+      {/* ===== RIGHT PANEL: CHATBOT + PROJECT ===== */}
       <div
         className={`
-          flex-shrink-0 border-l border-panel-border overflow-hidden
+          flex-shrink-0 border-l border-purple-100 overflow-hidden flex flex-col
           w-[28vw] min-w-[320px] max-w-[420px]
           max-md:absolute max-md:inset-0 max-md:w-full max-md:max-w-none max-md:min-w-0 max-md:border-l-0 max-md:z-10
           ${mobileView === 'chat' ? 'max-md:block' : 'max-md:hidden md:block'}
         `}
       >
-        <ChatWindow />
+        <div className="flex-1 min-h-0">
+          <ChatWindow />
+        </div>
+
+        {/* Project save bar */}
+        <div className="flex-shrink-0 border-t border-purple-100 bg-white px-4 py-3 space-y-1.5">
+          {activeProjectName && (
+            <div className="text-xs text-purple-400 font-mono truncate">
+              Project: <span className="text-purple-700 font-semibold">{activeProjectName}</span>
+            </div>
+          )}
+          <button
+            onClick={handleSaveProject}
+            disabled={saving}
+            className="w-full py-2.5 rounded-xl border border-purple-200 hover:border-purple-400 text-purple-500 hover:text-purple-700 text-xs font-display font-semibold transition-colors duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? 'Saving...' : activeProjectId ? 'Save Project' : 'Save as Project'}
+          </button>
+        </div>
       </div>
 
       {/* ===== MOBILE TAB BAR ===== */}
-      <div className="hidden max-md:flex absolute bottom-0 left-0 right-0 z-20 bg-panel-darker border-t border-panel-border">
+      <div className="hidden max-md:flex absolute bottom-0 left-0 right-0 z-20 bg-white border-t border-purple-100 shadow-sm">
         <button
           onClick={() => setMobileView('chat')}
           className={`
             flex-1 py-3 text-xs font-display font-medium transition-colors
-            ${mobileView === 'chat' ? 'text-lumo-400 bg-panel-surface' : 'text-zinc-500'}
+            ${mobileView === 'chat' ? 'text-purple-700 bg-purple-50' : 'text-purple-400'}
           `}
         >
           Chat
@@ -699,7 +712,7 @@ function AppLayout() {
           onClick={() => setMobileView('3d')}
           className={`
             flex-1 py-3 text-xs font-display font-medium transition-colors
-            ${mobileView === '3d' ? 'text-lumo-400 bg-panel-surface' : 'text-zinc-500'}
+            ${mobileView === '3d' ? 'text-purple-700 bg-purple-50' : 'text-purple-400'}
           `}
         >
           3D Box
@@ -720,6 +733,8 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/forgot-password" element={<ForgotpasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route
         path="/checkout"
         element={

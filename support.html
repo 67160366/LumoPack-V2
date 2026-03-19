@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Custom Inner Support Builder (Bounded)</title>
+    <style>
+        body {
+            margin: 0; overflow: hidden;
+            background: radial-gradient(circle at center, #f8fafc 0%, #cbd5e1 100%);
+            font-family: 'Segoe UI', Prompt, Tahoma, sans-serif;
+        }
+        #canvas-container { width: 100vw; height: 100vh; }
+        #ui-container {
+            position: absolute; top: 20px; left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 20px; border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255,255,255,0.8);
+            width: 320px; color: #334155; z-index: 10;
+            max-height: 90vh; overflow-y: auto;
+        }
+        h2 { margin: 0 0 15px 0; font-size: 18px; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;}
+        .section-title { font-size: 14px; font-weight: bold; margin: 15px 0 10px; color: #475569; }
+        
+        .control-group { margin-bottom: 12px; background: #f1f5f9; padding: 10px; border-radius: 8px;}
+        .size-label-row { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; margin-bottom: 5px; }
+        .size-val { color: #2563eb; }
+        input[type="range"] {
+            width: 100%; cursor: pointer; accent-color: #3b82f6;
+            height: 4px; border-radius: 2px; background: #cbd5e1; appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none; width: 14px; height: 14px; border-radius: 50%;
+            background: #3b82f6; cursor: pointer;
+        }
+
+        .btn-group { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
+        button {
+            flex: 1; padding: 8px 5px; font-size: 12px; font-weight: bold; cursor: pointer;
+            border: none; border-radius: 6px; background: #3b82f6; color: white;
+            transition: 0.2s; min-width: 30%;
+        }
+        button:hover { background: #2563eb; }
+        .btn-remove { background: #ef4444; margin-top: 10px; width: 100%; }
+        .btn-remove:hover { background: #dc2626; }
+
+        .hint { text-align: center; font-size: 12px; color: #64748b; margin-top: 15px; }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <div id="ui-container">
+        <h2>🛠️ ออกแบบแผ่นซัพพอร์ต</h2>
+        
+        <div class="section-title">📦 ขนาดแผ่นซัพพอร์ตโดยรวม</div>
+        <div class="control-group">
+            <div class="size-label-row"><label>ความกว้าง (Width)</label><span id="val-sup-w">18.0</span></div>
+            <input type="range" id="sup-w" min="10" max="30" step="0.5" value="18.0">
+            <div class="size-label-row" style="margin-top:10px;"><label>ความยาว (Length)</label><span id="val-sup-l">12.0</span></div>
+            <input type="range" id="sup-l" min="10" max="25" step="0.5" value="12.0">
+        </div>
+
+        <div class="section-title">➕ เพิ่มช่องเจาะใส่ของ (Add Holes)</div>
+        <div class="btn-group">
+            <button onclick="addHole('circle')">⚪ วงกลม</button>
+            <button onclick="addHole('rect')">⬜ สี่เหลี่ยม</button>
+            <button onclick="addHole('capsule')">💊 แคปซูล</button>
+        </div>
+
+        <div id="holes-container"></div>
+        <div class="hint">🖱️ ลากเพื่อหมุน | 📜 สกอร์ลเมาส์เพื่อซูม</div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        // --- 1. Scene Setup ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 20, 20);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        dirLight.position.set(5, 20, 10);
+        dirLight.castShadow = true;
+        scene.add(dirLight);
+
+        const gridHelper = new THREE.GridHelper(40, 40, 0x888888, 0xcccccc);
+        gridHelper.position.y = -1;
+        scene.add(gridHelper);
+
+        const matSupport = new THREE.MeshStandardMaterial({ 
+            color: 0xe2e8f0, roughness: 0.9, side: THREE.DoubleSide 
+        });
+
+        let supportMesh = null;
+        window.holesData = [
+            { id: Date.now(), type: 'circle', r: 2.5, x: -4, y: 0 },
+            { id: Date.now()+1, type: 'rect', w: 5, l: 7, x: 4, y: 0 }
+        ];
+
+        // --- NEW: ระบบตรวจสอบและป้องกันไม่ให้ช่องเจาะทะลุขอบ ---
+        function enforceBounds() {
+            const supW = parseFloat(document.getElementById('sup-w').value);
+            const supL = parseFloat(document.getElementById('sup-l').value);
+            const margin = 0.5; // ระยะขอบขั้นต่ำ ป้องกันเจาะชิดขอบเกินไปจนพัง
+
+            window.holesData.forEach(hole => {
+                // 1. บังคับไม่ให้ "ขนาดของรู" ใหญ่เกินแผ่นซัพพอร์ต
+                if (hole.type === 'circle') {
+                    const maxR = Math.max(0.5, Math.min((supW - margin*2)/2, (supL - margin*2)/2));
+                    hole.r = Math.min(hole.r, maxR);
+                } else {
+                    const maxW = Math.max(1, supW - margin*2);
+                    const maxL = Math.max(1, supL - margin*2);
+                    hole.w = Math.min(hole.w, maxW);
+                    hole.l = Math.min(hole.l, maxL);
+                }
+
+                // 2. บังคับ "ตำแหน่งแกน X, Y" ไม่ให้เลื่อนทะลุกรอบ
+                let halfW = hole.type === 'circle' ? hole.r : hole.w / 2;
+                let halfL = hole.type === 'circle' ? hole.r : hole.l / 2;
+
+                const maxX = Math.max(0, (supW / 2) - halfW - margin);
+                const minX = -maxX;
+                const maxY = Math.max(0, (supL / 2) - halfL - margin);
+                const minY = -maxY;
+
+                hole.x = Math.max(minX, Math.min(maxX, hole.x));
+                hole.y = Math.max(minY, Math.min(maxY, hole.y));
+            });
+        }
+
+        // --- NEW: ซิงค์ค่ากลับไปยังสไลเดอร์ UI เพื่อให้ผู้ใช้เห็นว่ามันชนขอบแล้ว ---
+        function syncUI() {
+            window.holesData.forEach(hole => {
+                const props = hole.type === 'circle' ? ['x', 'y', 'r'] : ['x', 'y', 'w', 'l'];
+                props.forEach(prop => {
+                    const input = document.querySelector(`input[data-id="${hole.id}"][data-prop="${prop}"]`);
+                    const label = document.getElementById(`val-${hole.id}-${prop}`);
+                    if (input && label) {
+                        input.value = hole[prop];
+                        label.innerText = hole[prop].toFixed(1);
+                    }
+                });
+            });
+        }
+
+        function rebuildSupport() {
+            if (supportMesh) {
+                supportMesh.geometry.dispose();
+                scene.remove(supportMesh);
+            }
+
+            const w = parseFloat(document.getElementById('sup-w').value);
+            const l = parseFloat(document.getElementById('sup-l').value);
+            const depth = 2.0;
+
+            document.getElementById('val-sup-w').innerText = w.toFixed(1);
+            document.getElementById('val-sup-l').innerText = l.toFixed(1);
+
+            const shape = new THREE.Shape();
+            shape.moveTo(-w/2, -l/2); shape.lineTo(w/2, -l/2);
+            shape.lineTo(w/2, l/2); shape.lineTo(-w/2, l/2);
+            shape.lineTo(-w/2, -l/2);
+
+            window.holesData.forEach(hole => {
+                const path = new THREE.Path();
+                if (hole.type === 'circle') {
+                    path.absarc(hole.x, hole.y, hole.r, 0, Math.PI * 2, true);
+                } else if (hole.type === 'rect') {
+                    path.moveTo(hole.x - hole.w/2, hole.y - hole.l/2);
+                    path.lineTo(hole.x - hole.w/2, hole.y + hole.l/2);
+                    path.lineTo(hole.x + hole.w/2, hole.y + hole.l/2);
+                    path.lineTo(hole.x + hole.w/2, hole.y - hole.l/2);
+                    path.lineTo(hole.x - hole.w/2, hole.y - hole.l/2);
+                } else if (hole.type === 'capsule') {
+                    const r = hole.w / 2;
+                    const innerL = Math.max(0, hole.l - hole.w);
+                    path.moveTo(hole.x - r, hole.y - innerL/2);
+                    path.lineTo(hole.x - r, hole.y + innerL/2);
+                    path.absarc(hole.x, hole.y + innerL/2, r, Math.PI, 0, true);
+                    path.lineTo(hole.x + r, hole.y - innerL/2);
+                    path.absarc(hole.x, hole.y - innerL/2, r, 0, Math.PI, true);
+                }
+                shape.holes.push(path);
+            });
+
+            try {
+                const extrudeSettings = { depth: depth, bevelEnabled: false, curveSegments: 32 };
+                const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+                geometry.rotateX(Math.PI / 2);
+                geometry.translate(0, depth, 0);
+
+                supportMesh = new THREE.Mesh(geometry, matSupport);
+                supportMesh.castShadow = true;
+                supportMesh.receiveShadow = true;
+                scene.add(supportMesh);
+            } catch(e) {
+                console.warn("Extrude failed, possibly intersecting holes.");
+            }
+        }
+
+        function renderUI() {
+            const container = document.getElementById('holes-container');
+            container.innerHTML = '';
+
+            window.holesData.forEach((hole) => {
+                const div = document.createElement('div');
+                div.className = 'control-group';
+                
+                let title = hole.type === 'circle' ? '⚪ วงกลม (Circle)' : (hole.type === 'rect' ? '⬜ สี่เหลี่ยม (Rect)' : '💊 แคปซูล (Capsule)');
+                let html = `<div class="size-label-row" style="color:#0f172a; font-size:14px; border-bottom:1px solid #cbd5e1; padding-bottom:5px; margin-bottom:10px;">${title}</div>`;
+                
+                html += createSlider(hole.id, 'x', 'ตำแหน่ง แกน X', -15, 15, 0.5, hole.x);
+                html += createSlider(hole.id, 'y', 'ตำแหน่ง แกน Y', -15, 15, 0.5, hole.y);
+
+                if (hole.type === 'circle') {
+                    html += createSlider(hole.id, 'r', 'รัศมี (Radius)', 0.5, 15, 0.1, hole.r);
+                } else {
+                    html += createSlider(hole.id, 'w', 'กว้าง (Width)', 1, 20, 0.1, hole.w);
+                    html += createSlider(hole.id, 'l', 'ยาว (Length)', 1, 25, 0.1, hole.l);
+                }
+
+                html += `<button class="btn-remove" onclick="removeHole(${hole.id})">🗑️ ลบช่องนี้</button>`;
+                div.innerHTML = html;
+                container.appendChild(div);
+            });
+
+            document.querySelectorAll('#holes-container input').forEach(input => {
+                input.addEventListener('input', (e) => {
+                    const id = parseInt(e.target.dataset.id);
+                    const prop = e.target.dataset.prop;
+                    const val = parseFloat(e.target.value);
+                    
+                    const hole = window.holesData.find(h => h.id === id);
+                    if(hole) {
+                        hole[prop] = val;
+                        enforceBounds(); // ตรวจสอบขอบเขต
+                        syncUI();        // ดันค่าที่จำกัดแล้วกลับไปที่ UI
+                        rebuildSupport(); 
+                    }
+                });
+            });
+        }
+
+        function createSlider(id, prop, label, min, max, step, val) {
+            return `
+                <div class="size-label-row"><label>${label}</label><span id="val-${id}-${prop}">${val.toFixed(1)}</span></div>
+                <input type="range" data-id="${id}" data-prop="${prop}" min="${min}" max="${max}" step="${step}" value="${val}" style="margin-bottom:8px;">
+            `;
+        }
+
+        window.addHole = (type) => {
+            const newHole = { id: Date.now(), type: type, x: 0, y: 0 };
+            if (type === 'circle') newHole.r = 2.0;
+            else { newHole.w = 3.0; newHole.l = 5.0; }
+            
+            window.holesData.push(newHole);
+            enforceBounds();
+            renderUI();
+            rebuildSupport();
+        };
+
+        window.removeHole = (id) => {
+            window.holesData = window.holesData.filter(h => h.id !== id);
+            renderUI();
+            rebuildSupport();
+        };
+
+        const updateMainSize = () => {
+            enforceBounds(); // ถ้าหดแผ่นซัพพอร์ต รูต้องถูกบีบและดันกลับเข้ามาด้วย
+            syncUI();
+            rebuildSupport();
+        };
+
+        document.getElementById('sup-w').addEventListener('input', updateMainSize);
+        document.getElementById('sup-l').addEventListener('input', updateMainSize);
+
+        enforceBounds();
+        renderUI();
+        rebuildSupport();
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
