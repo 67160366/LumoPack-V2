@@ -91,19 +91,13 @@ def get_quick_replies(
                 "Self-Lock",
             ]
         if sub_step == 1:
-            # ถามวัสดุ — simplified: Kraft/White (+ Red for heart)
+            # ถามวัสดุ — Kraft/White (+ Red for heart) + Eco options
             box_type = partial.get("box_type", data.get("box_type", ""))
+            opts = ["Kraft (คราฟท์)", "White (ขาว)"]
             if box_type == "heart":
-                return [
-                    "Kraft (คราฟท์)",
-                    "White (ขาว)",
-                    "Red (แดง)",
-                ]
-            else:
-                return [
-                    "Kraft (คราฟท์)",
-                    "White (ขาว)",
-                ]
+                opts.append("Red (แดง)")
+            opts += ["Recycled (รีไซเคิล)", "FSC (ปลูกทดแทน)", "Bagasse (ชานอ้อย)"]
+            return opts
 
     # ===================================
     # Step 4: Inner (Optional, Approach B — 3 กลุ่ม, multi-select)

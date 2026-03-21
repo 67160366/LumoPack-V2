@@ -47,7 +47,10 @@ export default function MaterialPresetPicker({
                 boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.06)',
               }} />
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', fontFamily: FONT }}>{m.label}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#111827', fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {m.label}
+                  {m.eco && <span style={{ fontSize: 9, fontWeight: 600, color: '#16a34a', background: '#dcfce7', padding: '1px 6px', borderRadius: 6 }}>ECO</span>}
+                </div>
                 <div style={{ fontSize: 10, color: '#6b7280', marginTop: 2, fontFamily: FONT }}>{m.hint}</div>
               </div>
               {sel && <span style={{ fontSize: 11, fontWeight: 800, color: accentColor, fontFamily: 'JetBrains Mono, monospace' }}>✓</span>}

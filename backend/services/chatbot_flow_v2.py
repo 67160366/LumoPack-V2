@@ -657,31 +657,28 @@ class ChatbotFlowManagerV2:
     # ===================================
     async def _step_mockup(self, msg: str, state: ConversationState) -> StepResult:
         if state.sub_step == 0:
-            response = await self._ask_llm(11, msg, state)
-            return StepResult(response=response, update_sub_step=1)
-        return StepResult(response="", advance=True, auto_execute=True)
+            response = await self._ask_llm(11, msg, state,
+                extra_context="กำลังเตรียม mockup + คำนวณราคาให้ลูกค้า")
+            return StepResult(response=response, advance=True)
 
     async def _step_quote(self, msg: str, state: ConversationState) -> StepResult:
-        if state.sub_step == 0:
-            # Calculate pricing
-            pricing = self._calculate_pricing(state)
-            if not pricing:
-                return StepResult(response="ขออภัยค่ะ คำนวณราคาไม่สำเร็จ กรุณาลองใหม่")
+        # Calculate pricing
+        pricing = self._calculate_pricing(state)
+        if not pricing:
+            return StepResult(response="ขออภัยค่ะ คำนวณราคาไม่สำเร็จ กรุณาลองใหม่")
 
-            state.temp_data["pricing"] = pricing
-            prompt = get_quote_prompt(pricing)
-            response = await self.groq.generate_response(
-                system_prompt=SYSTEM_PROMPT_V2,
-                user_message=prompt,
-                conversation_history=state.get_conversation_history(limit=4),
-            )
-            return StepResult(
-                response=response,
-                update_sub_step=1,
-                extra={"auto_download_pdf": True},
-            )
-
-        return StepResult(response="", advance=True)
+        state.temp_data["pricing"] = pricing
+        prompt = get_quote_prompt(pricing)
+        response = await self.groq.generate_response(
+            system_prompt=SYSTEM_PROMPT_V2,
+            user_message=prompt,
+            conversation_history=state.get_conversation_history(limit=4),
+        )
+        return StepResult(
+            response=response,
+            advance=True,
+            extra={"auto_download_pdf": True},
+        )
 
     async def _step_confirm(self, msg: str, state: ConversationState) -> StepResult:
         if is_confirmation(msg):
@@ -719,24 +716,38 @@ class ChatbotFlowManagerV2:
     # ===================================
     # Edit mode
     # ===================================
-    def _enter_edit_mode(self, target: str, state: ConversationState, checkpoint_step: int) -> StepResult:
-        target_map = {
-            "product_type": 2, "box_type": 3, "material": 3,
-            "inner": 4, "dimensions": 5, "quantity": 5,
-            "mood_tone": 7, "logo": 8, "special_effects": 9,
-        }
-        target_step = target_map.get(target)
-        if not target_step:
-            return StepResult(response=f"ไม่เข้าใจว่าต้องการแก้ไขอะไรค่ะ ลองบอกใหม่ได้ไหม เช่น 'แก้ขนาด' หรือ 'เปลี่ยนวัสดุ'")
+    def _enter_edit_mode(self, target, state: ConversationState, checkpoint_step: int) -> StepResult:
+        """Enter edit mode. target can be int (step number) or str (field name)."""
+        # detect_edit_target returns int (step number), map to step directly
+        if isinstance(target, int):
+            target_step = target
+            # Reverse-map step number to a target name for display
+            step_to_name = {
+                2: "ประเภทสินค้า", 3: "วัสดุ/กล่อง", 4: "inner",
+                5: "ขนาด/จำนวน", 7: "mood", 8: "โลโก้", 9: "ลูกเล่นพิเศษ",
+            }
+            target_name = step_to_name.get(target_step, str(target_step))
+        else:
+            # Legacy string target
+            target_map = {
+                "product_type": 2, "box_type": 3, "material": 3,
+                "inner": 4, "dimensions": 5, "quantity": 5,
+                "mood_tone": 7, "logo": 8, "special_effects": 9,
+            }
+            target_step = target_map.get(target)
+            target_name = target
+            if not target_step:
+                return StepResult(response="ไม่เข้าใจว่าต้องการแก้ไขอะไรค่ะ ลองบอกใหม่ได้ไหม เช่น 'แก้ขนาด' หรือ 'เปลี่ยนวัสดุ'")
 
-        state.edit_mode = {"target": target, "checkpoint": checkpoint_step}
+        state.edit_mode = {"target": target_name, "checkpoint": checkpoint_step}
         state.current_step = target_step
         state.sub_step = 0
-        if target == "material":
+        if target_step == 3:
+            # Material is sub_step 1 of step 3
             state.sub_step = 1
 
         return StepResult(
-            response=f"ได้เลยค่ะ เปลี่ยน{target} ได้เลย บอกมาได้เลยนะคะ",
+            response=f"ได้เลยค่ะ แก้ไข{target_name} บอกมาได้เลยนะคะ",
         )
 
     async def _handle_edit(self, msg: str, state: ConversationState) -> StepResult:

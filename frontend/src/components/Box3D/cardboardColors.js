@@ -29,6 +29,30 @@ export const COLOR_SCHEMES = {
     lidCap: '#d67878',
     lidWall: '#c86868',
   },
+  /** Eco: Recycled — grayish brown */
+  recycled: {
+    base: '#a89a8a',
+    wall: '#9b8d7d',
+    accent: '#8e8070',
+    lidCap: '#b5a797',
+    lidWall: '#a99b8b',
+  },
+  /** Eco: FSC Certified — warm natural */
+  fsc: {
+    base: '#c9b896',
+    wall: '#bda986',
+    accent: '#b09a78',
+    lidCap: '#d6c5a3',
+    lidWall: '#cab693',
+  },
+  /** Eco: Bagasse / Sugarcane — light warm beige */
+  bagasse: {
+    base: '#d8ccb0',
+    wall: '#cec1a3',
+    accent: '#c3b596',
+    lidCap: '#e2d7bd',
+    lidWall: '#d5c9ac',
+  },
 };
 
 export function getScheme(name = 'kraft') {
@@ -40,9 +64,15 @@ export const MATERIAL_PRESETS = [
   { id: 'kraft', label: 'Kraft', hint: 'กระดาษคราฟ์' },
   { id: 'white', label: 'White', hint: 'White cardboard' },
   { id: 'heart_red', label: 'Heart red', hint: 'โทนแดง' },
+  { id: 'recycled', label: 'Recycled', hint: 'กระดาษรีไซเคิล (Eco)', eco: true },
+  { id: 'fsc', label: 'FSC Certified', hint: 'เยื่อไม้ปลูกทดแทน (Eco)', eco: true },
+  { id: 'bagasse', label: 'Bagasse', hint: 'กระดาษชานอ้อย (Eco)', eco: true },
 ];
 
 export const MATERIAL_PRESETS_STANDARD = [
   { id: 'kraft', label: 'Kraft', hint: 'กระดาษคราฟ์' },
   { id: 'white', label: 'White', hint: 'White cardboard' },
+  { id: 'recycled', label: 'Recycled', hint: 'กระดาษรีไซเคิล (Eco)', eco: true },
+  { id: 'fsc', label: 'FSC Certified', hint: 'เยื่อไม้ปลูกทดแทน (Eco)', eco: true },
+  { id: 'bagasse', label: 'Bagasse', hint: 'กระดาษชานอ้อย (Eco)', eco: true },
 ];
