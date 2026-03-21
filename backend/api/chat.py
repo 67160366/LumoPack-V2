@@ -9,6 +9,7 @@ from typing import Optional, Dict, Any, List
 import uuid
 
 from services.chatbot_flow import ChatbotFlowManager
+from services.chatbot_flow_v2 import ChatbotFlowManagerV2
 from models.chat_state import session_storage, ConversationState, ChatbotStep
 from utils.quick_replies import get_quick_replies
 
@@ -91,8 +92,9 @@ router = APIRouter(
     }
 )
 
-# Initialize chatbot flow manager
+# Initialize chatbot flow managers
 chatbot_manager = ChatbotFlowManager()
+chatbot_manager_v2 = ChatbotFlowManagerV2()
 
 
 # ===================================
@@ -218,6 +220,109 @@ async def send_message(request: ChatMessageRequest):
         )
         
     except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error processing message: {str(e)}"
+        )
+
+
+@router.post("/v2/message", response_model=ChatMessageResponse, status_code=status.HTTP_200_OK)
+async def send_message_v2(request: ChatMessageRequest):
+    """
+    V2: Natural conversation style — LLM generates all responses
+    Same state machine, same data extraction, but no hardcoded menus
+    """
+    try:
+        if not request.session_id:
+            request.session_id = f"sess_{uuid.uuid4().hex[:12]}"
+
+        state = session_storage.get_session(request.session_id)
+        if not state:
+            state = ConversationState(session_id=request.session_id)
+
+        if request.user_id:
+            state.user_id = request.user_id
+
+        # Apply prefill data (same logic as V1)
+        prefill = request.prefill_data or {}
+        skipped_to_step = None
+        if prefill:
+            merged = {}
+            if prefill.get("product_type") and not state.collected_data.get("product_type"):
+                merged["product_type"] = prefill["product_type"]
+            if prefill.get("box_type") and not state.collected_data.get("box_type"):
+                merged["box_type"] = prefill["box_type"]
+            if "support_required" in prefill:
+                merged["support_required"] = bool(prefill.get("support_required"))
+            if prefill.get("material") and not state.collected_data.get("material"):
+                merged["material"] = prefill["material"]
+
+            if merged:
+                state.update_collected_data(merged)
+
+            if state.current_step <= ChatbotStep.COLLECT_PRODUCT_TYPE and state.collected_data.get("product_type"):
+                state.current_step = ChatbotStep.COLLECT_BOX_TYPE
+                state.sub_step = 0
+
+            if (
+                state.current_step == ChatbotStep.COLLECT_BOX_TYPE
+                and state.collected_data.get("box_type")
+                and state.collected_data.get("material")
+            ):
+                from utils.constants import BOX_TYPES
+                box_info = BOX_TYPES.get(state.collected_data["box_type"], {})
+                if box_info.get("has_inner", False):
+                    state.current_step = ChatbotStep.COLLECT_INNER
+                    skipped_to_step = ChatbotStep.COLLECT_INNER
+                else:
+                    state.current_step = ChatbotStep.COLLECT_DIMENSIONS
+                    skipped_to_step = ChatbotStep.COLLECT_DIMENSIONS
+                state.sub_step = 0
+            elif (
+                state.current_step == ChatbotStep.COLLECT_BOX_TYPE
+                and state.sub_step == 0
+                and state.collected_data.get("box_type")
+            ):
+                state.partial_data["box_type"] = state.collected_data["box_type"]
+                state.sub_step = 1
+
+        effective_message = request.message
+        if skipped_to_step == ChatbotStep.COLLECT_INNER:
+            effective_message = "เริ่มต้นเลยค่ะ ต้องการถาม Inner"
+        elif skipped_to_step == ChatbotStep.COLLECT_DIMENSIONS:
+            effective_message = "เริ่มต้นเลยค่ะ ต้องการถามขนาดกล่อง"
+
+        # Use V2 flow manager
+        response_text, state, extra = await chatbot_manager_v2.process_message(
+            user_message=effective_message,
+            state=state,
+        )
+
+        session_storage.update_session(request.session_id, state)
+
+        replies = get_quick_replies(
+            current_step=int(state.current_step),
+            sub_step=getattr(state, 'sub_step', 0),
+            collected_data=state.collected_data,
+            partial_data=getattr(state, 'partial_data', {}),
+            is_waiting_confirmation=getattr(state, 'is_waiting_for_confirmation', False),
+            is_edit_mode=getattr(state, 'edit_mode', False),
+        )
+
+        return ChatMessageResponse(
+            response=response_text,
+            session_id=request.session_id,
+            current_step=int(state.current_step),
+            collected_data=state.collected_data,
+            is_waiting_confirmation=getattr(state, 'is_waiting_for_confirmation', False),
+            is_complete=getattr(state, 'is_complete', False),
+            quick_replies=replies,
+            extra=extra,
+        )
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error processing message: {str(e)}"

@@ -22,7 +22,7 @@ import React, {
   createContext, useContext, useState, useCallback, useRef, useEffect, useMemo
 } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { sendChatMessage, resetSession as apiResetSession } from '../services/api';
+import { sendChatMessage, sendChatMessageV2, resetSession as apiResetSession } from '../services/api';
 import { useAuth } from './AuthContext';
 
 
@@ -312,7 +312,7 @@ export function ChatbotProvider({ children }) {
     setIsLoading(true);
 
     try {
-      const data = await sendChatMessage(text, sessionId, user?.id ?? null, prefillData);
+      const data = await sendChatMessageV2(text, sessionId, user?.id ?? null, prefillData);
       setSessionId(data.session_id);
       setCurrentStep(data.current_step);
       setCollectedData({ ...(stickyCollectedData || {}), ...(data.collected_data || {}) });

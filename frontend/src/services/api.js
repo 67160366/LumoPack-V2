@@ -119,6 +119,21 @@ export async function sendChatMessage(message, sessionId = null, userId = null, 
 }
 
 /**
+ * V2: Natural conversation style
+ */
+export async function sendChatMessageV2(message, sessionId = null, userId = null, prefillData = null) {
+  return apiFetch('/api/chat/v2/message', {
+    method: 'POST',
+    body: JSON.stringify({
+      message,
+      session_id: sessionId,
+      user_id: userId,
+      prefill_data: prefillData,
+    }),
+  });
+}
+
+/**
  * ดึงข้อมูล session
  * @param {string} sessionId
  * @returns {Promise<{session_id, current_step, collected_data, message_count, is_complete}>}
