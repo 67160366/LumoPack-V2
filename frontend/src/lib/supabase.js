@@ -27,9 +27,10 @@ if (supabaseUrl) {
     if (raw) {
       const session = JSON.parse(raw);
       const expiresAt = session?.expires_at; // unix seconds
-      // Remove if expired or expiring within 2 minutes (120s margin)
-      if (expiresAt && expiresAt < Date.now() / 1000 + 120) {
-        console.warn('Removing expired/stale Supabase session');
+      // Only remove truly expired tokens — deleting "near expiry" sessions breaks API calls
+      // (Bearer missing) while the UI still looks logged in. Refresh is handled by autoRefreshToken.
+      if (expiresAt && expiresAt < Date.now() / 1000) {
+        console.warn('Removing expired Supabase session');
         localStorage.removeItem(storageKey);
         localStorage.removeItem(`${storageKey}-user`);
       }

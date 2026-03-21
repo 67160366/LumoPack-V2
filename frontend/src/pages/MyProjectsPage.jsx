@@ -6,8 +6,24 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { getFreshAccessToken } from '../lib/authToken';
+import { apiUrl } from '../utils/apiBase';
 
-const API_BASE = import.meta.env.VITE_API_URL || '';
+/** @param {Response} res */
+async function readApiErrorMessage(res, fallback) {
+  const text = await res.text();
+  try {
+    const err = JSON.parse(text);
+    if (typeof err.detail === 'string') return err.detail;
+    if (Array.isArray(err.detail) && err.detail[0]?.msg) return err.detail[0].msg;
+  } catch {
+    /* not JSON */
+  }
+  if (res.status === 404) {
+    return 'ไม่พบ API — ตั้ง VITE_API_URL ให้ชี้ไปที่ backend (เช่น https://lumopack-v2.onrender.com) แล้ว build ใหม่';
+  }
+  return fallback;
+}
 
 const STATUS_CFG = {
   draft:         { label: 'แบบร่าง',       bg: '#f3f4f6', color: '#6b7280', dot: '#9ca3af' },
@@ -333,20 +349,17 @@ function ProjectCard({ project, onLoad, onDelete, deletingId, onSlipUploaded }) 
 
   const handleDownloadPdf = async (e) => {
     e.stopPropagation();
-    const token = (await supabase?.auth.getSession())?.data?.session?.access_token;
+    const token = await getFreshAccessToken();
     if (!token) {
       alert('กรุณาเข้าสู่ระบบก่อนดาวน์โหลดใบเสนอราคา');
       return;
     }
     try {
-      const res = await fetch(`${API_BASE}/api/pricing/project-quote-pdf/${project.id}`, {
+      const res = await fetch(apiUrl(`/api/pricing/project-quote-pdf/${project.id}`), {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        let msg = 'โหลดไม่สำเร็จ';
-        if (typeof err.detail === 'string') msg = err.detail;
-        else if (Array.isArray(err.detail) && err.detail[0]?.msg) msg = err.detail[0].msg;
+        const msg = await readApiErrorMessage(res, 'โหลดไม่สำเร็จ');
         throw new Error(msg);
       }
       const blob = await res.blob();
@@ -361,20 +374,28 @@ function ProjectCard({ project, onLoad, onDelete, deletingId, onSlipUploaded }) 
   const handleUploadSlip = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!project?.id) {
+      alert('ไม่พบรหัสโปรเจค — โหลดหน้าใหม่แล้วลองอีกครั้ง');
+      return;
+    }
     setUploading(true);
     try {
+      const token = await getFreshAccessToken();
+      if (!token) {
+        alert('เซสชันหมดอายุ — กรุณาเข้าสู่ระบบใหม่แล้วลองอัพโหลดอีกครั้ง');
+        return;
+      }
       const formData = new FormData();
       formData.append('project_id', project.id);
       formData.append('slip', file);
-      const token = (await supabase?.auth.getSession())?.data?.session?.access_token;
-      const res = await fetch(`${API_BASE}/api/payments/upload-slip`, {
+      const res = await fetch(apiUrl('/api/payments/upload-slip'), {
         method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || 'Upload failed');
+        const msg = await readApiErrorMessage(res, 'อัพโหลดไม่สำเร็จ');
+        throw new Error(msg);
       }
       alert('อัพโหลดสลิปสำเร็จ');
       if (onSlipUploaded) onSlipUploaded();

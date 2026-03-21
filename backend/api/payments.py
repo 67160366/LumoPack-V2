@@ -64,11 +64,18 @@ async def upload_slip(
     if not supabase:
         raise HTTPException(status_code=503, detail="Supabase not configured")
 
-    # Verify project belongs to user
-    proj = supabase.table("projects").select("id, user_id").eq("id", project_id).single().execute()
-    if not proj.data:
+    # Verify project belongs to user (avoid .single() — 0 rows can raise and become 500)
+    proj_rows = (
+        supabase.table("projects")
+        .select("id, user_id")
+        .eq("id", project_id)
+        .limit(1)
+        .execute()
+    )
+    rows = proj_rows.data or []
+    if not rows:
         raise HTTPException(status_code=404, detail="Project not found")
-    if proj.data.get("user_id") != user.id:
+    if rows[0].get("user_id") != user.id:
         raise HTTPException(status_code=403, detail="Access denied")
 
     # Upload to Supabase Storage
@@ -83,7 +90,7 @@ async def upload_slip(
         storage.upload(
             path=file_path,
             file=content,
-            file_options={"content-type": content_type, "upsert": "true"},
+            file_options={"content-type": content_type, "upsert": True},
         )
         slip_url = storage.get_public_url(file_path)
     except Exception as e:
