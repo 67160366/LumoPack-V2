@@ -15,6 +15,7 @@ import FloatingChat from '../components/Chatbot/FloatingChat';
 import { parseDxf } from '../engine/dxfParser';
 import RSCFoldBox from '../components/Box3D/RSCFoldBox';
 import MaterialPresetPicker, { MATERIAL_PRESETS } from '../components/Box3D/MaterialPresetPicker';
+import { MATERIAL_PRESETS_STANDARD } from '../components/Box3D/cardboardColors';
 import useImagePlacement from '../hooks/useImagePlacement';
 import ImageUploadPanel from '../components/DesignOverlay/ImageUploadPanel';
 import DielineImageOverlay from '../components/DesignOverlay/DielineImageOverlay';
@@ -553,7 +554,8 @@ function RSCTestPageInner() {
                     value={boxStyle}
                     onChange={setBoxStyle}
                     accentColor={PURPLE}
-                    hint="สีกระดาษในมุมมอง 3D — Kraft / White / Heart red"
+                    hint="สีกระดาษในมุมมอง 3D"
+                    presets={MATERIAL_PRESETS_STANDARD}
                   />
                 </div>
               </div>

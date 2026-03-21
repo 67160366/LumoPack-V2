@@ -155,7 +155,7 @@ export default function BoxViewer({
   boxStyle = 'kraft',
   showSupport: showSupportProp,
 }) {
-  const [foldProgress, setFoldProgress] = useState(0);
+  const [foldProgress, setFoldProgress] = useState(1);
   const [showSupportInternal, setShowSupportInternal] = useState(false);
   const showSupport = typeof showSupportProp === 'boolean' ? showSupportProp : showSupportInternal;
 

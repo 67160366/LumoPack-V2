@@ -43,9 +43,19 @@ const SelfLockTestPage = React.lazy(() => import('./pages/SelfLockTestPage'));
 function normalizeBoxStyle(material) {
   const value = String(material || '').toLowerCase();
   if (!value) return null;
-  if (value.includes('white') || value.includes('ขาว')) return 'white';
-  if (value.includes('red') || value.includes('แดง') || value.includes('heart')) return 'heart_red';
+  if (value === 'white' || value.includes('whiteboard') || value.includes('ขาว')) return 'white';
+  if (value === 'red' || value.includes('แดง') || value.includes('heart')) return 'heart_red';
+  // kraft, kraft_200gsm, corrugated, cardboard, art, etc → all map to kraft style
   return 'kraft';
+}
+
+function normalizeBoxType(boxType) {
+  const value = String(boxType || '').trim().toLowerCase();
+  if (!value) return 'rsc';
+  if (value === 'self-lock' || value === 'self lock') return 'self_lock';
+  if (value === 'tube-lock' || value === 'tube lock') return 'tube_lock';
+  if (value === 'diecut') return 'die_cut';
+  return value;
 }
 
 
@@ -120,7 +130,7 @@ function AppLayout() {
   const { user, profile, signOut } = useAuth();
 
   // --- Chatbot data (bridge) ---
-  const { boxDimensions, hasChatbotDimensions, collectedData, chatbotAnalysis, isComplete } = useChatbot();
+  const { collectedData, chatbotAnalysis, isComplete } = useChatbot();
 
   // Sync chatbot analysis → StudioPanel analysis state
   React.useEffect(() => {
@@ -151,9 +161,16 @@ function AppLayout() {
   // Sync chatbot box_type → boxType state
   React.useEffect(() => {
     if (collectedData?.box_type) {
-      setBoxType(collectedData.box_type);
+      setBoxType(normalizeBoxType(collectedData.box_type));
     }
   }, [collectedData?.box_type]);
+
+  // Heart red material is available only for heart box type.
+  React.useEffect(() => {
+    if (boxType !== 'heart' && formData.box_style === 'heart_red') {
+      setFormData(prev => ({ ...prev, box_style: 'kraft' }));
+    }
+  }, [boxType, formData.box_style]);
 
   // --- Load project from navigation state ---
   React.useEffect(() => {
@@ -165,7 +182,7 @@ function AppLayout() {
     setActiveProjectId(proj.id);
     setActiveProjectName(proj.name);
 
-    if (proj.box_type) setBoxType(proj.box_type);
+    if (proj.box_type) setBoxType(normalizeBoxType(proj.box_type));
     if (proj.dimensions) {
       setFormData(prev => ({
         ...prev,
@@ -181,9 +198,11 @@ function AppLayout() {
     }
   }, [location.state?.loadProject]);
 
-  const displayDims = hasChatbotDimensions
-    ? { width: boxDimensions.width, length: boxDimensions.length, height: boxDimensions.height }
-    : { width: parseFloat(formData.width), length: parseFloat(formData.length), height: parseFloat(formData.height) };
+  const displayDims = {
+    width: Number(formData.width) || 0,
+    length: Number(formData.length) || 0,
+    height: Number(formData.height) || 0,
+  };
 
   // --- Handlers ---
   const handleFormChange = (e) => {
@@ -518,7 +537,7 @@ function AppLayout() {
         {/* Floating icon-rail + flyout panel (overlaid on 3D) */}
         <div className="max-md:hidden">
           <StudioPanel
-            formData={formData}
+            formData={{ ...formData, box_type: boxType }}
             onFormChange={handleFormChange}
             analysis={analysis}
             onAnalyze={handleAnalyze}

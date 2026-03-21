@@ -16,6 +16,7 @@ import FloatingChat from '../components/Chatbot/FloatingChat';
 import { parseDxf } from '../engine/dxfParser';
 import DxfFoldBox from '../components/Box3D/DxfFoldBox';
 import MaterialPresetPicker, { MATERIAL_PRESETS } from '../components/Box3D/MaterialPresetPicker';
+import { MATERIAL_PRESETS_STANDARD } from '../components/Box3D/cardboardColors';
 import DielineViewer from '../components/Dieline/DielineViewer';
 import useImagePlacement from '../hooks/useImagePlacement';
 import ImageUploadPanel from '../components/DesignOverlay/ImageUploadPanel';
@@ -815,7 +816,7 @@ function DielineStandalone() {
             {activeTab === 'material' && (
               <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 14, padding: 16 }}>
-                  <MaterialPresetPicker value={boxStyle} onChange={setBoxStyle} accentColor={PURPLE} hint="สีกระดาษในมุมมอง 3D" />
+                  <MaterialPresetPicker value={boxStyle} onChange={setBoxStyle} accentColor={PURPLE} hint="สีกระดาษในมุมมอง 3D" presets={MATERIAL_PRESETS_STANDARD} />
                 </div>
               </div>
             )}

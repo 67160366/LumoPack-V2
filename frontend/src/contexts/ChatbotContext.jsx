@@ -36,11 +36,11 @@ const ChatbotContext = createContext(null);
 const DEFAULT_DIMENSIONS = { width: 10, length: 10, height: 10 };
 const ONBOARDING_STAGES = {
   IDLE: 'idle',
-  ASK_BOX_SELECTED: 'ask_box_selected',
   ASK_PRODUCT: 'ask_product',
   RECOMMEND_BOX: 'recommend_box',
   CHOOSE_BOX: 'choose_box',
   ASK_SUPPORT: 'ask_support',
+  ASK_MATERIAL: 'ask_material',
   COMPLETE: 'complete',
 };
 
@@ -127,6 +127,50 @@ function recommendBoxesFromProduct(productText) {
     return ['die_cut', 'rsc'];
   }
   return ['rsc', 'die_cut', 'self_lock'];
+}
+
+// Material options per box type (simplified: kraft/white, heart adds red)
+const MATERIAL_OPTIONS = {
+  default: [
+    { key: 'kraft', label: 'Kraft (คราฟท์)' },
+    { key: 'white', label: 'White (ขาว)' },
+  ],
+  heart: [
+    { key: 'kraft', label: 'Kraft (คราฟท์)' },
+    { key: 'white', label: 'White (ขาว)' },
+    { key: 'red', label: 'Red (แดง)' },
+  ],
+};
+
+function getMaterialOptions(boxType) {
+  return MATERIAL_OPTIONS[boxType] || MATERIAL_OPTIONS.default;
+}
+
+function getMaterialReplyLabels(boxType) {
+  return getMaterialOptions(boxType).map(m => m.label);
+}
+
+function parseMaterialFromText(text) {
+  const t = normalizeText(text);
+  if (['kraft', 'คราฟท์', 'คราฟ'].some(k => t.includes(k))) return 'kraft';
+  if (['white', 'ขาว'].some(k => t.includes(k))) return 'white';
+  if (['red', 'แดง'].some(k => t.includes(k))) return 'red';
+  return null;
+}
+
+// Product type quick replies
+const PRODUCT_TYPE_REPLIES = ['สินค้าทั่วไป', 'Non-food', 'Food-grade', 'เครื่องสำอาง'];
+
+function parseProductTypeFromText(text) {
+  const t = normalizeText(text);
+  if (['เครื่องสำอาง', 'cosmetic', 'สำอาง', 'ครีม'].some(k => t.includes(k))) return 'cosmetic';
+  if (['food-grade', 'food grade', 'อาหาร', 'ขนม', 'เบเกอรี่'].some(k => t.includes(k))) return 'food_grade';
+  if (['non-food', 'non food', 'ไม่ใช่อาหาร'].some(k => t.includes(k))) return 'non_food';
+  if (['ทั่วไป', 'general', 'ธรรมดา'].some(k => t.includes(k))) return 'general';
+  // Number matching
+  const num = t.match(/^([1-4])$/);
+  if (num) return { '1': 'general', '2': 'non_food', '3': 'food_grade', '4': 'cosmetic' }[num[1]];
+  return null;
 }
 
 // Step labels สำหรับแสดง UI
@@ -314,111 +358,106 @@ export function ChatbotProvider({ children }) {
       setQuickReplies([]);
       setError(null);
 
-      const stage = onboardingStage === ONBOARDING_STAGES.IDLE
-        ? ONBOARDING_STAGES.ASK_BOX_SELECTED
-        : onboardingStage;
-
-      if (stage === ONBOARDING_STAGES.ASK_BOX_SELECTED) {
-        const affirmative = isAffirmative(trimmed);
-        const negative = isNegative(trimmed);
-
-        if (onboardingStage === ONBOARDING_STAGES.IDLE) {
-          setOnboardingStage(ONBOARDING_STAGES.ASK_BOX_SELECTED);
-          appendAssistantMessage(
-            'เริ่มก่อนนะครับ — ตอนนี้เลือกประเภทกล่องไว้แล้วหรือยัง?',
-          );
-          setQuickReplies(['เลือกแล้ว', 'ยังไม่ได้เลือก']);
-          return;
-        }
-
-        if (affirmative) {
-          setOnboardingStage(ONBOARDING_STAGES.CHOOSE_BOX);
-          appendAssistantMessage('โอเคครับ เลือกประเภทกล่องที่ต้องการได้เลย');
-          setQuickReplies(getAllBoxReplyLabels());
-          return;
-        }
-        if (negative) {
-          setOnboardingStage(ONBOARDING_STAGES.ASK_PRODUCT);
-          appendAssistantMessage('ได้ครับ งั้นขอทราบก่อนว่าอยากใส่สินค้าอะไรในกล่อง?');
-          return;
-        }
-
-        appendAssistantMessage('ขอให้ตอบว่า "เลือกแล้ว" หรือ "ยังไม่ได้เลือก" ก่อนนะครับ');
-        setQuickReplies(['เลือกแล้ว', 'ยังไม่ได้เลือก']);
+      // --- IDLE: first message → ask product type ---
+      if (onboardingStage === ONBOARDING_STAGES.IDLE) {
+        setOnboardingStage(ONBOARDING_STAGES.ASK_PRODUCT);
+        appendAssistantMessage(
+          'สวัสดีค่ะ ฉันคือ LumoPack Assistant รับออกแบบกล่องให้เหมาะสม\n\nสินค้าของคุณเป็นประเภทไหนคะ?',
+        );
+        setQuickReplies(PRODUCT_TYPE_REPLIES);
         return;
       }
 
-      if (stage === ONBOARDING_STAGES.ASK_PRODUCT) {
-        const productType = trimmed;
-        const rec = recommendBoxesFromProduct(productType);
+      // --- ASK_PRODUCT: parse product type → recommend boxes ---
+      if (onboardingStage === ONBOARDING_STAGES.ASK_PRODUCT) {
+        const productType = parseProductTypeFromText(trimmed) || trimmed;
+        const rec = recommendBoxesFromProduct(trimmed);
         const sticky = { ...stickyCollectedData, product_type: productType };
         setStickyCollectedData(sticky);
         setCollectedData(prev => ({ ...prev, product_type: productType }));
         setRecommendedBoxes(rec);
         setOnboardingStage(ONBOARDING_STAGES.RECOMMEND_BOX);
         appendAssistantMessage(
-          `จากสินค้า "${productType}" ผมแนะนำ ${rec.map(boxTypeToReplyLabel).join(' / ')} เลือกแบบที่ต้องการได้เลย`,
+          `รับทราบค่ะ แนะนำ ${rec.map(boxTypeToReplyLabel).join(' / ')} เลือกแบบที่ต้องการได้เลย`,
         );
         setQuickReplies([...rec.map(boxTypeToReplyLabel), 'ขอดูทุกแบบ']);
         return;
       }
 
-      if (stage === ONBOARDING_STAGES.RECOMMEND_BOX || stage === ONBOARDING_STAGES.CHOOSE_BOX) {
+      // --- RECOMMEND_BOX / CHOOSE_BOX: select box type → navigate → ask support ---
+      if (onboardingStage === ONBOARDING_STAGES.RECOMMEND_BOX || onboardingStage === ONBOARDING_STAGES.CHOOSE_BOX) {
         if (trimmed.includes('ทุกแบบ')) {
           setOnboardingStage(ONBOARDING_STAGES.CHOOSE_BOX);
-          appendAssistantMessage('ได้ครับ นี่คือประเภทกล่องทั้งหมดที่มี');
+          appendAssistantMessage('ได้ค่ะ นี่คือประเภทกล่องทั้งหมดที่มี');
           setQuickReplies(getAllBoxReplyLabels());
           return;
         }
 
         const boxType = parseBoxTypeFromText(trimmed);
         if (!boxType) {
-          appendAssistantMessage('ยังจับชื่อกล่องไม่ได้ครับ ลองเลือกจากปุ่มด้านล่าง');
-          setQuickReplies(stage === ONBOARDING_STAGES.RECOMMEND_BOX && recommendedBoxes.length > 0
+          appendAssistantMessage('ยังจับชื่อกล่องไม่ได้ค่ะ ลองเลือกจากปุ่มด้านล่าง');
+          setQuickReplies(onboardingStage === ONBOARDING_STAGES.RECOMMEND_BOX && recommendedBoxes.length > 0
             ? [...recommendedBoxes.map(boxTypeToReplyLabel), 'ขอดูทุกแบบ']
             : getAllBoxReplyLabels());
           return;
         }
 
-        const sticky = {
-          ...stickyCollectedData,
-          box_type: boxType,
-        };
+        const sticky = { ...stickyCollectedData, box_type: boxType };
         setStickyCollectedData(sticky);
         setCollectedData(prev => ({ ...prev, box_type: boxType }));
         gotoBoxEndpoint(boxType);
         setOnboardingStage(ONBOARDING_STAGES.ASK_SUPPORT);
-        appendAssistantMessage(`พาไปหน้า ${boxTypeToReplyLabel(boxType)} แล้วครับ ต้องการเพิ่มซัพพอร์ตด้านในกล่องไหม?`);
+        appendAssistantMessage(`พาไปหน้า ${boxTypeToReplyLabel(boxType)} แล้วค่ะ ต้องการเพิ่มซัพพอร์ตด้านในกล่องไหมคะ?`);
         setQuickReplies(['มีซัพพอร์ต', 'ไม่ใช้ซัพพอร์ต']);
         return;
       }
 
-      if (stage === ONBOARDING_STAGES.ASK_SUPPORT) {
+      // --- ASK_SUPPORT: parse support → ask material ---
+      if (onboardingStage === ONBOARDING_STAGES.ASK_SUPPORT) {
         const supportRequired = parseSupportChoice(trimmed);
         if (supportRequired == null) {
-          appendAssistantMessage('ขอเลือกอีกครั้งครับ: ต้องการซัพพอร์ตหรือไม่');
+          appendAssistantMessage('ขอเลือกอีกครั้งค่ะ: ต้องการซัพพอร์ตหรือไม่');
           setQuickReplies(['มีซัพพอร์ต', 'ไม่ใช้ซัพพอร์ต']);
           return;
         }
 
-        const sticky = {
-          ...stickyCollectedData,
-          support_required: supportRequired,
-        };
+        const currentBox = stickyCollectedData.box_type || 'rsc';
+        const sticky = { ...stickyCollectedData, support_required: supportRequired };
         setStickyCollectedData(sticky);
         setCollectedData(prev => ({ ...prev, support_required: supportRequired }));
-        setOnboardingStage(ONBOARDING_STAGES.COMPLETE);
+        setOnboardingStage(ONBOARDING_STAGES.ASK_MATERIAL);
         appendAssistantMessage(
-          supportRequired
-            ? 'รับทราบครับ จะรวมซัพพอร์ตในการออกแบบและวิเคราะห์ความแข็งแรงใหม่ให้'
-            : 'รับทราบครับ จะคำนวณแบบไม่ใส่ซัพพอร์ต',
+          (supportRequired
+            ? 'รับทราบค่ะ จะรวมซัพพอร์ตในการออกแบบ'
+            : 'รับทราบค่ะ จะคำนวณแบบไม่ใส่ซัพพอร์ต')
+          + '\n\nเลือกวัสดุกล่องได้เลยค่ะ:',
         );
+        setQuickReplies(getMaterialReplyLabels(currentBox));
+        return;
+      }
+
+      // --- ASK_MATERIAL: parse material → complete onboarding → kickoff backend ---
+      if (onboardingStage === ONBOARDING_STAGES.ASK_MATERIAL) {
+        const material = parseMaterialFromText(trimmed);
+        if (!material) {
+          const currentBox = stickyCollectedData.box_type || 'rsc';
+          appendAssistantMessage('ยังจับวัสดุไม่ได้ค่ะ กรุณาเลือกจากปุ่มด้านล่าง');
+          setQuickReplies(getMaterialReplyLabels(currentBox));
+          return;
+        }
+
+        const sticky = { ...stickyCollectedData, material };
+        setStickyCollectedData(sticky);
+        setCollectedData(prev => ({ ...prev, material }));
+        setOnboardingStage(ONBOARDING_STAGES.COMPLETE);
+        appendAssistantMessage(`เลือกวัสดุ ${material} เรียบร้อยค่ะ เริ่มขั้นตอนออกแบบต่อเลยนะคะ`);
 
         const kickoffMessage = [
           'เริ่มเข้าสู่ขั้นตอนออกแบบปกติ',
           `ประเภทกล่อง: ${sticky.box_type || '-'}`,
           `สินค้า: ${sticky.product_type || '-'}`,
-          `ซัพพอร์ตภายใน: ${supportRequired ? 'ต้องการ' : 'ไม่ต้องการ'}`,
+          `ซัพพอร์ตภายใน: ${sticky.support_required ? 'ต้องการ' : 'ไม่ต้องการ'}`,
+          `วัสดุ: ${material}`,
           'โปรดใช้การวิเคราะห์ความแข็งแรงเวอร์ชันใหม่ (McKee v2) ในการประเมิน',
         ].join('\n');
         await sendToBackend(kickoffMessage, {
@@ -426,7 +465,8 @@ export function ChatbotProvider({ children }) {
           prefillData: {
             product_type: sticky.product_type || null,
             box_type: sticky.box_type || null,
-            support_required: supportRequired,
+            support_required: sticky.support_required ?? false,
+            material,
           },
         });
         return;

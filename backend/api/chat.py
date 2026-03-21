@@ -128,7 +128,7 @@ async def send_message(request: ChatMessageRequest):
             state.user_id = request.user_id
 
         # Apply prefill data from frontend onboarding flow.
-        # This prevents asking product/box type again when the user has already selected them.
+        # This prevents asking product/box type/material again when the user has already selected them.
         prefill = request.prefill_data or {}
         if prefill:
             merged = {}
@@ -138,6 +138,8 @@ async def send_message(request: ChatMessageRequest):
                 merged["box_type"] = prefill["box_type"]
             if "support_required" in prefill:
                 merged["support_required"] = bool(prefill.get("support_required"))
+            if prefill.get("material") and not state.collected_data.get("material"):
+                merged["material"] = prefill["material"]
 
             if merged:
                 state.update_collected_data(merged)
@@ -146,12 +148,27 @@ async def send_message(request: ChatMessageRequest):
             if state.current_step <= ChatbotStep.COLLECT_PRODUCT_TYPE and state.collected_data.get("product_type"):
                 state.current_step = ChatbotStep.COLLECT_BOX_TYPE
                 state.sub_step = 0
+
+            # If both box_type and material are prefilled, skip step 3 entirely.
             if (
+                state.current_step == ChatbotStep.COLLECT_BOX_TYPE
+                and state.collected_data.get("box_type")
+                and state.collected_data.get("material")
+            ):
+                # Skip to inner (step 4) or dimensions (step 5) depending on box type.
+                from utils.constants import BOX_TYPES
+                box_info = BOX_TYPES.get(state.collected_data["box_type"], {})
+                if box_info.get("has_inner", False):
+                    state.current_step = ChatbotStep.COLLECT_INNER
+                else:
+                    state.current_step = ChatbotStep.COLLECT_DIMENSIONS
+                state.sub_step = 0
+            elif (
                 state.current_step == ChatbotStep.COLLECT_BOX_TYPE
                 and state.sub_step == 0
                 and state.collected_data.get("box_type")
             ):
-                # Jump directly to material question sub-step, do not ask box type again.
+                # Only box_type prefilled, jump to material question sub-step.
                 state.partial_data["box_type"] = state.collected_data["box_type"]
                 state.sub_step = 1
         

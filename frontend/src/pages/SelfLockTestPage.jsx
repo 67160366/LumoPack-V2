@@ -13,6 +13,7 @@ import FloatingChat from '../components/Chatbot/FloatingChat';
 import { parseDxf } from '../engine/dxfParser';
 import SelfLockFoldBox from '../components/Box3D/SelfLockFoldBox';
 import MaterialPresetPicker, { MATERIAL_PRESETS } from '../components/Box3D/MaterialPresetPicker';
+import { MATERIAL_PRESETS_STANDARD } from '../components/Box3D/cardboardColors';
 import selfLockDxfRaw from '../assets/400x250x80mm-self-locking-box.dxf?raw';
 
 /* ── Reference box dimensions ── */
@@ -714,7 +715,7 @@ function SelfLockStandalone() {
             {activeTab === 'material' && (
               <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 14, padding: 16 }}>
-                  <MaterialPresetPicker value={boxStyle} onChange={setBoxStyle} accentColor={PURPLE} hint="สีกระดาษในมุมมอง 3D" />
+                  <MaterialPresetPicker value={boxStyle} onChange={setBoxStyle} accentColor={PURPLE} hint="สีกระดาษในมุมมอง 3D" presets={MATERIAL_PRESETS_STANDARD} />
                 </div>
               </div>
             )}

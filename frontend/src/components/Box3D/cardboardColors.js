@@ -41,3 +41,8 @@ export const MATERIAL_PRESETS = [
   { id: 'white', label: 'White', hint: 'White cardboard' },
   { id: 'heart_red', label: 'Heart red', hint: 'โทนแดง' },
 ];
+
+export const MATERIAL_PRESETS_STANDARD = [
+  { id: 'kraft', label: 'Kraft', hint: 'กระดาษคราฟ์' },
+  { id: 'white', label: 'White', hint: 'White cardboard' },
+];

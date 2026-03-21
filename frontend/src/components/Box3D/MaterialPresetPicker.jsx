@@ -11,12 +11,14 @@ export default function MaterialPresetPicker({
   accentColor = '#7c3aed',
   sectionLabel = 'กระดาษ / สีกล่อง',
   hint,
+  presets,
 }) {
+  const items = presets || MATERIAL_PRESETS;
   return (
     <div>
       <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#6b7280', marginBottom: 8, fontFamily: FONT }}>{sectionLabel}</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {MATERIAL_PRESETS.map((m) => {
+        {items.map((m) => {
           const sch = getScheme(m.id);
           const sel = value === m.id;
           return (

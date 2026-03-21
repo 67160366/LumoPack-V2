@@ -320,6 +320,17 @@ export default function StudioPanel({
 
 /* ─── Edit Panel ─── */
 function EditPanel({ formData, onFormChange, image, onImageUpload, onGeneratePDF, analysis }) {
+  const canUseHeartRed = formData?.box_type === 'heart';
+  const materialOptions = canUseHeartRed
+    ? [
+        { value: 'kraft', label: 'Kraft' },
+        { value: 'white', label: 'White cardboard' },
+        { value: 'heart_red', label: 'Heart red' },
+      ]
+    : [
+        { value: 'kraft', label: 'Kraft' },
+        { value: 'white', label: 'White cardboard' },
+      ];
   return (
     <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Upload */}
@@ -411,9 +422,9 @@ function EditPanel({ formData, onFormChange, image, onImageUpload, onGeneratePDF
                 outline: 'none', fontFamily: "'DM Sans', sans-serif",
               }}
             >
-              <option value="kraft">Kraft</option>
-              <option value="white">White cardboard</option>
-              <option value="heart_red">Heart red</option>
+              {materialOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
             </select>
           </label>
           <label style={{ fontSize: 10, color: '#6b7280', display: 'flex', flexDirection: 'column', gap: 4 }}>
