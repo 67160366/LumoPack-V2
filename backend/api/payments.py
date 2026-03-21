@@ -75,21 +75,28 @@ async def upload_slip(
     ext = (slip.filename or "slip.jpg").rsplit(".", 1)[-1]
     file_path = f"slips/{user.id}/{project_id}/{uuid.uuid4().hex[:8]}.{ext}"
     content = await slip.read()
+    content_type = slip.content_type or "image/jpeg"
 
     BUCKET = "payment-slips"
     try:
-        supabase.storage.from_(BUCKET).upload(file_path, content, {
-            "content-type": slip.content_type or "image/jpeg",
-        })
-        slip_url = supabase.storage.from_(BUCKET).get_public_url(file_path)
+        storage = supabase.storage.from_(BUCKET)
+        storage.upload(
+            path=file_path,
+            file=content,
+            file_options={"content-type": content_type, "upsert": "true"},
+        )
+        slip_url = storage.get_public_url(file_path)
     except Exception as e:
+        print(f"[ERR] Supabase storage upload failed: {type(e).__name__}: {e}")
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
-    # Save slip record in projects table
-    supabase.table("projects").update({
-        "slip_url": slip_url,
-        "status": "slip_uploaded",
-    }).eq("id", project_id).execute()
+    try:
+        supabase.table("projects").update({
+            "slip_url": slip_url,
+            "status": "slip_uploaded",
+        }).eq("id", project_id).execute()
+    except Exception as e:
+        print(f"[ERR] Project update failed: {type(e).__name__}: {e}")
 
     return {"slip_url": slip_url, "project_id": project_id}
 

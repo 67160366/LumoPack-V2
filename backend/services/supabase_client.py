@@ -21,7 +21,7 @@ def get_supabase():
     key = os.getenv("SUPABASE_SERVICE_KEY")
 
     if not url or not key:
-        print("⚠️ SUPABASE_URL or SUPABASE_SERVICE_KEY not set — DB features disabled")
+        print("[WARN] SUPABASE_URL or SUPABASE_SERVICE_KEY not set -- DB features disabled")
         return None
 
     from supabase import create_client

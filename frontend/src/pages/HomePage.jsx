@@ -12,8 +12,8 @@ import FloatingChat from '../components/Chatbot/FloatingChat';
 
 /* ─── Box type definitions (linked to test pages) ─── */
 const BOX_TYPES = [
-  { id: 'rsc',       label: 'RSC',       thai: 'กล่องลูกฟูก',           desc: 'กล่องลูกฟูกมาตรฐาน เหมาะสำหรับการขนส่ง',       path: '/rsc-test' },
-  { id: 'die_cut',   label: 'Die-cut',   thai: 'กล่องไดคัท',           desc: 'กล่องฝาเสียบ ดีไซน์สวยงาม',                     path: '/dieline-test' },
+  { id: 'rsc',       label: 'Heavy Duty Box', thai: 'กล่องลูกฟูก',           desc: 'กล่องลูกฟูกมาตรฐาน เหมาะสำหรับการขนส่ง',       path: '/rsc-test' },
+  { id: 'die_cut',   label: 'Folding Box',   thai: 'กล่องไดคัท',           desc: 'กล่องฝาเสียบ ดีไซน์สวยงาม',                     path: '/dieline-test' },
   { id: 'tube_lock', label: 'Tube Lock', thai: 'กล่องทับล็อค',         desc: 'กล่องทับล็อค แข็งแรง ใช้งานง่าย',                path: '/tube-lock-test' },
   { id: 'heart',     label: 'Heart',     thai: 'กล่องหัวใจ',            desc: 'กล่องรูปหัวใจ สำหรับของขวัญ',                   path: '/heart-box-test' },
   { id: 'self_lock', label: 'Self-Lock', thai: 'กล่องล็อคก้นอัตโนมัติ',  desc: 'กล่องล็อคตัวเอง ประกอบง่าย แข็งแรง',            path: '/self-lock-test' },

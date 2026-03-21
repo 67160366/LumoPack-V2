@@ -77,7 +77,7 @@ class GroqService:
             return response.choices[0].message.content
             
         except Exception as e:
-            print(f"❌ Groq API Error: {e}")
+            print(f"[ERR] Groq API Error: {e}")
             return self._get_fallback_response(user_message)
     
     async def generate_response_with_extraction(
@@ -150,8 +150,8 @@ EXTRACTED_DATA: {{json object}}
         
 กรุณาลองใหม่อีกครั้งในอีกสักครู่ หรือติดต่อทีมงานของเราโดยตรงค่ะ
         
-📧 Email: support@lumopack.com
-📞 Tel: 02-xxx-xxxx"""
+Email: support@lumopack.com
+Tel: 02-xxx-xxxx"""
     
     def set_temperature(self, temperature: float):
         """ตั้งค่า temperature (0-2)"""
@@ -238,7 +238,7 @@ async def test_groq_connection() -> bool:
         )
         return "OK" in response or "ok" in response.lower()
     except Exception as e:
-        print(f"❌ Connection test failed: {e}")
+        print(f"[ERR] Connection test failed: {e}")
         return False
 
 
