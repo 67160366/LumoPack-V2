@@ -76,11 +76,12 @@ async def upload_slip(
     file_path = f"slips/{user.id}/{project_id}/{uuid.uuid4().hex[:8]}.{ext}"
     content = await slip.read()
 
+    BUCKET = "payment-slips"
     try:
-        supabase.storage.from_("uploads").upload(file_path, content, {
+        supabase.storage.from_(BUCKET).upload(file_path, content, {
             "content-type": slip.content_type or "image/jpeg",
         })
-        slip_url = supabase.storage.from_("uploads").get_public_url(file_path)
+        slip_url = supabase.storage.from_(BUCKET).get_public_url(file_path)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
