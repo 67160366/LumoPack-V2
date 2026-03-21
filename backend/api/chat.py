@@ -308,7 +308,6 @@ async def send_message_v2(request: ChatMessageRequest):
             is_waiting_confirmation=getattr(state, 'is_waiting_for_confirmation', False),
             is_edit_mode=getattr(state, 'edit_mode', False),
         )
-
         return ChatMessageResponse(
             response=response_text,
             session_id=request.session_id,
