@@ -400,6 +400,8 @@ async def download_project_quote_pdf(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"สร้าง PDF ไม่สำเร็จ: {str(e)}")
 
     safe_name = (project.get("name") or "quote").replace(" ", "_")[:30]

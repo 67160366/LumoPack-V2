@@ -105,15 +105,15 @@ class QuotePDF(FPDF):
         self.set_font(self._fn, "B", 11)
         self.set_fill_color(245, 240, 255)
         self.set_text_color(60, 30, 120)
-        self.cell(0, 8, f"  {title}", fill=True, ln=True)
+        self.cell(0, 8, f"  {_safe_str(title)}", fill=True, ln=True)
         self.set_text_color(0, 0, 0)
         self.ln(2)
 
     def _row(self, label: str, value: str, bold_value: bool = False):
         self.set_font(self._fn, "", 10)
-        self.cell(60, 6, f"  {label}", ln=False)
+        self.cell(60, 6, f"  {_safe_str(label)}", ln=False)
         self.set_font(self._fn, "B" if bold_value else "", 10)
-        self.cell(0, 6, value, ln=True)
+        self.cell(0, 6, _safe_str(value), ln=True)
 
     def _table_header(self, cols):
         self.set_font(self._fn, "B", 9)
@@ -128,7 +128,7 @@ class QuotePDF(FPDF):
         self.set_font(self._fn, "", 9)
         aligns = aligns or ["L"] * len(values)
         for val, w, a in zip(values, widths, aligns):
-            self.cell(w, 6, str(val), border=1, align=a)
+            self.cell(w, 6, _safe_str(val), border=1, align=a)
         self.ln()
 
     def _table_total_row(self, label: str, amount: str, widths_before: int):
@@ -136,6 +136,16 @@ class QuotePDF(FPDF):
         self.cell(widths_before, 7, label, border=1, align="R")
         self.cell(190 - widths_before, 7, amount, border=1, align="R")
         self.ln()
+
+
+def _safe_str(val) -> str:
+    """Sanitize a value for PDF rendering — replace garbled/non-printable chars."""
+    s = str(val) if val is not None else "-"
+    # Replace common garbled-encoding placeholders
+    s = s.encode("utf-8", errors="replace").decode("utf-8", errors="replace")
+    # Strip null bytes and other control chars (except newline/tab)
+    s = "".join(c if c == "\n" or c == "\t" or (ord(c) >= 32) else "?" for c in s)
+    return s
 
 
 def generate_quote_pdf(

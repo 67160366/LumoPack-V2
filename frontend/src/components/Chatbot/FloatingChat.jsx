@@ -52,7 +52,7 @@ export default function FloatingChat() {
           ref={panelRef}
           style={{
             position: 'fixed',
-            bottom: 108,
+            bottom: 156,
             right: 24,
             top: 24,
             width: 400,
@@ -155,7 +155,7 @@ export default function FloatingChat() {
         onClick={handleToggle}
         style={{
           position: 'fixed',
-          bottom: 24,
+          bottom: 72,
           right: 24,
           width: 80,
           height: 80,
@@ -194,7 +194,7 @@ export default function FloatingChat() {
       {/* ── Pulse ring ── */}
       {!isOpen && (
         <div style={{
-          position: 'fixed', bottom: 24, right: 24,
+          position: 'fixed', bottom: 72, right: 24,
           width: 80, height: 80, borderRadius: '50%',
           zIndex: 50, pointerEvents: 'none',
           border: '2px solid rgba(30,41,59,0.2)',

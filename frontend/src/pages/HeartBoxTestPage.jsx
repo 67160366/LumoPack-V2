@@ -11,12 +11,12 @@ import { OrbitControls } from '@react-three/drei';
 import { Link, useLocation } from 'react-router-dom';
 import FloatingChat from '../components/Chatbot/FloatingChat';
 import { useChatbot } from '../contexts/ChatbotContext';
-import { parseDxf } from '../engine/dxfParser';
-import HeartFoldBox from '../components/Box3D/HeartFoldBox';
+import HeartFoldBox, { generateHeart, outlineBounds, SUPPORT_COLORS } from '../components/Box3D/HeartFoldBox';
 import { getScheme } from '../components/Box3D/cardboardColors';
 import MaterialPresetPicker, { MATERIAL_PRESETS } from '../components/Box3D/MaterialPresetPicker';
-import ExportButtons from '../components/ExportButtons';
-import heartDxfRaw from '../assets/heart-100x40.dxf?raw';
+import { generateDxf, downloadDxf } from '../engine/dxfWriter';
+import { generateSvg, downloadSvg } from '../engine/svgExporter';
+import { generateHeartDieline } from '../engine/heartDieline';
 
 /* ── Design tokens ── */
 const FONT = "'Plus Jakarta Sans', 'DM Sans', -apple-system, sans-serif";
@@ -100,14 +100,6 @@ function SizeIcon({ size = 20 }) {
     </svg>
   );
 }
-function LidIcon({ size = 20 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M5 12h14M12 5v14" />
-      <path d="M17 7l-5 5-5-5" />
-    </svg>
-  );
-}
 function MaterialIcon({ size = 20 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -135,15 +127,6 @@ function ProjectsIcon({ size = 20 }) {
     </svg>
   );
 }
-function LogoutIcon({ size = 20 }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
-      <polyline points="16 17 21 12 16 7" />
-      <line x1="21" y1="12" x2="9" y2="12" />
-    </svg>
-  );
-}
 
 /* ── Shared UI primitives ── */
 function Section({ label, children }) {
@@ -154,44 +137,147 @@ function Section({ label, children }) {
     </div>
   );
 }
-function SupportSlider({ label, value, min, max, step, onChange }) {
-  return (
-    <div style={{ marginBottom: 6 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
-        <span style={{ fontSize: 10, fontWeight: 600, color: '#374151' }}>{label}</span>
-        <span style={{ fontSize: 10, fontWeight: 700, color: '#111827', fontFamily: MONO }}>{Number(value).toFixed(1)}</span>
-      </div>
-      <input type="range" min={min} max={max} step={step} value={value} onChange={e => onChange(parseFloat(e.target.value))} style={{ width: '100%', height: 3, accentColor: PINK, cursor: 'pointer' }} />
-    </div>
-  );
+
+/** SVG heart path string for 2D preview */
+function svgHeartPathStr(cx, cy, size, sP = 55, tD = 45) {
+  const n = 30;
+  const tilt = (tD * Math.PI) / 180;
+  const b = sP / 100;
+  const t0 = Math.atan2(Math.cos(tilt), b * Math.sin(tilt));
+  let right = [];
+  for (let i = 0; i <= n; i++) {
+    const t = t0 + (i / n) * Math.PI;
+    const x = Math.cos(t) * Math.cos(tilt) - b * Math.sin(t) * Math.sin(tilt);
+    const y = Math.cos(t) * Math.sin(tilt) + b * Math.sin(t) * Math.cos(tilt);
+    right.push([x, y]);
+  }
+  if (right[Math.floor(n / 2)][0] < 0) {
+    right = [];
+    for (let i = 0; i <= n; i++) {
+      const t = t0 + Math.PI + (i / n) * Math.PI;
+      const x = Math.cos(t) * Math.cos(tilt) - b * Math.sin(t) * Math.sin(tilt);
+      const y = Math.cos(t) * Math.sin(tilt) + b * Math.sin(t) * Math.cos(tilt);
+      right.push([x, y]);
+    }
+  }
+  const topY = right[0][1], botY = right[right.length - 1][1];
+  const sc = (size * 2) / Math.abs(topY - botY);
+  const midY = (topY + botY) / 2;
+  const left = right.map(([x, y]) => [-x, y]).reverse();
+  const pts = [...right, ...left.slice(1)].map(([x, y]) => [cx + x * sc, cy - (y - midY) * sc]);
+  return 'M' + pts.map(([px, py]) => `${px.toFixed(1)},${py.toFixed(1)}`).join('L') + 'Z';
 }
 
-function SupportPreviewMini({ config }) {
-  const holes = config.holes || [];
-  const svgW = 140;
-  const svgH = 90;
-  const scale = 3.5;
-  const cx = svgW / 2;
-  const cy = svgH / 2;
+/** Point-in-polygon test (ray casting) */
+function pointInPoly(px, py, polyPts) {
+  let inside = false;
+  for (let i = 0, j = polyPts.length - 1; i < polyPts.length; j = i++) {
+    const [xi, yi] = polyPts[i];
+    const [xj, yj] = polyPts[j];
+    if ((yi > py) !== (yj > py) && px < (xj - xi) * (py - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+/** Interactive heart-shaped support editor — click to place holes */
+function HeartSupportEditor({ length, shapePct, tiltDeg, cardboard: cb, config, holeTool, holeW, holeL, onPlace, onRemove, selectedHoleId, onSelect }) {
+  const editorRef = useRef(null);
+  const [mouse, setMouse] = useState(null); // { mmX, mmY } relative to heart center
+
+  const gap = 1;
+  const innerLen = length - 2 * cb - 2 * gap;
+  const heartPts = useMemo(() => innerLen > 0 ? generateHeart(innerLen, shapePct, tiltDeg) : [], [innerLen, shapePct, tiltDeg]);
+  const bounds = useMemo(() => outlineBounds(heartPts), [heartPts]);
+
+  const pad = 12;
+  const svgW = 260;
+  const ratio = bounds.w > 0 ? (svgW - 2 * pad) / bounds.w : 1;
+  const svgH = bounds.h * ratio + 2 * pad;
+
+  // Convert heart mm → SVG px
+  const toSvg = useCallback((mmX, mmY) => [
+    pad + (mmX - bounds.minX) * ratio,
+    pad + (bounds.maxY - mmY) * ratio,
+  ], [bounds, ratio]);
+
+  // SVG path for heart outline
+  const heartPath = useMemo(() => {
+    if (!heartPts.length) return '';
+    const svgPts = heartPts.map(([x, y]) => toSvg(x, y));
+    return 'M' + svgPts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join('L') + 'Z';
+  }, [heartPts, toSvg]);
+
+  function handleMove(e) {
+    const rect = editorRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    const mmX = bounds.minX + (sx - pad) / ratio;
+    const mmY = bounds.maxY - (sy - pad) / ratio;
+    if (pointInPoly(mmX, mmY, heartPts)) {
+      setMouse({ mmX: mmX - bounds.cx, mmY: mmY - bounds.cy }); // relative to center
+    } else {
+      setMouse(null);
+    }
+  }
+
+  function handleClick() {
+    if (!mouse || !holeTool) return;
+    onPlace(mouse.mmX, mouse.mmY);
+  }
+
+  // Render one hole (existing or ghost)
+  function renderHole(hole, key, isGhost) {
+    const [sx, sy] = toSvg(hole.x * 10 + bounds.cx, hole.y * 10 + bounds.cy);
+    const isSelected = !isGhost && hole.id === selectedHoleId;
+    const fill = isGhost ? 'rgba(255,255,255,0.5)' : isSelected ? 'rgba(233,30,99,0.4)' : 'rgba(0,0,0,0.35)';
+    const stroke = isGhost ? '#fff' : isSelected ? PINK : 'rgba(255,255,255,0.7)';
+    const strokeW = isSelected ? 2 : 1;
+    const clickProps = !isGhost ? { style: { cursor: 'pointer' }, onClick: (e) => { e.stopPropagation(); onSelect?.(hole.id); } } : { style: { cursor: 'crosshair' } };
+    const hw = (hole.w || 3) * 10 * ratio;  // cm → mm → svg px
+    const hl = (hole.l || 4) * 10 * ratio;
+
+    if (hole.type === 'circle') {
+      const r = Math.min(hw, hl) / 2;
+      return <circle key={key} cx={sx} cy={sy} r={r} fill={fill} stroke={stroke} strokeWidth={strokeW} {...clickProps} />;
+    }
+    if (hole.type === 'heart') {
+      return <g key={key} transform={`translate(${sx},${sy}) scale(${hw / hl},1)`} {...clickProps}>
+        <path d={svgHeartPathStr(0, 0, hl, shapePct, tiltDeg)} fill={fill} stroke={stroke} strokeWidth={strokeW} />
+      </g>;
+    }
+    if (hole.type === 'rect') {
+      return <rect key={key} x={sx - hw / 2} y={sy - hl / 2} width={hw} height={hl} rx={2} fill={fill} stroke={stroke} strokeWidth={strokeW} {...clickProps} />;
+    }
+    // capsule = ellipse
+    return <ellipse key={key} cx={sx} cy={sy} rx={hw / 2} ry={hl / 2} fill={fill} stroke={stroke} strokeWidth={strokeW} {...clickProps} />;
+  }
+
+  // Ghost at cursor
+  const ghost = (mouse && holeTool) ? {
+    type: holeTool, x: mouse.mmX / 10, y: mouse.mmY / 10,
+    w: holeW, l: holeL,
+  } : null;
+
   return (
-    <div style={{ background: 'rgba(0,0,0,0.03)', borderRadius: 10, padding: '10px 0', display: 'flex', justifyContent: 'center' }}>
-      <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`}>
-        <rect x={4} y={4} width={svgW - 8} height={svgH - 8} rx={6} fill="#e5e7eb" stroke="#9ca3af" strokeWidth={1} />
-        {holes.map((hole, i) => {
-          const hx = cx + hole.x * scale;
-          const hy = cy - hole.y * scale;
-          if (hole.type === 'circle') return <circle key={i} cx={hx} cy={hy} r={(hole.r || 2) * scale} fill="#fff" stroke="#6b7280" strokeWidth={1} />;
-          if (hole.type === 'rect') {
-            const w = (hole.w || 3) * scale;
-            const l = (hole.l || 5) * scale;
-            return <rect key={i} x={hx - w / 2} y={hy - l / 2} width={w} height={l} rx={2} fill="#fff" stroke="#6b7280" strokeWidth={1} />;
-          }
-          const w = (hole.w || 3) * scale;
-          const l = (hole.l || 5) * scale;
-          return <rect key={i} x={hx - w / 2} y={hy - l / 2} width={w} height={l} rx={w / 2} fill="#fce4ec" stroke={PINK} strokeWidth={1} />;
-        })}
-      </svg>
-    </div>
+    <svg ref={editorRef} width={svgW} height={svgH}
+      onMouseMove={handleMove} onMouseLeave={() => setMouse(null)} onClick={handleClick}
+      style={{ cursor: mouse ? 'crosshair' : 'default', display: 'block', margin: '0 auto', borderRadius: 12, overflow: 'hidden' }}>
+      {/* Background */}
+      <rect width={svgW} height={svgH} fill="#1a1a1a" />
+      {/* Heart tray */}
+      <path d={heartPath} fill={config.color || '#3E2723'} stroke="rgba(255,255,255,0.15)" strokeWidth={1} />
+      {/* Existing holes */}
+      {(config.holes || []).map((h, i) => renderHole(h, h.id || i, false))}
+      {/* Ghost preview */}
+      {ghost && renderHole(ghost, 'ghost', true)}
+      {/* Hint */}
+      {!config.holes?.length && !ghost && (
+        <text x={svgW / 2} y={svgH / 2} textAnchor="middle" fill="rgba(255,255,255,0.3)" fontSize={11} fontFamily={FONT}>
+          คลิกเพื่อวางรู
+        </text>
+      )}
+    </svg>
   );
 }
 
@@ -211,7 +297,6 @@ const TABS = [
   { id: 'shape', label: 'Shape', icon: ShapeIcon },
   { id: 'material', label: 'Material', icon: MaterialIcon },
   { id: 'size',  label: 'Size',  icon: SizeIcon },
-  { id: 'lid',   label: 'Lid',   icon: LidIcon },
   { id: 'support', label: 'Support', icon: SupportIcon },
 ];
 
@@ -247,8 +332,14 @@ function HeartBoxInner() {
   const [showSupport, setShowSupport] = useState(false);
   const [supportConfig, setSupportConfig] = useState({
     wallHeight: 0.78,
-    holes: [{ id: 1, type: 'circle', x: 0, y: 0, r: 2.5 }],
+    holeDepth: 0.6,
+    color: '#3E2723',
+    holes: [],
   });
+  const [holeTool, setHoleTool] = useState('heart');  // selected shape tool
+  const [holeW, setHoleW] = useState(3.0);   // cm width (for new holes)
+  const [holeL, setHoleL] = useState(4.0);   // cm length (for new holes)
+  const [selectedHoleId, setSelectedHoleId] = useState(null);
 
   // --- Load project from navigation state ---
   const location = useLocation();
@@ -299,19 +390,27 @@ function HeartBoxInner() {
 
   const heartPreviewColor = useMemo(() => getScheme(boxStyle).lidCap, [boxStyle]);
 
-  const addHole = (type) => {
-    const newHole = { id: Date.now(), type, x: 0, y: 0 };
-    if (type === 'circle') newHole.r = 2.0;
-    else { newHole.w = 3.0; newHole.l = 5.0; }
+  const addHoleAt = useCallback((mmX, mmY) => {
+    const newHole = {
+      id: Date.now(),
+      type: holeTool,
+      x: mmX / 10, // mm → cm (relative to heart center)
+      y: mmY / 10,
+      w: holeW,
+      l: holeL,
+    };
     setSupportConfig(prev => ({ ...prev, holes: [...(prev.holes || []), newHole] }));
-  };
+  }, [holeTool, holeW, holeL]);
+
   const removeHole = (id) => {
     setSupportConfig(prev => ({ ...prev, holes: prev.holes.filter(h => h.id !== id) }));
+    if (selectedHoleId === id) setSelectedHoleId(null);
   };
-  const updateHole = (id, prop, val) => {
+
+  const updateHole = (id, updates) => {
     setSupportConfig(prev => ({
       ...prev,
-      holes: prev.holes.map(h => (h.id === id ? { ...h, [prop]: val } : h)),
+      holes: prev.holes.map(h => h.id === id ? { ...h, ...updates } : h),
     }));
   };
 
@@ -323,10 +422,10 @@ function HeartBoxInner() {
   const [svgVBStart, setSvgVBStart] = useState(null);
 
   const dieline = useMemo(() => {
-    const result = parseDxf(heartDxfRaw);
+    const result = generateHeartDieline(length, height, shapePct, tiltDeg);
     result.bounds = computeBounds(result);
     return result;
-  }, []);
+  }, [length, height, shapePct, tiltDeg]);
 
   const initialViewBox = useMemo(() => {
     const b = dieline.bounds, pad = Math.max(b.width, b.height) * 0.08;
@@ -370,43 +469,74 @@ function HeartBoxInner() {
   const dashPattern = `${vb.w * 0.006} ${vb.w * 0.004}`;
   const toggle = (id) => setActiveTab(prev => prev === id ? null : id);
 
-  // Hide Lid / Support in 2D mode
-  const visibleTabs = view === '3d' ? TABS : TABS.filter(t => t.id !== 'lid' && t.id !== 'support');
+  // Hide Support in 2D mode
+  const visibleTabs = view === '3d' ? TABS : TABS.filter(t => t.id !== 'support');
+
+  // Download handlers
+  const fname = `heart-box-${length}x${height}mm`;
+  const handleDownload = useCallback((fmt) => {
+    if (fmt === 'dxf') {
+      downloadDxf(generateDxf(dieline, length, height, height), `${fname}.dxf`);
+    } else if (fmt === 'svg') {
+      downloadSvg(generateSvg(dieline, length, height, height), `${fname}.svg`);
+    } else if (fmt === 'pdf') {
+      import('jspdf').then(({ default: jsPDF }) => {
+        const svg = generateSvg(dieline, length, height, height);
+        const b = dieline.bounds;
+        const pad = Math.max(b.width, b.height) * 0.05;
+        const totalW = b.width + pad * 2;
+        const totalH = b.height + pad * 2;
+        const isLandscape = totalW > totalH;
+        const doc = new jsPDF({ orientation: isLandscape ? 'landscape' : 'portrait', unit: 'mm', format: 'a4' });
+        const pageW = doc.internal.pageSize.getWidth() - 20;
+        const pageH = doc.internal.pageSize.getHeight() - 30;
+        const scale = Math.min(pageW / totalW, pageH / totalH);
+        const imgW = totalW * scale, imgH = totalH * scale;
+        const x = (doc.internal.pageSize.getWidth() - imgW) / 2;
+        doc.setFontSize(14);
+        doc.text(`LumoPack Dieline — ${length} x ${height} mm`, 10, 12);
+        doc.setFontSize(9); doc.setTextColor(120);
+        doc.text('Red = Cut line  |  Green = Crease/Fold line', 10, 18);
+        doc.setTextColor(0);
+        const img = new Image();
+        const blob = new Blob([svg], { type: 'image/svg+xml' });
+        const url = URL.createObjectURL(blob);
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = totalW * 4; canvas.height = totalH * 4;
+          const ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          doc.addImage(canvas.toDataURL('image/png'), 'PNG', x, 22, imgW, imgH);
+          doc.save(`${fname}.pdf`);
+          URL.revokeObjectURL(url);
+        };
+        img.src = url;
+      });
+    }
+  }, [dieline, length, height, fname]);
+  const [showDlMenu, setShowDlMenu] = useState(false);
 
   return (
-    <div style={{ display: 'flex', height: '100vh', fontFamily: FONT, background: '#1a1d23', position: 'relative' }}>
+    <div style={{ height: '100vh', fontFamily: FONT, background: '#e5e7eb', position: 'relative', overflow: 'hidden' }}>
 
-      {/* === Icon Rail (flush left edge) === */}
+      {/* === Floating Icon Rail (left edge) === */}
       <div style={{
-        width: RAIL_W, flexShrink: 0,
+        position: 'absolute', top: 12, left: 12, bottom: 68, zIndex: 40,
+        width: RAIL_W,
         display: 'flex', flexDirection: 'column', alignItems: 'center',
-        background: '#f3f4f6',
-        borderRight: '1px solid rgba(0,0,0,0.06)',
-        paddingTop: 16, paddingBottom: 16,
-        zIndex: 40,
+        background: '#fff',
+        borderRadius: 16,
+        boxShadow: '0 2px 16px rgba(0,0,0,0.10), 0 1px 3px rgba(0,0,0,0.06)',
+        paddingTop: 14, paddingBottom: 14,
       }}>
-        {/* Logo */}
-        <div style={{ marginBottom: 12, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <img src="/logo.png" alt="LumoPack" style={{ width: 36, height: 36, objectFit: 'contain' }} />
-        </div>
+        {/* Logo + Brand */}
+        <Link to="/" style={{ textDecoration: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, marginBottom: 6 }}>
+          <img src="/logo.png" alt="LumoPack" style={{ width: 60, height: 60, objectFit: 'contain' }} />
+          <span style={{ fontSize: 9, fontWeight: 800, color: PINK_DARK, fontFamily: FONT, letterSpacing: '-0.02em', lineHeight: 1 }}>LumoPack</span>
+        </Link>
 
-        <div style={{ width: 32, height: 1, background: 'rgba(0,0,0,0.08)', marginBottom: 8 }} />
-
-        {/* View toggle */}
-        {['2d', '3d'].map(v => (
-          <button key={v} onClick={() => { setView(v); if (v === '2d' && (activeTab === 'lid' || activeTab === 'support')) setActiveTab(null); }} title={v === '2d' ? '2D Dieline' : '3D View'} style={{
-            width: 44, height: 36, borderRadius: 10, border: 'none', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: view === v ? 'rgba(233,30,99,0.1)' : 'transparent',
-            color: view === v ? PINK : '#6b7280',
-            fontSize: 12, fontWeight: 800, fontFamily: MONO,
-            transition: 'all 0.2s',
-          }}>
-            {v.toUpperCase()}
-          </button>
-        ))}
-
-        <div style={{ width: 32, height: 1, background: 'rgba(0,0,0,0.08)', margin: '8px 0' }} />
+        <div style={{ width: 36, height: 1, background: 'rgba(0,0,0,0.06)', marginBottom: 6 }} />
 
         {/* Tab buttons */}
         {visibleTabs.map(tab => {
@@ -417,8 +547,8 @@ function HeartBoxInner() {
               onClick={() => toggle(tab.id)}
               title={tab.label}
               style={{
-                width: 48, height: 48, borderRadius: 12, border: 'none', cursor: 'pointer',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
+                width: 50, height: 50, borderRadius: 12, border: 'none', cursor: 'pointer',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
                 transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)',
                 background: isActive ? 'rgba(233,30,99,0.1)' : 'transparent',
                 color: isActive ? PINK : '#374151',
@@ -428,7 +558,7 @@ function HeartBoxInner() {
               onMouseLeave={e => { e.currentTarget.style.background = isActive ? 'rgba(233,30,99,0.1)' : 'transparent'; }}
             >
               {isActive && (
-                <div style={{ position: 'absolute', left: 3, top: '50%', transform: 'translateY(-50%)', width: 4, height: 4, borderRadius: '50%', background: PINK }} />
+                <div style={{ position: 'absolute', left: 2, top: '50%', transform: 'translateY(-50%)', width: 4, height: 4, borderRadius: '50%', background: PINK }} />
               )}
               <tab.icon size={18} />
               <span style={{ fontSize: 8, fontWeight: 600, lineHeight: 1, fontFamily: FONT, letterSpacing: '0.01em' }}>{tab.label}</span>
@@ -440,10 +570,10 @@ function HeartBoxInner() {
         <div style={{ flex: 1 }} />
 
         {/* Bottom links */}
-        <div style={{ width: 32, height: 1, background: 'rgba(0,0,0,0.08)', margin: '4px 0 8px' }} />
+        <div style={{ width: 32, height: 1, background: 'rgba(0,0,0,0.06)', margin: '4px 0 6px' }} />
 
         <Link to="/" title="Home" style={{
-          width: 48, height: 44, borderRadius: 12, border: 'none',
+          width: 50, height: 44, borderRadius: 12, border: 'none',
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
           color: '#374151', textDecoration: 'none', transition: 'color 0.2s',
         }}
@@ -455,7 +585,7 @@ function HeartBoxInner() {
         </Link>
 
         <Link to="/projects" title="Projects" style={{
-          width: 48, height: 44, borderRadius: 12, border: 'none',
+          width: 50, height: 44, borderRadius: 12, border: 'none',
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
           color: '#374151', textDecoration: 'none', transition: 'color 0.2s',
         }}
@@ -466,22 +596,11 @@ function HeartBoxInner() {
           <span style={{ fontSize: 8, fontWeight: 600, fontFamily: FONT }}>Projects</span>
         </Link>
 
-        <Link to="/login" title="Logout" style={{
-          width: 48, height: 48, borderRadius: 12,
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2,
-          color: '#374151', textDecoration: 'none', transition: 'color 0.2s',
-        }}
-          onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; }}
-          onMouseLeave={e => { e.currentTarget.style.color = '#374151'; }}
-        >
-          <LogoutIcon size={18} />
-          <span style={{ fontSize: 8, fontWeight: 600, fontFamily: FONT }}>Logout</span>
-        </Link>
       </div>
 
-      {/* === Flyout Panel (floating, overlaid on viewer) === */}
+      {/* === Flyout Panel (floating, next to rail) === */}
       <div style={{
-        position: 'absolute', top: 12, left: RAIL_W + 12, bottom: 12, zIndex: 35,
+        position: 'absolute', top: 12, left: RAIL_W + 24, bottom: 68, zIndex: 35,
         width: activeTab ? PANEL_W : 0,
         opacity: activeTab ? 1 : 0,
         overflow: 'hidden',
@@ -490,8 +609,8 @@ function HeartBoxInner() {
       }}>
         <div style={{
           width: PANEL_W, height: '100%',
-          background: '#f3f4f6', borderRadius: 16,
-          boxShadow: '0 4px 24px rgba(0,0,0,0.12), 0 1px 3px rgba(0,0,0,0.06)',
+          background: '#fff', borderRadius: 16,
+          boxShadow: '0 4px 24px rgba(0,0,0,0.10), 0 1px 3px rgba(0,0,0,0.06)',
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
         }}>
           {/* Panel header */}
@@ -622,179 +741,190 @@ function HeartBoxInner() {
               </div>
             )}
 
-            {/* ── Lid tab (3D only) ── */}
-            {activeTab === 'lid' && (
-              <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-                <Section label="Lid animation">
-                  <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 14, padding: 16 }}>
-                    <SliderField label="Lid open" value={Math.round(lidOpen * 100)} min={0} max={100} step={1} unit="%" onChange={e => { setLidOpen(+e.target.value / 100); if (view !== '3d') setView('3d'); }} />
-                  </div>
-                </Section>
-
-                <div style={{ fontSize: 11, color: '#9ca3af', fontFamily: FONT }}>
-                  Drag slider to animate lid opening in the 3D view.
-                </div>
-              </div>
-            )}
-
             {/* ── Support tab (3D) ── */}
             {activeTab === 'support' && (
               <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {/* Toggle */}
                 <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  background: '#fff',
-                  border: '1px solid rgba(0,0,0,0.06)',
-                  borderRadius: 14,
-                  padding: '12px 16px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  background: '#fff', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 14, padding: '12px 16px',
                 }}>
                   <div>
                     <div style={{ fontSize: 12, fontWeight: 700, color: '#111827', fontFamily: FONT }}>แสดงชั้นซัพพอร์ต</div>
-                    <div style={{ fontSize: 10, color: '#6b7280', fontFamily: FONT, marginTop: 2 }}>ถาดรองสินค้าภายใน (ครอบคลุมพื้นที่โดยประมาณ)</div>
+                    <div style={{ fontSize: 10, color: '#6b7280', fontFamily: FONT, marginTop: 2 }}>ถาดรองสินค้าภายใน</div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => { setShowSupport(p => !p); if (view !== '3d') setView('3d'); }}
-                    style={{
-                      width: 44,
-                      height: 24,
-                      borderRadius: 12,
-                      border: 'none',
-                      cursor: 'pointer',
-                      background: showSupport ? PINK : '#d1d5db',
-                      transition: 'background 0.2s',
-                      position: 'relative',
-                    }}
-                  >
-                    <div style={{
-                      width: 18,
-                      height: 18,
-                      borderRadius: '50%',
-                      background: '#fff',
-                      position: 'absolute',
-                      top: 3,
-                      left: showSupport ? 23 : 3,
-                      transition: 'left 0.2s',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                    }} />
+                  <button type="button" onClick={() => { setShowSupport(p => !p); if (view !== '3d') setView('3d'); }}
+                    style={{ width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer',
+                      background: showSupport ? PINK : '#d1d5db', transition: 'background 0.2s', position: 'relative' }}>
+                    <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute',
+                      top: 3, left: showSupport ? 23 : 3, transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
                   </button>
                 </div>
 
-                <Section label={`ความสูงขอบ — ${Math.round((supportConfig.wallHeight || 0.78) * 100)}%`}>
-                  <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 14, padding: 16 }}>
-                    <input
-                      type="range"
-                      min="40"
-                      max="95"
-                      value={Math.round((supportConfig.wallHeight || 0.78) * 100)}
-                      onChange={e => setSupportConfig(prev => ({ ...prev, wallHeight: parseInt(e.target.value, 10) / 100 }))}
-                      style={{ width: '100%', height: 4, accentColor: PINK, cursor: 'pointer' }}
-                    />
+                {/* Color picker */}
+                <Section label="สีซัพพอร์ต">
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {SUPPORT_COLORS.map(c => (
+                      <button key={c.id} type="button" title={c.label}
+                        onClick={() => setSupportConfig(prev => ({ ...prev, color: c.hex }))}
+                        style={{
+                          width: 28, height: 28, borderRadius: 8, border: supportConfig.color === c.hex ? '2px solid ' + PINK : '2px solid rgba(0,0,0,0.1)',
+                          background: c.hex, cursor: 'pointer', transition: 'border 0.15s',
+                          boxShadow: supportConfig.color === c.hex ? '0 0 0 2px rgba(233,30,99,0.3)' : 'none',
+                        }}
+                      />
+                    ))}
                   </div>
                 </Section>
 
-                <Section label="เจาะรู">
+                {/* Wall height & hole depth */}
+                <Section label={`ความสูงขอบ — ${Math.round((supportConfig.wallHeight || 0.78) * 100)}%`}>
+                  <input type="range" min="40" max="95" value={Math.round((supportConfig.wallHeight || 0.78) * 100)}
+                    onChange={e => setSupportConfig(prev => ({ ...prev, wallHeight: parseInt(e.target.value, 10) / 100 }))}
+                    style={{ width: '100%', height: 4, accentColor: PINK, cursor: 'pointer' }} />
+                </Section>
+                <Section label={`ความลึกรู — ${Math.round((supportConfig.holeDepth || 0.6) * 100)}%`}>
+                  <input type="range" min="20" max="95" value={Math.round((supportConfig.holeDepth || 0.6) * 100)}
+                    onChange={e => setSupportConfig(prev => ({ ...prev, holeDepth: parseInt(e.target.value, 10) / 100 }))}
+                    style={{ width: '100%', height: 4, accentColor: PINK, cursor: 'pointer' }} />
+                </Section>
+
+                {/* Shape tool selector */}
+                <Section label="เลือกรูปแบบเจาะ">
                   <div style={{ display: 'flex', gap: 6 }}>
                     {[
+                      { type: 'heart', label: 'หัวใจ', icon: '♥' },
                       { type: 'circle', label: 'วงกลม', icon: '○' },
                       { type: 'rect', label: 'สี่เหลี่ยม', icon: '□' },
                       { type: 'capsule', label: 'แคปซูล', icon: '⬭' },
                     ].map(opt => (
-                      <button
-                        key={opt.type}
-                        type="button"
-                        onClick={() => addHole(opt.type)}
+                      <button key={opt.type} type="button" onClick={() => setHoleTool(opt.type)}
                         style={{
-                          flex: 1,
-                          padding: '8px 4px',
-                          borderRadius: 10,
-                          border: '1px solid rgba(0,0,0,0.1)',
-                          background: 'rgba(255,255,255,0.6)',
-                          cursor: 'pointer',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          gap: 3,
-                        }}
-                      >
-                        <span style={{ fontSize: 16, lineHeight: 1 }}>{opt.icon}</span>
-                        <span style={{ fontSize: 9, color: '#111827', fontWeight: 600 }}>{opt.label}</span>
+                          flex: 1, padding: '8px 4px', borderRadius: 10, cursor: 'pointer',
+                          border: holeTool === opt.type ? '2px solid ' + PINK : '1px solid rgba(0,0,0,0.1)',
+                          background: holeTool === opt.type ? 'rgba(233,30,99,0.08)' : 'rgba(255,255,255,0.6)',
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                        }}>
+                        <span style={{ fontSize: 16, lineHeight: 1, color: holeTool === opt.type ? PINK : '#374151' }}>{opt.icon}</span>
+                        <span style={{ fontSize: 9, color: holeTool === opt.type ? PINK : '#111827', fontWeight: 600 }}>{opt.label}</span>
                       </button>
                     ))}
                   </div>
                 </Section>
 
-                {supportConfig.holes.length === 0 && (
-                  <div style={{
-                    textAlign: 'center',
-                    padding: '20px 10px',
-                    color: '#6b7280',
-                    fontSize: 11,
-                    background: 'rgba(0,0,0,0.03)',
-                    borderRadius: 10,
-                  }}>
-                    ยังไม่มีรู — เพิ่มด้านบน
-                  </div>
+                {/* Tool size W x L */}
+                <Section label={`กว้าง — ${holeW.toFixed(1)} cm`}>
+                  <input type="range" min="0.5" max="10" step="0.1" value={holeW}
+                    onChange={e => setHoleW(parseFloat(e.target.value))}
+                    style={{ width: '100%', height: 4, accentColor: PINK, cursor: 'pointer' }} />
+                </Section>
+                <Section label={`ยาว — ${holeL.toFixed(1)} cm`}>
+                  <input type="range" min="0.5" max="10" step="0.1" value={holeL}
+                    onChange={e => setHoleL(parseFloat(e.target.value))}
+                    style={{ width: '100%', height: 4, accentColor: PINK, cursor: 'pointer' }} />
+                </Section>
+
+                {/* Interactive editor */}
+                <Section label="คลิกเพื่อวางรู (คลิกรูเดิมเพื่อเลือก)">
+                  <HeartSupportEditor
+                    length={length} shapePct={shapePct} tiltDeg={tiltDeg} cardboard={1.5}
+                    config={supportConfig} holeTool={holeTool} holeW={holeW} holeL={holeL}
+                    onPlace={addHoleAt} onRemove={removeHole}
+                    selectedHoleId={selectedHoleId} onSelect={setSelectedHoleId}
+                  />
+                </Section>
+
+                {/* Per-hole list */}
+                {supportConfig.holes?.length > 0 && (
+                  <Section label={`รูที่เจาะ (${supportConfig.holes.length})`}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {supportConfig.holes.map((hole, idx) => {
+                        const isSelected = hole.id === selectedHoleId;
+                        const typeLabels = { heart: '♥ หัวใจ', circle: '○ วงกลม', rect: '□ สี่เหลี่ยม', capsule: '⬭ แคปซูล' };
+                        return (
+                          <div key={hole.id}
+                            onClick={() => setSelectedHoleId(isSelected ? null : hole.id)}
+                            style={{
+                              background: isSelected ? 'rgba(233,30,99,0.08)' : '#fff',
+                              border: isSelected ? `2px solid ${PINK}` : '1px solid rgba(0,0,0,0.06)',
+                              borderRadius: 10, padding: isSelected ? '8px 10px' : '9px 11px',
+                              cursor: 'pointer', transition: 'all 0.15s',
+                            }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ fontSize: 14, lineHeight: 1 }}>{typeLabels[hole.type]?.split(' ')[0] || '?'}</span>
+                                <div>
+                                  <div style={{ fontSize: 11, fontWeight: 600, color: '#111827', fontFamily: FONT }}>
+                                    {typeLabels[hole.type]?.split(' ')[1] || hole.type} #{idx + 1}
+                                  </div>
+                                  <div style={{ fontSize: 9, color: '#6b7280', fontFamily: MONO }}>
+                                    x:{hole.x.toFixed(1)} y:{hole.y.toFixed(1)} cm
+                                  </div>
+                                </div>
+                              </div>
+                              <button type="button" onClick={(e) => { e.stopPropagation(); removeHole(hole.id); }}
+                                style={{ width: 22, height: 22, borderRadius: 6, border: 'none',
+                                  background: 'rgba(239,68,68,0.08)', color: '#ef4444', cursor: 'pointer',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700 }}>
+                                ×
+                              </button>
+                            </div>
+                            {/* Per-hole W/L sliders when selected */}
+                            {isSelected && (
+                              <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                <div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                                    <span style={{ fontSize: 10, fontWeight: 600, color: '#374151', fontFamily: FONT }}>กว้าง</span>
+                                    <span style={{ fontSize: 10, fontWeight: 700, color: '#111827', fontFamily: MONO }}>{hole.w.toFixed(1)} cm</span>
+                                  </div>
+                                  <input type="range" min="0.5" max="10" step="0.1" value={hole.w}
+                                    onClick={e => e.stopPropagation()}
+                                    onChange={e => updateHole(hole.id, { w: parseFloat(e.target.value) })}
+                                    style={{ width: '100%', height: 3, accentColor: PINK, cursor: 'pointer' }} />
+                                </div>
+                                <div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                                    <span style={{ fontSize: 10, fontWeight: 600, color: '#374151', fontFamily: FONT }}>ยาว</span>
+                                    <span style={{ fontSize: 10, fontWeight: 700, color: '#111827', fontFamily: MONO }}>{hole.l.toFixed(1)} cm</span>
+                                  </div>
+                                  <input type="range" min="0.5" max="10" step="0.1" value={hole.l}
+                                    onClick={e => e.stopPropagation()}
+                                    onChange={e => updateHole(hole.id, { l: parseFloat(e.target.value) })}
+                                    style={{ width: '100%', height: 3, accentColor: PINK, cursor: 'pointer' }} />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </Section>
                 )}
 
-                {supportConfig.holes.map((hole, idx) => {
-                  const typeLabel = hole.type === 'circle' ? '○ วงกลม' : hole.type === 'rect' ? '□ สี่เหลี่ยม' : '⬭ แคปซูล';
-                  return (
-                    <div key={hole.id} style={{
-                      background: '#fff',
-                      borderRadius: 12,
-                      padding: '10px 12px',
-                      border: '1px solid rgba(0,0,0,0.06)',
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: '#111827', fontFamily: FONT }}>
-                          #{idx + 1} {typeLabel}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => removeHole(hole.id)}
-                          style={{
-                            background: 'rgba(239,68,68,0.08)',
-                            border: 'none',
-                            borderRadius: 6,
-                            color: '#ef4444',
-                            fontSize: 10,
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            padding: '3px 8px',
-                          }}
-                        >
-                          ลบ
-                        </button>
-                      </div>
-                      <SupportSlider label="X" value={hole.x} min={-15} max={15} step={0.5} onChange={v => updateHole(hole.id, 'x', v)} />
-                      <SupportSlider label="Y" value={hole.y} min={-15} max={15} step={0.5} onChange={v => updateHole(hole.id, 'y', v)} />
-                      {hole.type === 'circle' ? (
-                        <SupportSlider label="รัศมี" value={hole.r || 2} min={0.5} max={10} step={0.1} onChange={v => updateHole(hole.id, 'r', v)} />
-                      ) : (
-                        <>
-                          <SupportSlider label="กว้าง" value={hole.w || 3} min={1} max={15} step={0.1} onChange={v => updateHole(hole.id, 'w', v)} />
-                          <SupportSlider label="ยาว" value={hole.l || 5} min={1} max={20} step={0.1} onChange={v => updateHole(hole.id, 'l', v)} />
-                        </>
-                      )}
-                    </div>
-                  );
-                })}
-
-                <Section label="ตัวอย่างรูบนแผ่น">
-                  <SupportPreviewMini config={supportConfig} />
-                </Section>
+                {/* Hole count + clear */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 11, color: '#6b7280', fontFamily: FONT }}>
+                    {supportConfig.holes?.length || 0} รู
+                  </span>
+                  {supportConfig.holes?.length > 0 && (
+                    <button type="button"
+                      onClick={() => { setSupportConfig(prev => ({ ...prev, holes: [] })); setSelectedHoleId(null); }}
+                      style={{ fontSize: 10, color: '#ef4444', background: 'rgba(239,68,68,0.08)',
+                        border: 'none', borderRadius: 6, padding: '3px 10px', cursor: 'pointer', fontWeight: 600 }}>
+                      ลบทั้งหมด
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* === Viewer (fills remaining space) === */}
-      <div style={{ flex: 1, position: 'relative' }}>
+      {/* === Viewer (full background) === */}
+      <div style={{ position: 'absolute', inset: 0, bottom: 56 }}>
         {view === '2d' ? (
-          <div style={{ width: '100%', height: '100%', background: '#1a1d23' }}>
+          <div style={{ width: '100%', height: '100%', background: '#1a1d23', borderRadius: 0 }}>
             <svg
               ref={svgRef}
               style={{ width: '100%', height: '100%', cursor: isPanning ? 'grabbing' : 'grab' }}
@@ -821,10 +951,25 @@ function HeartBoxInner() {
                 <path key={`ct-${i}`} d={polylineToPath(pl)} fill="none" stroke={CUT_COLOR} strokeWidth={cutStroke} strokeLinejoin="round" strokeLinecap="round" />
               ))}
             </svg>
+
+            {/* 2D legend */}
+            <div style={{
+              position: 'absolute', top: 12, right: 12,
+              background: 'rgba(0,0,0,0.5)', borderRadius: 8, backdropFilter: 'blur(8px)',
+              padding: '6px 12px', display: 'flex', gap: 14,
+              fontSize: 11, fontFamily: MONO, zIndex: 10, color: '#fff',
+            }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ display: 'inline-block', width: 14, height: 2, background: CUT_COLOR }} /> Cut
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ display: 'inline-block', width: 14, height: 0, borderTop: `2px dashed ${CREASE_COLOR}` }} /> Crease
+              </span>
+            </div>
           </div>
         ) : (
           <Canvas camera={{ position: [0, 3, 5], fov: 45 }} style={{ width: '100%', height: '100%' }}>
-            <color attach="background" args={['#fff5f7']} />
+            <color attach="background" args={['#e8e0da']} />
             <ambientLight intensity={0.7} />
             <directionalLight position={[5, 10, 5]} intensity={0.9} />
             <directionalLight position={[-3, 5, -5]} intensity={0.3} />
@@ -839,37 +984,135 @@ function HeartBoxInner() {
               supportConfig={supportConfig}
             />
             <OrbitControls makeDefault />
-            <gridHelper args={[10, 10, '#f8bbd0', '#fce4ec']} />
+            <gridHelper args={[10, 10, '#d4c8c0', '#e0d6d0']} />
           </Canvas>
         )}
+      </div>
 
-        {/* Dimension badge */}
-        <div style={{
-          position: 'absolute', bottom: 12, left: 12,
-          background: 'rgba(255,255,255,0.9)', borderRadius: 8,
-          padding: '4px 10px', fontSize: 11, fontFamily: MONO,
-          color: PINK_DARK, zIndex: 10,
-        }}>
-          {length} x {height} mm | {MATERIAL_PRESETS.find(m => m.id === boxStyle)?.label ?? boxStyle} | Shape {shapePct}% | Tilt {tiltDeg}deg
+      {/* === Bottom Bar === */}
+      <div style={{
+        position: 'absolute', bottom: 0, left: 0, right: 0, height: 56,
+        background: '#fff', zIndex: 40,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        gap: 6, padding: '0 16px',
+        boxShadow: '0 -2px 12px rgba(0,0,0,0.06)',
+      }}>
+        {/* Left: dimension badge */}
+        <div style={{ position: 'absolute', left: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, fontFamily: MONO, color: PINK_DARK }}>
+            {length} x {height} mm
+          </span>
+          <span style={{ fontSize: 10, color: '#9ca3af', fontFamily: FONT }}>
+            {MATERIAL_PRESETS.find(m => m.id === boxStyle)?.label ?? boxStyle}
+          </span>
         </div>
 
-        <ExportButtons dieline={dieline} W={length} H={height} D={height} prefix="heart-box" />
+        {/* Center: view toggle + lid slider */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {/* View toggle */}
+          {['2d', '3d'].map(v => (
+            <button key={v} onClick={() => { setView(v); if (v === '2d' && activeTab === 'support') setActiveTab(null); }}
+              style={{
+                width: 36, height: 32, borderRadius: 8, border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: view === v ? PINK : 'rgba(0,0,0,0.05)',
+                color: view === v ? '#fff' : '#6b7280',
+                fontSize: 11, fontWeight: 800, fontFamily: MONO,
+                transition: 'all 0.2s',
+              }}>
+              {v.toUpperCase()}
+            </button>
+          ))}
 
-        {view === '2d' && (
-          <div style={{
-            position: 'absolute', bottom: 116, right: 12,
-            background: 'rgba(255,255,255,0.9)', borderRadius: 8,
-            padding: '4px 10px', display: 'flex', gap: 12,
-            fontSize: 11, fontFamily: MONO, zIndex: 10,
-          }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ display: 'inline-block', width: 14, height: 2, background: CUT_COLOR }} /> Cut
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ display: 'inline-block', width: 14, height: 0, borderTop: `2px dashed ${CREASE_COLOR}` }} /> Crease
-            </span>
+          {/* Divider */}
+          <div style={{ width: 1, height: 24, background: 'rgba(0,0,0,0.08)' }} />
+
+          {/* Lid slider (3D only) */}
+          {view === '3d' && (<>
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#374151', fontFamily: FONT, whiteSpace: 'nowrap' }}>Open</span>
+            <input type="range" min="0" max="100" step="1" value={Math.round(lidOpen * 100)}
+              onChange={e => setLidOpen(+e.target.value / 100)}
+              style={{ width: 120, height: 4, accentColor: PINK, cursor: 'pointer' }} />
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#374151', fontFamily: FONT, whiteSpace: 'nowrap' }}>Close</span>
+
+            {/* Divider */}
+            <div style={{ width: 1, height: 24, background: 'rgba(0,0,0,0.08)' }} />
+          </>)}
+
+          {/* 2D reset view */}
+          {view === '2d' && (
+            <>
+              <button onClick={resetView} style={{
+                height: 32, padding: '0 12px', borderRadius: 8, border: '1px solid rgba(0,0,0,0.08)',
+                cursor: 'pointer', background: '#fff', fontFamily: FONT,
+                fontSize: 11, fontWeight: 600, color: '#6b7280', transition: 'all 0.15s',
+              }}>
+                Reset View
+              </button>
+              <div style={{ width: 1, height: 24, background: 'rgba(0,0,0,0.08)' }} />
+            </>
+          )}
+        </div>
+
+        {/* Right: Download button with dropdown */}
+        <div style={{ position: 'absolute', right: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowDlMenu(p => !p)}
+              style={{
+                height: 34, padding: '0 14px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                background: PINK, color: '#fff',
+                fontSize: 12, fontWeight: 700, fontFamily: FONT,
+                display: 'flex', alignItems: 'center', gap: 6,
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = PINK_DARK; }}
+              onMouseLeave={e => { e.currentTarget.style.background = PINK; }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              Download
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+
+            {/* Dropdown menu */}
+            {showDlMenu && (
+              <div style={{
+                position: 'absolute', bottom: 42, right: 0, width: 160,
+                background: '#fff', borderRadius: 12, overflow: 'hidden',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.15), 0 1px 4px rgba(0,0,0,0.08)',
+                zIndex: 50,
+              }}>
+                {[
+                  { fmt: 'dxf', label: 'DXF (CAD)', color: '#7c3aed' },
+                  { fmt: 'svg', label: 'SVG', color: '#0d9488' },
+                  { fmt: 'pdf', label: 'PDF', color: '#1e40af' },
+                ].map(opt => (
+                  <button key={opt.fmt}
+                    onClick={() => { handleDownload(opt.fmt); setShowDlMenu(false); }}
+                    style={{
+                      width: '100%', padding: '10px 14px', border: 'none', cursor: 'pointer',
+                      background: 'transparent', textAlign: 'left',
+                      fontSize: 12, fontWeight: 600, fontFamily: FONT, color: '#374151',
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      transition: 'background 0.1s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.04)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: opt.color, flexShrink: 0 }} />
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
       {/* Floating Chatbot */}

@@ -44,8 +44,9 @@ async def get_current_user(authorization: str = Header(None)) -> AuthUser:
             raise HTTPException(status_code=401, detail="Invalid token")
 
         # Fetch role from profiles table
-        profile = supabase.table("profiles").select("role").eq("id", user.id).single().execute()
-        role = profile.data.get("role", "customer") if profile.data else "customer"
+        profile = supabase.table("profiles").select("role").eq("id", user.id).limit(1).execute()
+        rows = profile.data or []
+        role = rows[0].get("role", "customer") if rows else "customer"
 
         return AuthUser(
             id=user.id,
