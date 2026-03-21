@@ -280,6 +280,9 @@ class FinalizeStepHandlers:
                 "collected_data": c,
                 "pricing": pricing if pricing else None,
                 "grand_total": grand_total or None,
+                "shape_pct": c.get("shape_pct"),
+                "tilt_deg": c.get("tilt_deg"),
+                "support_config": c.get("support_config"),
                 "notes": "Auto-saved from chatbot flow",
             }
             if getattr(state, "user_id", None):

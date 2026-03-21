@@ -531,6 +531,11 @@ export function ChatbotProvider({ children }) {
   // --- Clear Error ---
   const clearError = useCallback(() => setError(null), []);
 
+  // --- Update collected data (for studio pages to sync heart/support fields) ---
+  const updateCollectedData = useCallback((partial) => {
+    setCollectedData(prev => ({ ...prev, ...partial }));
+  }, []);
+
 
   // --- Context Value --- [Bug #4 fix: useMemo]
   const value = useMemo(() => ({
@@ -552,11 +557,12 @@ export function ChatbotProvider({ children }) {
     sendMessage,
     resetChat,
     clearError,
+    updateCollectedData,
   }), [
     messages, sessionId, currentStep, collectedData,
     boxDimensions, hasChatbotDimensions, quickReplies,
     isLoading, error, isComplete, chatbotAnalysis, onboardingStage,
-    sendMessage, resetChat, clearError,
+    sendMessage, resetChat, clearError, updateCollectedData,
   ]);
 
   return (

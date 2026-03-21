@@ -155,6 +155,10 @@ CREATE TABLE public.projects (
   -- Extras
   inner_materials JSONB,      -- [{type, category}, ...]
   special_effects JSONB,      -- [{type, category, has_block}, ...]
+  -- Heart box specific
+  shape_pct NUMERIC(5,1),     -- heart shape % (35-75)
+  tilt_deg NUMERIC(5,1),      -- heart tilt degree (25-65)
+  support_config JSONB,       -- {wall_h, hole_depth, holes[]}
   -- Full chatbot snapshot (optional)
   collected_data JSONB,
   -- Pricing snapshot

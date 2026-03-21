@@ -41,6 +41,10 @@ class CreateProjectRequest(BaseModel):
     pricing: Optional[dict] = None
     grand_total: Optional[float] = None
     notes: Optional[str] = None
+    # Heart box specific
+    shape_pct: Optional[float] = None
+    tilt_deg: Optional[float] = None
+    support_config: Optional[dict] = None
 
 
 class UpdateProjectRequest(BaseModel):
@@ -63,6 +67,10 @@ class UpdateProjectRequest(BaseModel):
     grand_total: Optional[float] = None
     order_id: Optional[str] = None
     notes: Optional[str] = None
+    # Heart box specific
+    shape_pct: Optional[float] = None
+    tilt_deg: Optional[float] = None
+    support_config: Optional[dict] = None
 
 
 # ===================================
@@ -95,6 +103,9 @@ async def create_project(req: CreateProjectRequest, user: AuthUser = Depends(get
         "pricing": req.pricing,
         "grand_total": req.grand_total,
         "notes": req.notes,
+        "shape_pct": req.shape_pct,
+        "tilt_deg": req.tilt_deg,
+        "support_config": req.support_config,
     }
 
     result = supabase.table("projects").insert(row).execute()

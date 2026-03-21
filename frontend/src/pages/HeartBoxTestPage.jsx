@@ -8,9 +8,12 @@
 import { useState, useMemo, useRef, useCallback, useEffect, Component } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import FloatingChat from '../components/Chatbot/FloatingChat';
 import { useChatbot } from '../contexts/ChatbotContext';
+import { useAuth } from '../contexts/AuthContext';
+import { getFreshAccessToken } from '../lib/authToken';
+import { apiUrl } from '../utils/apiBase';
 import HeartFoldBox, { generateHeart, outlineBounds, SUPPORT_COLORS } from '../components/Box3D/HeartFoldBox';
 import { getScheme } from '../components/Box3D/cardboardColors';
 import MaterialPresetPicker, { MATERIAL_PRESETS } from '../components/Box3D/MaterialPresetPicker';
@@ -360,10 +363,16 @@ function HeartBoxInner() {
     if (proj.support_required != null) {
       setShowSupport(!!proj.support_required);
     }
+    if (proj.shape_pct != null) setShapePct(proj.shape_pct);
+    if (proj.tilt_deg != null) setTiltDeg(proj.tilt_deg);
+    if (proj.support_config) {
+      setSupportConfig(prev => ({ ...prev, ...proj.support_config }));
+      if (proj.support_config.holes?.length) setShowSupport(true);
+    }
   }, []);
 
   // --- Chatbot sync: dimensions, material, support ---
-  const { collectedData } = useChatbot();
+  const { collectedData, updateCollectedData } = useChatbot();
   useEffect(() => {
     const dims = collectedData?.dimensions;
     if (!dims) return;
@@ -384,6 +393,19 @@ function HeartBoxInner() {
       setShowSupport(!!collectedData.support_required);
     }
   }, [collectedData?.support_required]);
+
+  // --- Sync heart-specific fields back to chatbot context ---
+  useEffect(() => {
+    updateCollectedData({ shape_pct: shapePct, tilt_deg: tiltDeg });
+  }, [shapePct, tiltDeg, updateCollectedData]);
+
+  useEffect(() => {
+    if (showSupport) {
+      updateCollectedData({ support_config: supportConfig, support_required: true });
+    } else {
+      updateCollectedData({ support_config: null, support_required: false });
+    }
+  }, [showSupport, supportConfig, updateCollectedData]);
 
   const [view, setView] = useState('3d');
   const [activeTab, setActiveTab] = useState(null);
@@ -516,6 +538,67 @@ function HeartBoxInner() {
     }
   }, [dieline, length, height, fname]);
   const [showDlMenu, setShowDlMenu] = useState(false);
+
+  // --- Save as Project ---
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [saving, setSaving] = useState(false);
+
+  const handleSaveProject = useCallback(async () => {
+    if (!user) {
+      alert('กรุณาเข้าสู่ระบบก่อนบันทึกโปรเจค');
+      return;
+    }
+    const projectName = prompt('ตั้งชื่อโปรเจค:', `Heart ${length}x${height}mm`);
+    if (!projectName) return;
+
+    setSaving(true);
+    try {
+      const token = await getFreshAccessToken();
+      if (!token) {
+        alert('เซสชันหมดอายุ — กรุณาเข้าสู่ระบบใหม่');
+        return;
+      }
+      const materialMap = { kraft: 'kraft', white: 'white', heart_red: 'red' };
+      const body = {
+        name: projectName,
+        box_type: 'heart',
+        dimensions: { width: length / 10, length: length / 10, height: height / 10 },
+        material: materialMap[boxStyle] || boxStyle,
+        quantity: 500,
+        shape_pct: shapePct,
+        tilt_deg: tiltDeg,
+        support_config: showSupport ? supportConfig : null,
+        collected_data: {
+          box_type: 'heart',
+          dimensions: { width: length / 10, length: length / 10, height: height / 10 },
+          material: materialMap[boxStyle] || boxStyle,
+          shape_pct: shapePct,
+          tilt_deg: tiltDeg,
+          support_required: showSupport,
+          support_config: showSupport ? supportConfig : null,
+        },
+      };
+      const res = await fetch(apiUrl('/api/projects'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'บันทึกไม่สำเร็จ');
+      }
+      alert('บันทึกโปรเจคสำเร็จ!');
+      navigate('/projects');
+    } catch (err) {
+      alert(err.message || 'บันทึกโปรเจคไม่สำเร็จ');
+    } finally {
+      setSaving(false);
+    }
+  }, [user, length, height, shapePct, tiltDeg, boxStyle, showSupport, supportConfig, navigate]);
 
   return (
     <div style={{ height: '100vh', fontFamily: FONT, background: '#e5e7eb', position: 'relative', overflow: 'hidden' }}>
@@ -1054,8 +1137,31 @@ function HeartBoxInner() {
           )}
         </div>
 
-        {/* Right: Download button with dropdown */}
+        {/* Right: Save + Download */}
         <div style={{ position: 'absolute', right: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Save as Project */}
+          <button
+            onClick={handleSaveProject}
+            disabled={saving}
+            style={{
+              height: 34, padding: '0 14px', borderRadius: 8, border: '1.5px solid ' + PINK, cursor: saving ? 'wait' : 'pointer',
+              background: '#fff', color: PINK,
+              fontSize: 12, fontWeight: 700, fontFamily: FONT,
+              display: 'flex', alignItems: 'center', gap: 6,
+              opacity: saving ? 0.6 : 1,
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { if (!saving) { e.currentTarget.style.background = 'rgba(233,30,99,0.06)'; } }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#fff'; }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
+              <polyline points="17 21 17 13 7 13 7 21" />
+              <polyline points="7 3 7 8 15 8" />
+            </svg>
+            {saving ? 'Saving...' : 'Save'}
+          </button>
+
           <div style={{ position: 'relative' }}>
             <button
               onClick={() => setShowDlMenu(p => !p)}
