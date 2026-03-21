@@ -29,14 +29,14 @@ async def lifespan(app: FastAPI):
     - shutdown: ทำงานเมื่อ server ปิด
     """
     # Startup
-    print("🚀 LumoPack API Server Starting...")
-    print("📍 Groq LLM: llama-3.3-70b-versatile")
-    print("✅ Ready to serve!")
+    print("[START] LumoPack API Server Starting...")
+    print("[LLM]   Groq LLM: llama-3.3-70b-versatile")
+    print("[OK]    Ready to serve!")
     
     yield
     
     # Shutdown
-    print("👋 LumoPack API Server Shutting Down...")
+    print("[STOP] LumoPack API Server Shutting Down...")
 
 
 # ===================================
@@ -88,7 +88,7 @@ async def log_requests(request: Request, call_next):
     duration = time.time() - start_time
     
     # Log
-    print(f"📝 {request.method} {request.url.path} - {response.status_code} ({duration:.3f}s)")
+    print(f"[LOG] {request.method} {request.url.path} - {response.status_code} ({duration:.3f}s)")
     
     return response
 
@@ -100,7 +100,7 @@ async def log_requests(request: Request, call_next):
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """จัดการ errors ทั้งหมด"""
-    print(f"❌ Error: {str(exc)}")
+    print(f"[ERR] Error: {str(exc)}")
     
     return JSONResponse(
         status_code=500,
@@ -176,14 +176,14 @@ async def api_info():
 if __name__ == "__main__":
     import uvicorn
     
-    print("="*60)
-    print("🚀 Starting LumoPack API Server")
-    print("="*60)
-    print("📍 URL: http://localhost:8000")
-    print("📖 Docs: http://localhost:8000/docs")
-    print("🤖 Chat API: http://localhost:8000/api/chat")
-    print("💰 Pricing API: http://localhost:8000/api/pricing")
-    print("="*60)
+    print("=" * 60)
+    print("Starting LumoPack API Server")
+    print("=" * 60)
+    print("URL:     http://localhost:8000")
+    print("Docs:    http://localhost:8000/docs")
+    print("Chat:    http://localhost:8000/api/chat")
+    print("Pricing: http://localhost:8000/api/pricing")
+    print("=" * 60)
     
     uvicorn.run(
         "main:app",
