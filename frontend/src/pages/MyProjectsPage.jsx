@@ -54,28 +54,36 @@ export default function MyProjectsPage() {
     if (!supabase || !user) { setLoading(false); return; }
     let cancelled = false;
 
-    async function load() {
+    async function loadOnce() {
+      const { data, error: err } = await supabase
+        .from('projects').select('*').eq('user_id', user.id)
+        .order('updated_at', { ascending: false });
+      if (err) throw err;
+      return data || [];
+    }
+
+    async function loadWithRetry() {
       try {
-        const { data, error: err } = await supabase
-          .from('projects').select('*').eq('user_id', user.id)
-          .order('updated_at', { ascending: false });
-        if (!cancelled) {
-          if (err) throw err;
-          setProjects(data || []);
-          setError(null);
+        const data = await loadOnce();
+        if (!cancelled) { setProjects(data); setError(null); }
+      } catch (firstErr) {
+        // Auto-retry once (Supabase cold start / transient network issue)
+        try {
+          const data = await loadOnce();
+          if (!cancelled) { setProjects(data); setError(null); }
+        } catch (retryErr) {
+          if (!cancelled) setError(retryErr.message || 'โหลดโปรเจคไม่สำเร็จ — ตรวจสอบการเชื่อมต่ออินเทอร์เน็ต');
         }
-      } catch (err) {
-        if (!cancelled) setError(err.message || 'โหลดโปรเจคไม่สำเร็จ');
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
 
     const timeout = setTimeout(() => {
-      if (!cancelled) { cancelled = true; setLoading(false); setError('Connection timeout'); }
-    }, 8000);
+      if (!cancelled) { cancelled = true; setLoading(false); setError('เชื่อมต่อ Supabase ไม่ได้ (timeout) — ลองรีเฟรชหน้าหรือตรวจสอบอินเทอร์เน็ต'); }
+    }, 20000);
 
-    load().then(() => clearTimeout(timeout));
+    loadWithRetry().then(() => clearTimeout(timeout));
     return () => { cancelled = true; clearTimeout(timeout); };
   }, [user]);
 
@@ -89,7 +97,16 @@ export default function MyProjectsPage() {
       if (err) throw err;
       setProjects(data || []);
     } catch (err) {
-      setError(err.message || 'โหลดโปรเจคไม่สำเร็จ');
+      // Retry once
+      try {
+        const { data, error: err2 } = await supabase
+          .from('projects').select('*').eq('user_id', user.id)
+          .order('updated_at', { ascending: false });
+        if (err2) throw err2;
+        setProjects(data || []);
+      } catch (retryErr) {
+        setError(retryErr.message || 'โหลดโปรเจคไม่สำเร็จ — ตรวจสอบการเชื่อมต่ออินเทอร์เน็ต');
+      }
     } finally {
       setLoading(false);
     }
@@ -347,6 +364,8 @@ function ProjectCard({ project, onLoad, onDelete, deletingId, onSlipUploaded }) 
   const jk = "'Plus Jakarta Sans', sans-serif";
   const sb = "'Sarabun', sans-serif";
 
+  const [pdfLoading, setPdfLoading] = useState(false);
+
   const handleDownloadPdf = async (e) => {
     e.stopPropagation();
     const token = await getFreshAccessToken();
@@ -354,20 +373,49 @@ function ProjectCard({ project, onLoad, onDelete, deletingId, onSlipUploaded }) 
       alert('กรุณาเข้าสู่ระบบก่อนดาวน์โหลดใบเสนอราคา');
       return;
     }
+    setPdfLoading(true);
     try {
-      const res = await fetch(apiUrl(`/api/pricing/project-quote-pdf/${project.id}`), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 45000);
+      const url = apiUrl(`/api/pricing/project-quote-pdf/${project.id}`);
+
+      const doFetch = async () => {
+        const res = await fetch(url, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
+        });
+        return res;
+      };
+
+      let res = await doFetch();
+
+      // Only retry on 5xx or network error (NOT 4xx — those won't resolve on retry)
+      if (!res.ok && res.status >= 500) {
+        res = await doFetch();
+      }
+
+      clearTimeout(timeoutId);
+
       if (!res.ok) {
         const msg = await readApiErrorMessage(res, 'โหลดไม่สำเร็จ');
+        if (res.status === 404) {
+          throw new Error('ไม่พบ endpoint ใบเสนอราคา — ตรวจสอบว่า backend กำลังทำงานอยู่ หรือ deploy เวอร์ชันล่าสุดแล้ว\n\n(API: ' + url + ')');
+        }
         throw new Error(msg);
       }
+
       const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      const blobUrl = URL.createObjectURL(blob);
+      window.open(blobUrl, '_blank');
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
     } catch (err) {
-      alert(err.message || 'โหลดใบเสนอราคาไม่สำเร็จ');
+      if (err.name === 'AbortError') {
+        alert('Backend ตอบช้าเกินไป (timeout 45s) — server อาจกำลัง cold start ลองใหม่อีกครั้ง');
+      } else {
+        alert(err.message || 'โหลดใบเสนอราคาไม่สำเร็จ');
+      }
+    } finally {
+      setPdfLoading(false);
     }
   };
 
@@ -490,14 +538,22 @@ function ProjectCard({ project, onLoad, onDelete, deletingId, onSlipUploaded }) 
             เปิดใน Studio
           </ActionButton>
           {hasPricing && (
-            <ActionButton onClick={handleDownloadPdf}>
+            <ActionButton onClick={handleDownloadPdf} disabled={pdfLoading}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                  <polyline points="7 10 12 15 17 10" />
-                  <line x1="12" y1="15" x2="12" y2="3" />
-                </svg>
-                ใบเสนอราคา
+                {pdfLoading ? (
+                  <span style={{
+                    width: 14, height: 14, borderRadius: '50%',
+                    border: '2px solid #d1d5db', borderTopColor: '#7c3aed',
+                    animation: 'spin 0.8s linear infinite', display: 'inline-block',
+                  }} />
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                )}
+                {pdfLoading ? 'กำลังโหลด...' : 'ใบเสนอราคา'}
               </span>
             </ActionButton>
           )}
