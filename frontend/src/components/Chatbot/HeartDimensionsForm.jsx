@@ -181,10 +181,10 @@ export default function HeartDimensionsForm({ onSubmit }) {
   };
 
   return (
-    <div className="ml-11 mb-4 animate-slide-up">
+    <div className="ml-11 mr-3 mb-4 animate-slide-up">
       <div style={{
         background: '#f8fafc', border: '1px solid #e2e8f0',
-        borderRadius: 16, padding: '20px 20px 16px', maxWidth: 380,
+        borderRadius: 16, padding: '20px 20px 16px',
       }}>
         {/* Header */}
         <div style={{

@@ -130,15 +130,22 @@ function recommendBoxesFromProduct(productText) {
 }
 
 // Material options per box type (simplified: kraft/white, heart adds red)
+const ECO_OPTIONS = [
+  { key: 'recycled', label: 'Recycled (รีไซเคิล)' },
+  { key: 'fsc', label: 'FSC (ปลูกทดแทน)' },
+  { key: 'bagasse', label: 'Bagasse (ชานอ้อย)' },
+];
 const MATERIAL_OPTIONS = {
   default: [
     { key: 'kraft', label: 'Kraft (คราฟท์)' },
     { key: 'white', label: 'White (ขาว)' },
+    ...ECO_OPTIONS,
   ],
   heart: [
     { key: 'kraft', label: 'Kraft (คราฟท์)' },
     { key: 'white', label: 'White (ขาว)' },
     { key: 'red', label: 'Red (แดง)' },
+    ...ECO_OPTIONS,
   ],
 };
 
@@ -155,6 +162,9 @@ function parseMaterialFromText(text) {
   if (['kraft', 'คราฟท์', 'คราฟ'].some(k => t.includes(k))) return 'kraft';
   if (['white', 'ขาว'].some(k => t.includes(k))) return 'white';
   if (['red', 'แดง'].some(k => t.includes(k))) return 'red';
+  if (['recycled', 'รีไซเคิล'].some(k => t.includes(k))) return 'recycled';
+  if (['fsc', 'ปลูกทดแทน'].some(k => t.includes(k))) return 'fsc';
+  if (['bagasse', 'ชานอ้อย'].some(k => t.includes(k))) return 'bagasse';
   return null;
 }
 
@@ -444,7 +454,8 @@ export function ChatbotProvider({ children }) {
           (supportRequired
             ? 'รับทราบค่ะ จะรวมซัพพอร์ตในการออกแบบ'
             : 'รับทราบค่ะ จะคำนวณแบบไม่ใส่ซัพพอร์ต')
-          + '\n\nเลือกวัสดุกล่องได้เลยค่ะ:',
+          + '\n\nเลือกวัสดุกล่องได้เลยค่ะ:'
+          + '\n\n💡 แนะนำวัสดุ Eco-friendly เช่น Recycled, FSC หรือ Bagasse ช่วยลดผลกระทบต่อสิ่งแวดล้อมและเพิ่มภาพลักษณ์แบรนด์ค่ะ',
         );
         setQuickReplies(getMaterialReplyLabels(currentBox));
         return;

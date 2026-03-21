@@ -43,7 +43,7 @@ class GroqService:
         except Exception as e:
             raise ValueError(f"Failed to initialize Groq client: {e}")
         
-        self.model = os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
+        self.model = os.getenv("MODEL_NAME", "mixtral-8x7b-32768")
         
         # Default parameters
         self.temperature = 0.7

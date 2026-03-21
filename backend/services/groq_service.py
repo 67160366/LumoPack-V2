@@ -22,7 +22,7 @@ class GroqService:
             raise ValueError("GROQ_API_KEY not found in environment variables")
         
         self.client = Groq(api_key=api_key)
-        self.model = os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
+        self.model = os.getenv("MODEL_NAME", "mixtral-8x7b-32768")
         
         # Default parameters
         self.temperature = 0.7  # ความสร้างสรรค์ (0-2)

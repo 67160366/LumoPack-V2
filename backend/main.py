@@ -158,7 +158,7 @@ async def api_info():
     """API information"""
     return {
         "api_version": "1.0.0",
-        "llm_model": "llama-3.3-70b-versatile",
+        "llm_model": "mixtral-8x7b-32768",
         "supported_languages": ["th", "en"],
         "features": [
             "AI Chatbot (14 steps)",
