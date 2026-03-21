@@ -135,7 +135,6 @@ class FinalizeStepHandlers:
         )
 
         if is_confirmation(user_message):
-            state.is_complete = True
             return _make_result(response=response, advance=True, auto_execute=True)
 
         if is_rejection(user_message):
@@ -190,6 +189,9 @@ class FinalizeStepHandlers:
         if not project_name:
             project_name = f"Project {state.session_id[:8]}"
         state.collected_data["project_name"] = project_name
+
+        # Mark conversation as complete
+        state.is_complete = True
 
         # Auto-save order & project to Supabase
         print(f"[handle_end] saving order, user_id={getattr(state, 'user_id', None)}")
@@ -260,6 +262,7 @@ class FinalizeStepHandlers:
             project_name = c.get("project_name") or f"{(box_type or 'project').upper()} {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}"
 
             row = {
+                "session_id": state.session_id,
                 "name": project_name,
                 "status": "ordered" if state.is_complete else "draft",
                 "box_type": box_type,

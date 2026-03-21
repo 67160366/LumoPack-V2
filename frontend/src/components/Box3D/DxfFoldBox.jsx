@@ -305,17 +305,17 @@ export default function DxfFoldBox({
           <group position={[0, t, D / 2]} rotation={flat}>
             <RectPanel w={W} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
           </group>
-          {/* Depth extension L — pivots at X=-W/2, folds 90° inward */}
+          {/* Depth extension L — pivots at X=-W/2, folds 90° inward (vertical tab) */}
           <group position={[-W / 2, 0, D / 2]}>
-            <group rotation={[0, aSide, 0]}>
+            <group rotation={[0, 0, -aSide]}>
               <group position={[-D / 2, t, 0]} rotation={flat}>
                 <RectPanel w={D} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
               </group>
             </group>
           </group>
-          {/* Depth extension R — pivots at X=+W/2, folds 90° inward */}
+          {/* Depth extension R — pivots at X=+W/2, folds 90° inward (vertical tab) */}
           <group position={[W / 2, 0, D / 2]}>
-            <group rotation={[0, -aSide, 0]}>
+            <group rotation={[0, 0, aSide]}>
               <group position={[D / 2, t, 0]} rotation={flat}>
                 <RectPanel w={D} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
               </group>
@@ -365,17 +365,17 @@ export default function DxfFoldBox({
           <group position={[0, t, -D / 2]} rotation={flat}>
             <RectPanel w={W} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
           </group>
-          {/* Depth extension L — pivots at X=-W/2, folds 90° inward */}
+          {/* Depth extension L — pivots at X=-W/2, folds 90° inward (vertical tab) */}
           <group position={[-W / 2, 0, -D / 2]}>
-            <group rotation={[0, aSide, 0]}>
+            <group rotation={[0, 0, -aSide]}>
               <group position={[-D / 2, t, 0]} rotation={flat}>
                 <RectPanel w={D} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
               </group>
             </group>
           </group>
-          {/* Depth extension R — pivots at X=+W/2, folds 90° inward */}
+          {/* Depth extension R — pivots at X=+W/2, folds 90° inward (vertical tab) */}
           <group position={[W / 2, 0, -D / 2]}>
-            <group rotation={[0, -aSide, 0]}>
+            <group rotation={[0, 0, aSide]}>
               <group position={[D / 2, t, 0]} rotation={flat}>
                 <RectPanel w={D} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
               </group>

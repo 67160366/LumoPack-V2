@@ -345,3 +345,53 @@ async def download_quote_pdf(session_id: str):
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.get("/project-quote-pdf/{project_id}")
+async def download_project_quote_pdf(project_id: str):
+    """
+    ดาวน์โหลดใบเสนอราคา PDF จากข้อมูลโปรเจกต์ใน Supabase
+    """
+    from services.pdf_quote import generate_quote_pdf
+    from models.requirement import CompleteRequirement
+    from services.supabase_client import get_supabase
+
+    supabase = get_supabase()
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+
+    result = supabase.table("projects").select("*").eq("id", project_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="ไม่พบโปรเจกต์นี้")
+
+    project = result.data[0]
+    collected = project.get("collected_data") or {}
+    session_id = project.get("session_id") or project.get("id", "unknown")
+
+    # Use stored pricing if available, otherwise recalculate
+    pricing_data = project.get("pricing")
+    if not pricing_data:
+        if not collected.get("dimensions") or not collected.get("box_type"):
+            raise HTTPException(status_code=400, detail="ข้อมูลยังไม่ครบ ไม่สามารถออกใบเสนอราคาได้")
+        try:
+            requirement = CompleteRequirement.from_collected_data(
+                session_id=session_id,
+                collected_data=collected,
+            )
+            pricing_request = requirement.to_pricing_request()
+            pricing_data = get_price_estimate(pricing_request)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"คำนวณราคาไม่สำเร็จ: {str(e)}")
+
+    try:
+        pdf_bytes = generate_quote_pdf(session_id, collected, pricing_data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"สร้าง PDF ไม่สำเร็จ: {str(e)}")
+
+    safe_name = (project.get("name") or "quote").replace(" ", "_")[:30]
+    filename = f"LumoPack_{safe_name}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

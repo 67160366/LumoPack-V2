@@ -212,7 +212,7 @@ async def send_message(request: ChatMessageRequest):
             current_step=int(state.current_step),
             collected_data=state.collected_data,
             is_waiting_confirmation=getattr(state, 'is_waiting_for_confirmation', False),
-            is_complete=int(state.current_step) >= 14,
+            is_complete=getattr(state, 'is_complete', False),
             quick_replies=replies,
             extra=extra,
         )
