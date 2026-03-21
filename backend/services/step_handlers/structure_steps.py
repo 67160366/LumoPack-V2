@@ -17,10 +17,11 @@ from services.data_extractor import (
     extract_product_type, extract_box_type, extract_material,
     extract_inner, extract_dimensions, extract_quantity,
     extract_weight, extract_flute,
+    extract_support_required,
     is_confirmation, is_rejection, is_skip_response,
     is_add_request, detect_edit_target,
 )
-from api.analyze import analyze_box_strength, suggest_alternatives, format_analysis_for_chat, FLUTE_SPECS
+from api.analyze import analyze_box_strength_v2, suggest_alternatives, format_analysis_for_chat_v2
 from utils.constants import BOX_TYPES
 from utils.prompts import SYSTEM_PROMPT, get_prompt_for_step
 
@@ -70,10 +71,8 @@ class StructureStepHandlers:
                     "1. RSC (มาตรฐาน) — ประหยัด แข็งแรง เหมาะขนส่ง\n"
                     "2. Die-cut (ฝาเสียบ) — พรีเมียม โชว์แบรนด์\n"
                     "3. Heart (หัวใจ) — ของขวัญ/เครื่องสำอาง\n"
-                    "4. Star (ดาว) — โดดเด่น ดึงดูดสายตา\n"
-                    "5. Bear (หมี) — น่ารัก สินค้าเด็ก/ของขวัญ\n"
-                    "6. Circle (ทรงกลม) — คลาสสิก หรูหรา\n"
-                    "7. Bow (ซัพพอร์ท) — ฝาเสียบพร้อมซัพพอร์ทภายใน"
+                    "4. Tube Lock — กล่องทรงยาว\n"
+                    "5. Self-Lock — ล็อกอัตโนมัติ รองรับน้ำหนัก"
                 )
 
             result = _make_result(
@@ -201,6 +200,7 @@ class StructureStepHandlers:
             return {
                 "corrugated_2layer": "กระดาษลูกฟูก 2 ชั้น (แข็งแรง ราคาประหยัด)",
                 "kraft_200gsm": "กระดาษคราฟท์ 200 GSM (ลุค Eco-friendly)",
+                "whiteboard_350gsm": "กล่องขาว/White cardboard 350 GSM",
             }
         return {
             "corrugated_2layer": "กระดาษลูกฟูก 2 ชั้น",
@@ -299,14 +299,19 @@ class StructureStepHandlers:
             }
 
             # --- Run Strength Analysis ---
-            analysis = analyze_box_strength(
+            analysis = analyze_box_strength_v2(
                 length_cm=final_dims["length"],
                 width_cm=final_dims["width"],
                 height_cm=final_dims["height"],
                 weight_kg=weight_kg,
                 flute_type=flute_type,
+                humidity="normal",
+                storage="short",
+                stacking_layers=3,
+                print_coverage=0,
+                support_required=bool(state.collected_data.get("support_required", False)),
             )
-            analysis_text = format_analysis_for_chat(analysis, weight_kg, flute_type)
+            analysis_text = format_analysis_for_chat_v2(analysis, weight_kg, flute_type)
 
             # DANGER → เพิ่ม recommendation จาก suggest_alternatives
             if analysis["status"] == "DANGER" and weight_kg > 0:
@@ -454,16 +459,26 @@ class StructureStepHandlers:
             state.is_waiting_for_confirmation = False
             return _make_result(
                 response=(
-                    "เยี่ยมเลยค่ะ! ✅ ต่อไปเราจะมาดูเรื่องการออกแบบกล่องกันนะคะ 🎨\n\n"
-                    "คุณอยากให้กล่องออกมาเป็นสไตล์ไหนคะ?\n"
-                    "เช่น: สดใส สนุกสนาน / เรียบหรู สุขุม / มินิมอล / พรีเมียม\n"
-                    "(หรือพิมพ์ 'ข้าม' ถ้ายังไม่กำหนด)"
+                    "เยี่ยมเลยค่ะ! ✅ ต่อไปเป็นส่วนออกแบบ\n\n"
+                    "ถ้ามีโลโก้ สามารถอัปโหลดไฟล์โลโก้ได้เลย แล้วบอกตำแหน่งที่ต้องการวางบนกล่องค่ะ"
                 ),
-                advance=True
+                advance=True,
+                next_step_override=ChatbotStep.COLLECT_LOGO
             )
 
         # แก้ไข / เพิ่ม
-        if is_rejection(user_message):
+        if is_rejection(user_message) or is_add_request(user_message):
+            support_required = extract_support_required(user_message)
+            if support_required is not None:
+                state.is_waiting_for_confirmation = True
+                return _make_result(
+                    response=(
+                        f"รับทราบค่ะ {'เพิ่ม' if support_required else 'ปิด'}ซัพพอร์ตภายในแล้ว ✅\n"
+                        "ถ้าต้องการแก้อย่างอื่นต่อ บอกได้เลย หรือกด 'ถูกต้อง ✓' เพื่อไปต่อ"
+                    ),
+                    update_data={"support_required": support_required},
+                )
+
             target = detect_edit_target(user_message)
             if target:
                 action = "append" if is_add_request(user_message) else "replace"

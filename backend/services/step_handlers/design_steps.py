@@ -44,6 +44,7 @@ class DesignStepHandlers:
         # Transition ไปถามโลโก้
         logo_transition = (
             "\n\nคุณมีโลโก้ที่อยากใส่บนกล่องไหมคะ? 🎨\n"
+            "ถ้ามี อัปโหลดไฟล์รูปโลโก้ได้เลย แล้วบอกตำแหน่งที่ต้องการวาง\n"
             "(หรือพิมพ์ 'ข้าม' ถ้ายังไม่มี)"
         )
 
@@ -312,7 +313,7 @@ class DesignStepHandlers:
             )
 
         # แก้ไข / เพิ่ม
-        if is_rejection(user_message):
+        if is_rejection(user_message) or is_add_request(user_message):
             target = detect_edit_target(user_message)
             if target:
                 action = "append" if is_add_request(user_message) else "replace"
@@ -324,11 +325,11 @@ class DesignStepHandlers:
                 label = "เพิ่ม" if action == "append" else "แก้ไข"
                 return _make_result(response=f"ได้เลยค่ะ! {label}ข้อมูลได้เลยนะคะ 📝")
 
-            state.is_waiting_for_confirmation = False
+            state.is_waiting_for_confirmation = True
             return _make_result(
                 response=(
-                    "ไม่เป็นไรค่ะ บอกได้เลยว่าต้องการแก้ไขส่วนไหนคะ?\n\n"
-                    "เช่น: แก้ไข Mood&Tone / แก้ไขโลโก้ / เพิ่มลูกเล่นพิเศษ"
+                    "ระบุส่วนที่ต้องการแก้ไขได้เลยค่ะ (พิมพ์สั้นๆ ก็ได้)\n\n"
+                    "เช่น: แก้โลโก้ / เพิ่มลูกเล่นพิเศษ / แก้วัสดุ / แก้ขนาด"
                 )
             )
 

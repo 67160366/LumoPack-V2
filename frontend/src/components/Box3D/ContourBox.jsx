@@ -25,6 +25,7 @@ import {
 } from '../../engine/hingeChain';
 import { getContourPhases } from '../../engine/animationPhases';
 import { buildSupportHoles, buildCircleSupportHoles } from '../../engine/supportHoles';
+import { getScheme } from './cardboardColors';
 
 const HP = Math.PI / 2;
 
@@ -182,25 +183,27 @@ export default function ContourBox({
   foldProgress = 0,
   showSupport = false,
   supportConfig,
+  boxStyle = 'kraft',
 }) {
   const rootRef = useRef();
   const isCircle = shapeType === 'circle';
 
   // Get shape config
   const config = shapes[shapeType]?.SHAPE_CONFIG || shapes.heart.SHAPE_CONFIG;
+  const scheme = useMemo(() => getScheme(boxStyle), [boxStyle]);
 
   // Determine dimensions
   const scale = scaleProp || config.defaultScale || 1;
   const boxHeight = heightProp || 5;
   const radius = radiusProp || config.defaultRadius || 2.5;
 
-  // Materials (memoized)
+  // Materials (memoized) — cardboard preset tints the contour shell
   const matBox = useMemo(() => new THREE.MeshStandardMaterial({
-    color: config.color,
+    color: scheme.base,
     roughness: 0.8,
     metalness: shapeType === 'star' ? 0.2 : 0.05,
     side: THREE.DoubleSide,
-  }), [config.color, shapeType]);
+  }), [scheme.base, shapeType]);
 
   const matSupport = useMemo(() => new THREE.MeshStandardMaterial({
     color: config.supportColor,

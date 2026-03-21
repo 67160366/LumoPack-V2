@@ -18,7 +18,7 @@ class BoxStructure(BaseModel):
     product_type: Literal["general", "non_food", "food_grade", "cosmetic"]
     
     # ขั้นที่ 3: ประเภทกล่อง
-    box_type: Literal["rsc", "die_cut", "heart", "star", "bear", "circle", "bow"]
+    box_type: Literal["rsc", "die_cut", "heart", "tube_lock", "self_lock"]
     
     # ขั้นที่ 4: Inner (Optional) — List เพื่อรองรับ multi-select (Approach B)
     # แต่ละ item: {"type": "shredded_paper", "category": "cushion"} เป็นต้น
@@ -257,7 +257,7 @@ class CompleteRequirement(BaseModel):
         if material_group == "rsc":
             return "corrugated_2layer"
         else:
-            # die_cut / heart / star / bear / circle / bow
+            # die_cut / heart / tube_lock / self_lock
             if self.structure.product_type in ["food_grade", "cosmetic"]:
                 return "art_300gsm"
             else:

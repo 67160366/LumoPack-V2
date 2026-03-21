@@ -13,10 +13,9 @@
 
 import { useMemo } from 'react';
 import * as THREE from 'three';
+import { getScheme } from './cardboardColors';
 
 const HP = Math.PI / 2;
-const CARD_COLOR = '#dfb48c';
-const EDGE_COLOR = '#b48255';
 
 function getStage(p, start, end) {
   if (p <= start) return 0;
@@ -26,22 +25,25 @@ function getStage(p, start, end) {
 }
 
 /* Wall panel — stays in XY plane (vertical) */
-function WallPanel({ shape }) {
+function WallPanel({ shape, faceColor, edgeColor }) {
   const geo = useMemo(() => new THREE.ShapeGeometry(shape), [shape]);
   const edges = useMemo(() => new THREE.EdgesGeometry(geo), [geo]);
   return (
     <mesh castShadow receiveShadow>
       <primitive object={geo} attach="geometry" />
-      <meshStandardMaterial color={CARD_COLOR} side={THREE.DoubleSide} roughness={0.9} />
+      <meshStandardMaterial color={faceColor} side={THREE.DoubleSide} roughness={0.9} />
       <lineSegments>
         <primitive object={edges} attach="geometry" />
-        <lineBasicMaterial color={EDGE_COLOR} transparent opacity={0.5} />
+        <lineBasicMaterial color={edgeColor} transparent opacity={0.5} />
       </lineSegments>
     </mesh>
   );
 }
 
-export default function RSCBox({ width, height, depth, foldProgress = 0 }) {
+export default function RSCBox({ width, height, depth, foldProgress = 0, boxStyle = 'kraft' }) {
+  const scheme = useMemo(() => getScheme(boxStyle), [boxStyle]);
+  const faceColor = scheme.base;
+  const edgeColor = scheme.wall;
   const W = (width || 50) / 10;
   const H = (height || 30) / 10;
   const D = (depth || 8) / 10;
@@ -126,51 +128,51 @@ export default function RSCBox({ width, height, depth, foldProgress = 0 }) {
     <group>
       {/* Front wall (anchor, stationary at z=D/2) */}
       <group position={[0, 0, D / 2]}>
-        <WallPanel shape={shapes.front} />
+        <WallPanel shape={shapes.front} faceColor={faceColor} edgeColor={edgeColor} />
         {/* Front bottom flap */}
         <group position={[0, 0, 0.02]} rotation={[botMainFold, 0, 0]}>
-          <WallPanel shape={shapes.frontBotFlap} />
+          <WallPanel shape={shapes.frontBotFlap} faceColor={faceColor} edgeColor={edgeColor} />
         </group>
         {/* Front top flap */}
         <group position={[0, H, 0.02]} rotation={[topMainFold, 0, 0]}>
-          <WallPanel shape={shapes.frontTopFlap} />
+          <WallPanel shape={shapes.frontTopFlap} faceColor={faceColor} edgeColor={edgeColor} />
         </group>
       </group>
 
       {/* Right side (wraps from right edge of front, rotates +Y) */}
       <group position={[W / 2, 0, D / 2]} rotation={[0, rightFold, 0]}>
-        <WallPanel shape={shapes.rightSide} />
+        <WallPanel shape={shapes.rightSide} faceColor={faceColor} edgeColor={edgeColor} />
         {/* Right bottom flap */}
         <group position={[0, 0, 0.02]} rotation={[botSideFold, 0, 0]}>
-          <WallPanel shape={shapes.rightBotFlap} />
+          <WallPanel shape={shapes.rightBotFlap} faceColor={faceColor} edgeColor={edgeColor} />
         </group>
         {/* Right top flap */}
         <group position={[0, H, 0.02]} rotation={[topSideFold, 0, 0]}>
-          <WallPanel shape={shapes.rightTopFlap} />
+          <WallPanel shape={shapes.rightTopFlap} faceColor={faceColor} edgeColor={edgeColor} />
         </group>
 
         {/* Back (wraps from far edge of right side) */}
         <group position={[D, 0, 0]} rotation={[0, backFold, 0]}>
-          <WallPanel shape={shapes.back} />
+          <WallPanel shape={shapes.back} faceColor={faceColor} edgeColor={edgeColor} />
           {/* Back bottom flap */}
           <group position={[0, 0, 0.02]} rotation={[botMainFold, 0, 0]}>
-            <WallPanel shape={shapes.backBotFlap} />
+            <WallPanel shape={shapes.backBotFlap} faceColor={faceColor} edgeColor={edgeColor} />
           </group>
           {/* Back top flap */}
           <group position={[0, H, 0.02]} rotation={[topMainFold, 0, 0]}>
-            <WallPanel shape={shapes.backTopFlap} />
+            <WallPanel shape={shapes.backTopFlap} faceColor={faceColor} edgeColor={edgeColor} />
           </group>
 
           {/* Left side (wraps from far edge of back, closes tube) */}
           <group position={[W, 0, 0]} rotation={[0, leftFold, 0]}>
-            <WallPanel shape={shapes.leftSide} />
+            <WallPanel shape={shapes.leftSide} faceColor={faceColor} edgeColor={edgeColor} />
             {/* Left bottom flap */}
             <group position={[0, 0, 0.02]} rotation={[botSideFold, 0, 0]}>
-              <WallPanel shape={shapes.leftBotFlap} />
+              <WallPanel shape={shapes.leftBotFlap} faceColor={faceColor} edgeColor={edgeColor} />
             </group>
             {/* Left top flap */}
             <group position={[0, H, 0.02]} rotation={[topSideFold, 0, 0]}>
-              <WallPanel shape={shapes.leftTopFlap} />
+              <WallPanel shape={shapes.leftTopFlap} faceColor={faceColor} edgeColor={edgeColor} />
             </group>
           </group>
         </group>

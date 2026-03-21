@@ -25,6 +25,7 @@ import * as THREE from 'three';
 import Panel from './Panel';
 import { buildSupportHoles } from '../../engine/supportHoles';
 import { getCardboardNoiseTexture } from './useCardboardNoise';
+import { getScheme } from './cardboardColors';
 
 const HP = Math.PI / 2;
 const SC = 0.01; // mm → three.js units
@@ -83,16 +84,15 @@ function createTongueShape(d, h) {
 }
 
 // ─── Shape panel renderer ───
-const _shapeNoise = getCardboardNoiseTexture('#b8976a');
-
 function ShapePanel({ shape, color = '#b8976a', rotation }) {
+  const noiseTex = useMemo(() => getCardboardNoiseTexture(color), [color]);
   const geo = useMemo(() => new THREE.ShapeGeometry(shape, 24), [shape]);
   const edges = useMemo(() => new THREE.EdgesGeometry(geo), [geo]);
   return (
     <group rotation={rotation}>
       <mesh>
         <primitive object={geo} attach="geometry" />
-        <meshStandardMaterial color="#ffffff" map={_shapeNoise} side={THREE.DoubleSide} roughness={0.85} metalness={0.02} />
+        <meshStandardMaterial color={color} map={noiseTex} side={THREE.DoubleSide} roughness={0.85} metalness={0.02} />
       </mesh>
       <lineSegments>
         <primitive object={edges} attach="geometry" />
@@ -126,12 +126,17 @@ export default function SelfLockFoldBox({
   width = 400, height = 250, depth = 80,
   foldProgress = 0, panelImages = {},
   showSupport = false, supportConfig,
+  boxStyle = 'kraft',
 }) {
   const W = width * SC;
   const H = height * SC;
   const D = depth * SC;
   const p = foldProgress;
   const t = 0.005; // z-fighting layering offset
+  const scheme = useMemo(() => getScheme(boxStyle), [boxStyle]);
+  const cMain = scheme.base;
+  const cFlap = scheme.wall;
+  const cAccent = scheme.accent;
 
   const lockStripW = 6 * SC;
   const lockPanelW = (depth + 1.5) * SC;
@@ -210,50 +215,50 @@ export default function SelfLockFoldBox({
 
       {/* ══ FRONT (root panel) ══ */}
       <group>
-        <Panel width={W} height={H} {...img('front')} />
+        <Panel width={W} height={H} color={cMain} {...img('front')} />
 
         {/* ── BOTTOM FLAP ── face-width, folds LAST (on top of depth tabs) */}
         <group position={[0, 0, H / 2]} rotation={[-f.bottomFlap, 0, 0]}>
           <group position={[0, -t, depthTabH / 2]}>
-            <Panel width={W} height={depthTabH} {...img('bottomFlap')} />
+            <Panel width={W} height={depthTabH} color={cFlap} {...img('bottomFlap')} />
           </group>
         </group>
 
         {/* ── TOP FLAP ── face-width, folds LAST (on top of depth tabs) */}
         <group position={[0, 0, -H / 2]} rotation={[f.topFlap, 0, 0]}>
           <group position={[0, -t, -depthTabH / 2]}>
-            <Panel width={W} height={depthTabH} {...img('topFlap')} />
+            <Panel width={W} height={depthTabH} color={cFlap} {...img('topFlap')} />
           </group>
         </group>
 
         {/* ═══ LEFT DEPTH ═══ hinge at front left edge (X = -W/2) */}
         <group position={[-W / 2, 0, 0]} rotation={[0, 0, -f.leftDepth]}>
           <group position={[-D / 2, 0, 0]}>
-            <Panel width={D} height={H} {...img('leftDepth')} />
+            <Panel width={D} height={H} color={cMain} {...img('leftDepth')} />
 
             {/* Left depth BOTTOM tab — folds FIRST (underneath face flap) */}
             <group position={[0, 0, H / 2]} rotation={[-f.depthBotTab, 0, 0]}>
               <group position={[0, 0, depthTabH / 2]}>
-                <Panel width={D} height={depthTabH} {...img('leftDepth_bot')} />
+                <Panel width={D} height={depthTabH} color={cFlap} {...img('leftDepth_bot')} />
               </group>
             </group>
 
             {/* Left depth TOP tab — folds FIRST (underneath face flap) */}
             <group position={[0, 0, -H / 2]} rotation={[f.depthTopTab, 0, 0]}>
               <group position={[0, 0, -depthTabH / 2]}>
-                <Panel width={D} height={depthTabH} {...img('leftDepth_top')} />
+                <Panel width={D} height={depthTabH} color={cFlap} {...img('leftDepth_top')} />
               </group>
             </group>
 
             {/* LOCK STRIP — hinge at left depth far edge */}
             <group position={[-D / 2, 0, 0]} rotation={[0, 0, -f.lockStrip]}>
               <group position={[-lockStripW / 2, -t, 0]}>
-                <Panel width={lockStripW} height={H} color="#b8976a" />
+                <Panel width={lockStripW} height={H} color={cAccent} />
 
                 {/* LOCK PANEL — hinge at lock strip far edge */}
                 <group position={[-lockStripW / 2, 0, 0]} rotation={[0, 0, -f.lockPanel]}>
                   <group position={[-lockPanelW / 2, -t * 2, 0]}>
-                    <ShapePanel shape={shapes.lockPanel} color="#b8976a" rotation={[-HP, 0, 0]} />
+                    <ShapePanel shape={shapes.lockPanel} color={cAccent} rotation={[-HP, 0, 0]} />
                   </group>
                 </group>
               </group>
@@ -264,45 +269,45 @@ export default function SelfLockFoldBox({
         {/* ═══ RIGHT DEPTH ═══ hinge at front right edge (X = +W/2) */}
         <group position={[W / 2, 0, 0]} rotation={[0, 0, f.rightDepth]}>
           <group position={[D / 2, 0, 0]}>
-            <Panel width={D} height={H} {...img('rightDepth')} />
+            <Panel width={D} height={H} color={cMain} {...img('rightDepth')} />
 
             {/* Right depth BOTTOM tab — folds FIRST */}
             <group position={[0, 0, H / 2]} rotation={[-f.depthBotTab, 0, 0]}>
               <group position={[0, 0, depthTabH / 2]}>
-                <Panel width={D} height={depthTabH} {...img('rightDepth_bot')} />
+                <Panel width={D} height={depthTabH} color={cFlap} {...img('rightDepth_bot')} />
               </group>
             </group>
 
             {/* Right depth TOP tab — folds FIRST */}
             <group position={[0, 0, -H / 2]} rotation={[f.depthTopTab, 0, 0]}>
               <group position={[0, 0, -depthTabH / 2]}>
-                <Panel width={D} height={depthTabH} {...img('rightDepth_top')} />
+                <Panel width={D} height={depthTabH} color={cFlap} {...img('rightDepth_top')} />
               </group>
             </group>
 
             {/* ── BACK PANEL ── hinge at right depth far edge */}
             <group position={[D / 2, 0, 0]} rotation={[0, 0, f.backPanel]}>
               <group position={[backPanelW / 2, -t, 0]}>
-                <Panel width={backPanelW} height={H} {...img('back')} />
+                <Panel width={backPanelW} height={H} color={cMain} {...img('back')} />
 
                 {/* Back BOTTOM flap — hinge at Z=+H/2, folds inward */}
                 <group position={[0, 0, H / 2]} rotation={[-f.backFlaps, 0, 0]}>
                   <group position={[0, -t * 2, backFlapD / 2]}>
-                    <Panel width={backPanelW} height={backFlapD} />
+                    <Panel width={backPanelW} height={backFlapD} color={cFlap} />
                   </group>
                 </group>
 
                 {/* Back TOP flap — hinge at Z=-H/2, folds inward */}
                 <group position={[0, 0, -H / 2]} rotation={[f.backFlaps, 0, 0]}>
                   <group position={[0, -t * 2, -backFlapD / 2]}>
-                    <Panel width={backPanelW} height={backFlapD} />
+                    <Panel width={backPanelW} height={backFlapD} color={cFlap} />
                   </group>
                 </group>
 
                 {/* TONGUE — hinge at far edge X=+backPanelW/2, folds to close lid */}
                 <group position={[backPanelW / 2, 0, 0]} rotation={[0, 0, f.tongue]}>
                   <group position={[0, -t * 2, 0]}>
-                    <ShapePanel shape={shapes.tongue} rotation={[-HP, 0, 0]} />
+                    <ShapePanel shape={shapes.tongue} color={cAccent} rotation={[-HP, 0, 0]} />
                   </group>
                 </group>
               </group>

@@ -187,6 +187,7 @@ class FinalizeStepHandlers:
 
         # Auto-save order to Supabase (if configured)
         print(f"[handle_end] saving order, user_id={getattr(state, 'user_id', None)}")
+        self._save_project_to_db(state)
         self._save_order_to_db(state)
 
         return _make_result(response=response)
@@ -223,6 +224,53 @@ class FinalizeStepHandlers:
         except Exception as e:
             import traceback
             print(f"[save_order] FAILED: {e}")
+            traceback.print_exc()
+
+    def _save_project_to_db(self, state: ConversationState):
+        """Save/Upsert project snapshot for customer project list."""
+        try:
+            from services.supabase_client import get_supabase
+            from datetime import datetime
+            supabase = get_supabase()
+            if not supabase:
+                return
+
+            c = state.collected_data or {}
+            dims = c.get("dimensions") or {}
+            pricing = state.temp_data.get("pricing") or c.get("pricing", {}) or {}
+            grand_total = pricing.get("grand_total", 0)
+            box_type = c.get("box_type")
+            qty = c.get("quantity")
+            project_name = f"{(box_type or 'project').upper()} {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}"
+
+            row = {
+                "name": project_name,
+                "status": "ordered" if state.is_complete else "draft",
+                "box_type": box_type,
+                "dimensions": dims or None,
+                "weight_kg": c.get("weight_kg"),
+                "flute_type": c.get("flute_type"),
+                "material": c.get("material"),
+                "quantity": qty,
+                "product_type": c.get("product_type"),
+                "mood_tone": c.get("mood_tone"),
+                "has_logo": bool(c.get("has_logo", False)),
+                "logo_positions": c.get("logo_positions"),
+                "inner_materials": c.get("inner"),
+                "special_effects": c.get("special_effects"),
+                "collected_data": c,
+                "pricing": pricing if pricing else None,
+                "grand_total": grand_total or None,
+                "notes": "Auto-saved from chatbot flow",
+            }
+            if getattr(state, "user_id", None):
+                row["user_id"] = state.user_id
+
+            res = supabase.table("projects").insert(row).execute()
+            print(f"[save_project] OK: {res.data[0]['id'] if res.data else 'NO DATA'}")
+        except Exception as e:
+            import traceback
+            print(f"[save_project] FAILED: {e}")
             traceback.print_exc()
 
     # ===================================

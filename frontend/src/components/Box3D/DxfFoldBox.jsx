@@ -19,14 +19,10 @@ import { useMemo } from 'react';
 import * as THREE from 'three';
 import { buildSupportHoles } from '../../engine/supportHoles';
 import { getCardboardNoiseTexture } from './useCardboardNoise';
+import { getScheme } from './cardboardColors';
 
 const HP = Math.PI / 2;
-const CARD_COLOR = '#c4a574';
-const EDGE_COLOR = '#8b6914';
 const CUT_COLOR = '#cc2222';
-
-// Shared procedural cardboard noise texture
-const _cardNoiseTex = getCardboardNoiseTexture(CARD_COLOR);
 
 // ─── SVG-derived proportional constants ──────────────────────
 const BACK_INSET = 9 / 500;
@@ -160,7 +156,7 @@ function createTongueShape(w, d) {
 
 // ─── Render helpers ──────────────────────────────────────────
 
-function ShapePanel({ shape, flipX = false }) {
+function ShapePanel({ shape, flipX = false, noiseTex, surfaceColor }) {
   const geo = useMemo(() => new THREE.ShapeGeometry(shape, 24), [shape]);
   const edges = useMemo(() => new THREE.EdgesGeometry(geo), [geo]);
   const sx = flipX ? -1 : 1;
@@ -168,7 +164,7 @@ function ShapePanel({ shape, flipX = false }) {
     <group scale={[sx, 1, 1]}>
       <mesh>
         <primitive object={geo} attach="geometry" />
-        <meshStandardMaterial color="#ffffff" map={_cardNoiseTex} side={THREE.DoubleSide} roughness={0.85} />
+        <meshStandardMaterial color={surfaceColor} map={noiseTex} side={THREE.DoubleSide} roughness={0.85} />
       </mesh>
       <lineSegments>
         <primitive object={edges} attach="geometry" />
@@ -178,7 +174,7 @@ function ShapePanel({ shape, flipX = false }) {
   );
 }
 
-function RectPanel({ w, h }) {
+function RectPanel({ w, h, noiseTex, surfaceColor }) {
   const edges = useMemo(() => {
     const geo = new THREE.PlaneGeometry(w, h);
     return new THREE.EdgesGeometry(geo);
@@ -187,7 +183,7 @@ function RectPanel({ w, h }) {
     <>
       <mesh>
         <planeGeometry args={[w, h]} />
-        <meshStandardMaterial color="#ffffff" map={_cardNoiseTex} side={THREE.DoubleSide} roughness={0.85} />
+        <meshStandardMaterial color={surfaceColor} map={noiseTex} side={THREE.DoubleSide} roughness={0.85} />
       </mesh>
       <lineSegments>
         <primitive object={edges} attach="geometry" />
@@ -221,7 +217,12 @@ export default function DxfFoldBox({
   width = 500, height = 300, depth = 80,
   foldProgress = 0, panelImages = {},
   showSupport = false, supportConfig,
+  boxStyle = 'kraft',
 }) {
+  const scheme = useMemo(() => getScheme(boxStyle), [boxStyle]);
+  const surfaceColor = scheme.base;
+  const cardNoiseTex = useMemo(() => getCardboardNoiseTexture(surfaceColor), [surfaceColor]);
+
   // mm → scene units (÷100)
   const W = width / 100;
   const H = height / 100;
@@ -280,17 +281,17 @@ export default function DxfFoldBox({
 
       {/* 1. FRONT PANEL */}
       <group rotation={flat}>
-        <RectPanel w={W} h={H} />
+        <RectPanel w={W} h={H} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
       </group>
 
       {/* LEFT SIDE: depth panel + slot strip */}
       <group position={[-W / 2, 0, 0]}>
         <group position={[-D / 2, t, 0]} rotation={flat}>
-          <ShapePanel shape={shapes.depthPanel} />
+          <ShapePanel shape={shapes.depthPanel} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
         </group>
         <group position={[-D, 0, 0]}>
           <group position={[-D / 2, t * 2, 0]} rotation={flat}>
-            <ShapePanel shape={shapes.slotStrip} />
+            <ShapePanel shape={shapes.slotStrip} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
           </group>
         </group>
       </group>
@@ -298,11 +299,11 @@ export default function DxfFoldBox({
       {/* RIGHT SIDE: depth panel + slot strip (mirror) */}
       <group position={[W / 2, 0, 0]}>
         <group position={[D / 2, t, 0]} rotation={flat}>
-          <ShapePanel shape={shapes.depthPanel} flipX />
+          <ShapePanel shape={shapes.depthPanel} flipX noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
         </group>
         <group position={[D, 0, 0]}>
           <group position={[D / 2, t * 2, 0]} rotation={flat}>
-            <ShapePanel shape={shapes.slotStrip} flipX />
+            <ShapePanel shape={shapes.slotStrip} flipX noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
           </group>
         </group>
       </group>
@@ -311,40 +312,40 @@ export default function DxfFoldBox({
       <group position={[0, 0, -H / 2]}>
         {/* Depth strip */}
         <group position={[0, t * 0.5, -D / 2]} rotation={flat}>
-          <RectPanel w={W} h={D} />
+          <RectPanel w={W} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
         </group>
 
         {/* Depth extensions L/R */}
         <group position={[-(W / 2 + D / 2), t, -D / 2]} rotation={flat}>
-          <RectPanel w={D} h={D} />
+          <RectPanel w={D} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
         </group>
         <group position={[W / 2 + D / 2, t, -D / 2]} rotation={flat}>
-          <RectPanel w={D} h={D} />
+          <RectPanel w={D} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
         </group>
 
         <group position={[0, 0, -D]}>
           {/* Back panel */}
           <group position={[0, t, -H / 2]} rotation={flat}>
-            <RectPanel w={bw} h={H} />
+            <RectPanel w={bw} h={H} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
           </group>
 
           {/* Back flap L */}
           <group position={[-bw / 2, 0, 0]}>
             <group position={[-D / 2, t, -H / 2]} rotation={flat}>
-              <ShapePanel shape={shapes.backFlap} flipX />
+              <ShapePanel shape={shapes.backFlap} flipX noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
             </group>
           </group>
 
           {/* Back flap R */}
           <group position={[bw / 2, 0, 0]}>
             <group position={[D / 2, t, -H / 2]} rotation={flat}>
-              <ShapePanel shape={shapes.backFlap} />
+              <ShapePanel shape={shapes.backFlap} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
             </group>
           </group>
 
           {/* Tongue */}
           <group position={[0, t, -H]} rotation={flat}>
-            <ShapePanel shape={shapes.tongue} />
+            <ShapePanel shape={shapes.tongue} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
           </group>
         </group>
       </group>
@@ -352,7 +353,7 @@ export default function DxfFoldBox({
       {/* BOTTOM FLAP */}
       <group position={[0, 0, H / 2]}>
         <group position={[0, t, D / 2]} rotation={flat}>
-          <RectPanel w={W + 2 * D} h={D} />
+          <RectPanel w={W + 2 * D} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
         </group>
       </group>
 

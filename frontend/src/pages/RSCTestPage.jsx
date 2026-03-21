@@ -4,7 +4,7 @@
  * Architecture matches TubeLockTestPage:
  *   [Icon Rail 64px flush left] → [Flyout Panel 360px floating]
  *
- * Tabs: Design | Size | Fold | Strength
+ * Tabs: Design | Material | Size | Fold | Strength
  */
 
 import { useState, useMemo, useRef, useCallback, useEffect, Component } from 'react';
@@ -14,6 +14,7 @@ import { Link } from 'react-router-dom';
 import FloatingChat from '../components/Chatbot/FloatingChat';
 import { parseDxf } from '../engine/dxfParser';
 import RSCFoldBox from '../components/Box3D/RSCFoldBox';
+import MaterialPresetPicker, { MATERIAL_PRESETS } from '../components/Box3D/MaterialPresetPicker';
 import useImagePlacement from '../hooks/useImagePlacement';
 import ImageUploadPanel from '../components/DesignOverlay/ImageUploadPanel';
 import DielineImageOverlay from '../components/DesignOverlay/DielineImageOverlay';
@@ -176,6 +177,14 @@ function scaleRSC(rawDieline, W, H, D) {
 }
 
 /* ── Icons ── */
+function MaterialIcon({ size = 20 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2.69l5.66 5.66a8 8 0 11-11.31 0z" />
+      <path d="M12 22a10 10 0 0010-10h-4a6 6 0 01-6 6v4z" />
+    </svg>
+  );
+}
 function DesignIcon({ size = 20 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -229,6 +238,7 @@ function LogoutIcon({ size = 20 }) {
 
 const TABS = [
   { id: 'design',     label: 'Design',     icon: DesignIcon },
+  { id: 'material',   label: 'Material',   icon: MaterialIcon },
   { id: 'dimensions', label: 'Size',       icon: DimensionsIcon },
   { id: 'fold',       label: 'Fold',       icon: FoldIcon },
   { id: 'strength',   label: 'Strength',   icon: StrengthIcon },
@@ -284,6 +294,7 @@ function RSCTestPageInner() {
   const [view, setView] = useState('2d');
   const [fold, setFold] = useState(0);
   const [activeTab, setActiveTab] = useState(null);
+  const [boxStyle, setBoxStyle] = useState('kraft');
 
   // Strength
   const [weightKg, setWeightKg] = useState(10);
@@ -532,6 +543,19 @@ function RSCTestPageInner() {
             {activeTab === 'design' && (
               <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <ImageUploadPanel placement={placement} onViewIn3D={handleViewIn3D} currentView={view} />
+              </div>
+            )}
+
+            {activeTab === 'material' && (
+              <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 14, padding: 16 }}>
+                  <MaterialPresetPicker
+                    value={boxStyle}
+                    onChange={setBoxStyle}
+                    accentColor={PURPLE}
+                    hint="สีกระดาษในมุมมอง 3D — Kraft / White / Heart red"
+                  />
+                </div>
               </div>
             )}
 
@@ -793,7 +817,7 @@ function RSCTestPageInner() {
             <color attach="background" args={['#5c5c5c']} />
             <ambientLight intensity={0.6} />
             <directionalLight position={[5, 10, 5]} intensity={0.8} />
-            <RSCFoldBox width={W} height={H} depth={D} foldProgress={fold} panelImages={panelTextureUrls} />
+            <RSCFoldBox width={W} height={H} depth={D} foldProgress={fold} panelImages={panelTextureUrls} boxStyle={boxStyle} />
             <OrbitControls makeDefault />
             <gridHelper args={[20, 20, '#e9d5ff', '#f3e8ff']} />
           </Canvas>
@@ -806,7 +830,7 @@ function RSCTestPageInner() {
           padding: '6px 14px', fontSize: 12, fontFamily: MONO, fontWeight: 600,
           color: '#111827', boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
         }}>
-          {W} x {D} x {H} mm (RSC)
+          {W} x {D} x {H} mm (RSC) · {MATERIAL_PRESETS.find(m => m.id === boxStyle)?.label ?? boxStyle}
         </div>
 
         {view === '2d' && (

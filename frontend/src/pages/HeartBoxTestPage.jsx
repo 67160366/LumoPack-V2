@@ -12,6 +12,8 @@ import { Link } from 'react-router-dom';
 import FloatingChat from '../components/Chatbot/FloatingChat';
 import { parseDxf } from '../engine/dxfParser';
 import HeartFoldBox from '../components/Box3D/HeartFoldBox';
+import { getScheme } from '../components/Box3D/cardboardColors';
+import MaterialPresetPicker, { MATERIAL_PRESETS } from '../components/Box3D/MaterialPresetPicker';
 import heartDxfRaw from '../assets/heart-100x40.dxf?raw';
 
 /* ── Design tokens ── */
@@ -104,6 +106,26 @@ function LidIcon({ size = 20 }) {
     </svg>
   );
 }
+function MaterialIcon({ size = 20 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2.69l5.66 5.66a8 8 0 11-11.31 0z" />
+      <path d="M12 22a10 10 0 0010-10h-4a6 6 0 01-6 6v4z" />
+    </svg>
+  );
+}
+function SupportIcon({ size = 20 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="4" width="16" height="16" rx="2" />
+      <circle cx="12" cy="12" r="4" />
+      <line x1="4" y1="12" x2="8" y2="12" />
+      <line x1="16" y1="12" x2="20" y2="12" />
+      <line x1="12" y1="4" x2="12" y2="8" />
+      <line x1="12" y1="16" x2="12" y2="20" />
+    </svg>
+  );
+}
 function ProjectsIcon({ size = 20 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -130,6 +152,47 @@ function Section({ label, children }) {
     </div>
   );
 }
+function SupportSlider({ label, value, min, max, step, onChange }) {
+  return (
+    <div style={{ marginBottom: 6 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+        <span style={{ fontSize: 10, fontWeight: 600, color: '#374151' }}>{label}</span>
+        <span style={{ fontSize: 10, fontWeight: 700, color: '#111827', fontFamily: MONO }}>{Number(value).toFixed(1)}</span>
+      </div>
+      <input type="range" min={min} max={max} step={step} value={value} onChange={e => onChange(parseFloat(e.target.value))} style={{ width: '100%', height: 3, accentColor: PINK, cursor: 'pointer' }} />
+    </div>
+  );
+}
+
+function SupportPreviewMini({ config }) {
+  const holes = config.holes || [];
+  const svgW = 140;
+  const svgH = 90;
+  const scale = 3.5;
+  const cx = svgW / 2;
+  const cy = svgH / 2;
+  return (
+    <div style={{ background: 'rgba(0,0,0,0.03)', borderRadius: 10, padding: '10px 0', display: 'flex', justifyContent: 'center' }}>
+      <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`}>
+        <rect x={4} y={4} width={svgW - 8} height={svgH - 8} rx={6} fill="#e5e7eb" stroke="#9ca3af" strokeWidth={1} />
+        {holes.map((hole, i) => {
+          const hx = cx + hole.x * scale;
+          const hy = cy - hole.y * scale;
+          if (hole.type === 'circle') return <circle key={i} cx={hx} cy={hy} r={(hole.r || 2) * scale} fill="#fff" stroke="#6b7280" strokeWidth={1} />;
+          if (hole.type === 'rect') {
+            const w = (hole.w || 3) * scale;
+            const l = (hole.l || 5) * scale;
+            return <rect key={i} x={hx - w / 2} y={hy - l / 2} width={w} height={l} rx={2} fill="#fff" stroke="#6b7280" strokeWidth={1} />;
+          }
+          const w = (hole.w || 3) * scale;
+          const l = (hole.l || 5) * scale;
+          return <rect key={i} x={hx - w / 2} y={hy - l / 2} width={w} height={l} rx={w / 2} fill="#fce4ec" stroke={PINK} strokeWidth={1} />;
+        })}
+      </svg>
+    </div>
+  );
+}
+
 function SliderField({ label, value, min, max, step, onChange, unit = 'mm' }) {
   return (
     <div>
@@ -144,8 +207,10 @@ function SliderField({ label, value, min, max, step, onChange, unit = 'mm' }) {
 
 const TABS = [
   { id: 'shape', label: 'Shape', icon: ShapeIcon },
+  { id: 'material', label: 'Material', icon: MaterialIcon },
   { id: 'size',  label: 'Size',  icon: SizeIcon },
   { id: 'lid',   label: 'Lid',   icon: LidIcon },
+  { id: 'support', label: 'Support', icon: SupportIcon },
 ];
 
 /* ── Error Boundary ── */
@@ -176,8 +241,32 @@ function HeartBoxInner() {
   const [shapePct, setShapePct] = useState(55);
   const [tiltDeg, setTiltDeg] = useState(45);
   const [lidOpen, setLidOpen] = useState(0);
+  const [boxStyle, setBoxStyle] = useState('kraft');
+  const [showSupport, setShowSupport] = useState(false);
+  const [supportConfig, setSupportConfig] = useState({
+    wallHeight: 0.78,
+    holes: [{ id: 1, type: 'circle', x: 0, y: 0, r: 2.5 }],
+  });
   const [view, setView] = useState('3d');
   const [activeTab, setActiveTab] = useState(null);
+
+  const heartPreviewColor = useMemo(() => getScheme(boxStyle).lidCap, [boxStyle]);
+
+  const addHole = (type) => {
+    const newHole = { id: Date.now(), type, x: 0, y: 0 };
+    if (type === 'circle') newHole.r = 2.0;
+    else { newHole.w = 3.0; newHole.l = 5.0; }
+    setSupportConfig(prev => ({ ...prev, holes: [...(prev.holes || []), newHole] }));
+  };
+  const removeHole = (id) => {
+    setSupportConfig(prev => ({ ...prev, holes: prev.holes.filter(h => h.id !== id) }));
+  };
+  const updateHole = (id, prop, val) => {
+    setSupportConfig(prev => ({
+      ...prev,
+      holes: prev.holes.map(h => (h.id === id ? { ...h, [prop]: val } : h)),
+    }));
+  };
 
   // 2D DXF pan/zoom
   const svgRef = useRef(null);
@@ -234,8 +323,8 @@ function HeartBoxInner() {
   const dashPattern = `${vb.w * 0.006} ${vb.w * 0.004}`;
   const toggle = (id) => setActiveTab(prev => prev === id ? null : id);
 
-  // Hide Lid tab in 2D mode
-  const visibleTabs = view === '3d' ? TABS : TABS.filter(t => t.id !== 'lid');
+  // Hide Lid / Support in 2D mode
+  const visibleTabs = view === '3d' ? TABS : TABS.filter(t => t.id !== 'lid' && t.id !== 'support');
 
   return (
     <div style={{ display: 'flex', height: '100vh', fontFamily: FONT, background: '#1a1d23', position: 'relative' }}>
@@ -264,7 +353,7 @@ function HeartBoxInner() {
 
         {/* View toggle */}
         {['2d', '3d'].map(v => (
-          <button key={v} onClick={() => { setView(v); if (v === '2d' && activeTab === 'lid') setActiveTab(null); }} title={v === '2d' ? '2D Dieline' : '3D View'} style={{
+          <button key={v} onClick={() => { setView(v); if (v === '2d' && (activeTab === 'lid' || activeTab === 'support')) setActiveTab(null); }} title={v === '2d' ? '2D Dieline' : '3D View'} style={{
             width: 44, height: 36, borderRadius: 10, border: 'none', cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             background: view === v ? 'rgba(233,30,99,0.1)' : 'transparent',
@@ -389,7 +478,7 @@ function HeartBoxInner() {
 
                     {/* Current preview */}
                     <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0' }}>
-                      <MiniHeart shapePct={shapePct} tiltDeg={tiltDeg} size={64} active color={PINK} />
+                      <MiniHeart shapePct={shapePct} tiltDeg={tiltDeg} size={64} active color={heartPreviewColor} />
                     </div>
                   </div>
                 </Section>
@@ -418,7 +507,7 @@ function HeartBoxInner() {
                                   tiltDeg={t}
                                   size={28}
                                   active={s === shapePct && t === tiltDeg}
-                                  color={PINK}
+                                  color={heartPreviewColor}
                                   opacity={0.25}
                                 />
                               </td>
@@ -429,6 +518,21 @@ function HeartBoxInner() {
                     </table>
                   </div>
                 </Section>
+              </div>
+            )}
+
+            {/* ── Material tab ── */}
+            {activeTab === 'material' && (
+              <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+                <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 14, padding: 16 }}>
+                  <MaterialPresetPicker
+                    value={boxStyle}
+                    onChange={setBoxStyle}
+                    accentColor={PINK}
+                    sectionLabel="กระดาษ / สีกล่อง"
+                    hint="สีจะสะท้อนในมุมมอง 3D — โหมด Heart red เหมาะกับธีมของขวัญ"
+                  />
+                </div>
               </div>
             )}
 
@@ -479,6 +583,157 @@ function HeartBoxInner() {
                 </div>
               </div>
             )}
+
+            {/* ── Support tab (3D) ── */}
+            {activeTab === 'support' && (
+              <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  background: '#fff',
+                  border: '1px solid rgba(0,0,0,0.06)',
+                  borderRadius: 14,
+                  padding: '12px 16px',
+                }}>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#111827', fontFamily: FONT }}>แสดงชั้นซัพพอร์ต</div>
+                    <div style={{ fontSize: 10, color: '#6b7280', fontFamily: FONT, marginTop: 2 }}>ถาดรองสินค้าภายใน (ครอบคลุมพื้นที่โดยประมาณ)</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setShowSupport(p => !p); if (view !== '3d') setView('3d'); }}
+                    style={{
+                      width: 44,
+                      height: 24,
+                      borderRadius: 12,
+                      border: 'none',
+                      cursor: 'pointer',
+                      background: showSupport ? PINK : '#d1d5db',
+                      transition: 'background 0.2s',
+                      position: 'relative',
+                    }}
+                  >
+                    <div style={{
+                      width: 18,
+                      height: 18,
+                      borderRadius: '50%',
+                      background: '#fff',
+                      position: 'absolute',
+                      top: 3,
+                      left: showSupport ? 23 : 3,
+                      transition: 'left 0.2s',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                    }} />
+                  </button>
+                </div>
+
+                <Section label={`ความสูงขอบ — ${Math.round((supportConfig.wallHeight || 0.78) * 100)}%`}>
+                  <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 14, padding: 16 }}>
+                    <input
+                      type="range"
+                      min="40"
+                      max="95"
+                      value={Math.round((supportConfig.wallHeight || 0.78) * 100)}
+                      onChange={e => setSupportConfig(prev => ({ ...prev, wallHeight: parseInt(e.target.value, 10) / 100 }))}
+                      style={{ width: '100%', height: 4, accentColor: PINK, cursor: 'pointer' }}
+                    />
+                  </div>
+                </Section>
+
+                <Section label="เจาะรู">
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {[
+                      { type: 'circle', label: 'วงกลม', icon: '○' },
+                      { type: 'rect', label: 'สี่เหลี่ยม', icon: '□' },
+                      { type: 'capsule', label: 'แคปซูล', icon: '⬭' },
+                    ].map(opt => (
+                      <button
+                        key={opt.type}
+                        type="button"
+                        onClick={() => addHole(opt.type)}
+                        style={{
+                          flex: 1,
+                          padding: '8px 4px',
+                          borderRadius: 10,
+                          border: '1px solid rgba(0,0,0,0.1)',
+                          background: 'rgba(255,255,255,0.6)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          gap: 3,
+                        }}
+                      >
+                        <span style={{ fontSize: 16, lineHeight: 1 }}>{opt.icon}</span>
+                        <span style={{ fontSize: 9, color: '#111827', fontWeight: 600 }}>{opt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </Section>
+
+                {supportConfig.holes.length === 0 && (
+                  <div style={{
+                    textAlign: 'center',
+                    padding: '20px 10px',
+                    color: '#6b7280',
+                    fontSize: 11,
+                    background: 'rgba(0,0,0,0.03)',
+                    borderRadius: 10,
+                  }}>
+                    ยังไม่มีรู — เพิ่มด้านบน
+                  </div>
+                )}
+
+                {supportConfig.holes.map((hole, idx) => {
+                  const typeLabel = hole.type === 'circle' ? '○ วงกลม' : hole.type === 'rect' ? '□ สี่เหลี่ยม' : '⬭ แคปซูล';
+                  return (
+                    <div key={hole.id} style={{
+                      background: '#fff',
+                      borderRadius: 12,
+                      padding: '10px 12px',
+                      border: '1px solid rgba(0,0,0,0.06)',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#111827', fontFamily: FONT }}>
+                          #{idx + 1} {typeLabel}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeHole(hole.id)}
+                          style={{
+                            background: 'rgba(239,68,68,0.08)',
+                            border: 'none',
+                            borderRadius: 6,
+                            color: '#ef4444',
+                            fontSize: 10,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            padding: '3px 8px',
+                          }}
+                        >
+                          ลบ
+                        </button>
+                      </div>
+                      <SupportSlider label="X" value={hole.x} min={-15} max={15} step={0.5} onChange={v => updateHole(hole.id, 'x', v)} />
+                      <SupportSlider label="Y" value={hole.y} min={-15} max={15} step={0.5} onChange={v => updateHole(hole.id, 'y', v)} />
+                      {hole.type === 'circle' ? (
+                        <SupportSlider label="รัศมี" value={hole.r || 2} min={0.5} max={10} step={0.1} onChange={v => updateHole(hole.id, 'r', v)} />
+                      ) : (
+                        <>
+                          <SupportSlider label="กว้าง" value={hole.w || 3} min={1} max={15} step={0.1} onChange={v => updateHole(hole.id, 'w', v)} />
+                          <SupportSlider label="ยาว" value={hole.l || 5} min={1} max={20} step={0.1} onChange={v => updateHole(hole.id, 'l', v)} />
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
+
+                <Section label="ตัวอย่างรูบนแผ่น">
+                  <SupportPreviewMini config={supportConfig} />
+                </Section>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -526,6 +781,9 @@ function HeartBoxInner() {
               shapePct={shapePct}
               tiltDeg={tiltDeg}
               lidOpen={lidOpen}
+              boxStyle={boxStyle}
+              showSupport={showSupport}
+              supportConfig={supportConfig}
             />
             <OrbitControls makeDefault />
             <gridHelper args={[10, 10, '#f8bbd0', '#fce4ec']} />
@@ -539,7 +797,7 @@ function HeartBoxInner() {
           padding: '4px 10px', fontSize: 11, fontFamily: MONO,
           color: PINK_DARK, zIndex: 10,
         }}>
-          {length} x {height} mm | Shape {shapePct}% | Tilt {tiltDeg}deg
+          {length} x {height} mm | {MATERIAL_PRESETS.find(m => m.id === boxStyle)?.label ?? boxStyle} | Shape {shapePct}% | Tilt {tiltDeg}deg
         </div>
 
         {view === '2d' && (

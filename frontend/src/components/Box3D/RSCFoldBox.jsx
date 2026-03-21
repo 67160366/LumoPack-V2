@@ -12,6 +12,7 @@
 
 import { useMemo } from 'react';
 import Panel from './Panel';
+import { getScheme } from './cardboardColors';
 
 const HP = Math.PI / 2;
 const SC = 0.01; // mm → three.js units
@@ -25,12 +26,15 @@ function ease(p, s, e) {
 
 const thickness = 0.005;
 
-export default function RSCFoldBox({ width = 400, height = 300, depth = 300, foldProgress = 0, panelImages = {} }) {
+export default function RSCFoldBox({ width = 400, height = 300, depth = 300, foldProgress = 0, panelImages = {}, boxStyle = 'kraft' }) {
   const W = width * SC;
   const H = height * SC;
   const D = depth * SC;
   const flapH = (depth / 2) * SC;
   const p = foldProgress;
+  const scheme = useMemo(() => getScheme(boxStyle), [boxStyle]);
+  const cMain = scheme.base;
+  const cFlap = scheme.wall;
 
   // Helper to get URLs for a panel
   const img = (id) => ({
@@ -56,38 +60,38 @@ export default function RSCFoldBox({ width = 400, height = 300, depth = 300, fol
     <group rotation={[HP, 0, 0]} position={[0, H / 2, 0]}>
       {/* ── face1 (base, centered at origin) ── */}
       <group>
-        <Panel width={W} height={H} {...img('face1')} />
+        <Panel width={W} height={H} color={cMain} {...img('face1')} />
 
         {/* face1 bottom flap (1) — folds last, on top */}
         <group position={[0, 0, H / 2]} rotation={[-f.botFace, 0, 0]}>
           <group position={[0, -t, flapH / 2]}>
-            <Panel width={W} height={flapH} {...img('face1_bot')} />
+            <Panel width={W} height={flapH} color={cFlap} {...img('face1_bot')} />
           </group>
         </group>
 
         {/* face1 top flap (1) — folds last, on top */}
         <group position={[0, 0, -H / 2]} rotation={[f.topFace, 0, 0]}>
           <group position={[0, -t, -flapH / 2]}>
-            <Panel width={W} height={flapH} {...img('face1_top')} />
+            <Panel width={W} height={flapH} color={cFlap} {...img('face1_top')} />
           </group>
         </group>
 
         {/* ── side1 — hinge at face1 right edge (x = +W/2) ── */}
         <group position={[W / 2, 0, 0]} rotation={[0, 0, f.side1]}>
           <group position={[D / 2, 0, 0]}>
-            <Panel width={D} height={H} {...img('side1')} />
+            <Panel width={D} height={H} color={cMain} {...img('side1')} />
 
             {/* side1 bottom flap (2) — folds first, underneath */}
             <group position={[0, 0, H / 2]} rotation={[-f.botSide, 0, 0]}>
               <group position={[0, 0, flapH / 2]}>
-                <Panel width={D} height={flapH} {...img('side1_bot')} />
+                <Panel width={D} height={flapH} color={cFlap} {...img('side1_bot')} />
               </group>
             </group>
 
             {/* side1 top flap (2) — folds first, underneath */}
             <group position={[0, 0, -H / 2]} rotation={[f.topSide, 0, 0]}>
               <group position={[0, 0, -flapH / 2]}>
-                <Panel width={D} height={flapH} {...img('side1_top')} />
+                <Panel width={D} height={flapH} color={cFlap} {...img('side1_top')} />
               </group>
             </group>
           </group>
@@ -95,19 +99,19 @@ export default function RSCFoldBox({ width = 400, height = 300, depth = 300, fol
           {/* ── face2 — hinge at side1 far edge ── */}
           <group position={[D, 0, 0]} rotation={[0, 0, f.face2]}>
             <group position={[W / 2, 0, 0]}>
-              <Panel width={W} height={H} {...img('face2')} />
+              <Panel width={W} height={H} color={cMain} {...img('face2')} />
 
               {/* face2 bottom flap (1) — folds last, on top */}
               <group position={[0, 0, H / 2]} rotation={[-f.botFace, 0, 0]}>
                 <group position={[0, -t, flapH / 2]}>
-                  <Panel width={W} height={flapH} {...img('face2_bot')} />
+                  <Panel width={W} height={flapH} color={cFlap} {...img('face2_bot')} />
                 </group>
               </group>
 
               {/* face2 top flap (1) — folds last, on top */}
               <group position={[0, 0, -H / 2]} rotation={[f.topFace, 0, 0]}>
                 <group position={[0, -t, -flapH / 2]}>
-                  <Panel width={W} height={flapH} {...img('face2_top')} />
+                  <Panel width={W} height={flapH} color={cFlap} {...img('face2_top')} />
                 </group>
               </group>
             </group>
@@ -115,19 +119,19 @@ export default function RSCFoldBox({ width = 400, height = 300, depth = 300, fol
             {/* ── side2 — hinge at face2 far edge ── */}
             <group position={[W, 0, 0]} rotation={[0, 0, f.side2]}>
               <group position={[D / 2, 0, 0]}>
-                <Panel width={D} height={H} {...img('side2')} />
+                <Panel width={D} height={H} color={cMain} {...img('side2')} />
 
                 {/* side2 bottom flap (2) — folds first, underneath */}
                 <group position={[0, 0, H / 2]} rotation={[-f.botSide, 0, 0]}>
                   <group position={[0, 0, flapH / 2]}>
-                    <Panel width={D} height={flapH} {...img('side2_bot')} />
+                    <Panel width={D} height={flapH} color={cFlap} {...img('side2_bot')} />
                   </group>
                 </group>
 
                 {/* side2 top flap (2) — folds first, underneath */}
                 <group position={[0, 0, -H / 2]} rotation={[f.topSide, 0, 0]}>
                   <group position={[0, 0, -flapH / 2]}>
-                    <Panel width={D} height={flapH} {...img('side2_top')} />
+                    <Panel width={D} height={flapH} color={cFlap} {...img('side2_top')} />
                   </group>
                 </group>
               </group>

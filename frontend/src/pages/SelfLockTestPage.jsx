@@ -2,7 +2,7 @@
  * SelfLockTestPage — Self-locking box DXF dieline
  *
  * Reference DXF: 400x250x80mm-self-locking-box.dxf
- * Tabs: Design | Size | Fold | Support | Strength
+ * Tabs: Size | Fold | Material | Support | Strength
  */
 
 import { useState, useMemo, useRef, useCallback, useEffect, Component } from 'react';
@@ -12,6 +12,7 @@ import { Link } from 'react-router-dom';
 import FloatingChat from '../components/Chatbot/FloatingChat';
 import { parseDxf } from '../engine/dxfParser';
 import SelfLockFoldBox from '../components/Box3D/SelfLockFoldBox';
+import MaterialPresetPicker, { MATERIAL_PRESETS } from '../components/Box3D/MaterialPresetPicker';
 import selfLockDxfRaw from '../assets/400x250x80mm-self-locking-box.dxf?raw';
 
 /* ── Reference box dimensions ── */
@@ -219,6 +220,14 @@ function FoldIcon({ size = 20 }) {
     </svg>
   );
 }
+function MaterialIcon({ size = 20 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2.69l5.66 5.66a8 8 0 11-11.31 0z" />
+      <path d="M12 22a10 10 0 0010-10h-4a6 6 0 01-6 6v4z" />
+    </svg>
+  );
+}
 function SupportIcon({ size = 20 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -260,6 +269,7 @@ function LogoutIcon({ size = 20 }) {
 const TABS = [
   { id: 'size',     label: 'Size',     icon: DimensionsIcon },
   { id: 'fold',     label: 'Fold',     icon: FoldIcon },
+  { id: 'material', label: 'Material', icon: MaterialIcon },
   { id: 'support',  label: 'Support',  icon: SupportIcon },
   { id: 'strength', label: 'Strength', icon: StrengthIcon },
 ];
@@ -353,6 +363,8 @@ function SelfLockStandalone() {
   const [view, setView] = useState('2d');
   const [fold, setFold] = useState(0);
   const [activeTab, setActiveTab] = useState(null);
+
+  const [boxStyle, setBoxStyle] = useState('kraft');
 
   // Support insert
   const [showSupport, setShowSupport] = useState(false);
@@ -601,7 +613,7 @@ function SelfLockStandalone() {
                       padding: '8px 0', textAlign: 'center',
                       fontSize: 14, fontFamily: MONO, fontWeight: 700, color: PURPLE,
                     }}>
-                      {W} x {H} x {D} mm (Self-Lock)
+                      {W} x {H} x {D} mm (Self-Lock) · {MATERIAL_PRESETS.find(m => m.id === boxStyle)?.label ?? boxStyle}
                     </div>
                   </div>
                 </Section>
@@ -696,6 +708,14 @@ function SelfLockStandalone() {
                     </div>
                   </div>
                 </Section>
+              </div>
+            )}
+
+            {activeTab === 'material' && (
+              <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.06)', borderRadius: 14, padding: 16 }}>
+                  <MaterialPresetPicker value={boxStyle} onChange={setBoxStyle} accentColor={PURPLE} hint="สีกระดาษในมุมมอง 3D" />
+                </div>
               </div>
             )}
 
@@ -970,7 +990,7 @@ function SelfLockStandalone() {
             <color attach="background" args={['#5c5c5c']} />
             <ambientLight intensity={0.6} />
             <directionalLight position={[5, 10, 5]} intensity={0.8} />
-            <SelfLockFoldBox width={W} height={H} depth={D} foldProgress={fold} showSupport={showSupport} supportConfig={supportConfig} />
+            <SelfLockFoldBox width={W} height={H} depth={D} foldProgress={fold} showSupport={showSupport} supportConfig={supportConfig} boxStyle={boxStyle} />
             <OrbitControls makeDefault />
             <gridHelper args={[20, 20, '#e9d5ff', '#f3e8ff']} />
           </Canvas>
@@ -983,7 +1003,7 @@ function SelfLockStandalone() {
           padding: '6px 14px', fontSize: 12, fontFamily: MONO, fontWeight: 600,
           color: '#111827', boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
         }}>
-          {W} x {H} x {D} mm (Self-Lock)
+          {W} x {H} x {D} mm (Self-Lock) · {MATERIAL_PRESETS.find(m => m.id === boxStyle)?.label ?? boxStyle}
         </div>
 
         {view === '2d' && (

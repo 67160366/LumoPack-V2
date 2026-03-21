@@ -73,15 +73,13 @@ def get_quick_replies(
     # ===================================
     if current_step == 3:
         if sub_step == 0:
-            # ถามประเภทกล่อง (7 ประเภท)
+            # ถามประเภทกล่อง (active 5 types)
             return [
                 "RSC (มาตรฐาน)",
                 "Die-cut (ฝาเสียบ)",
                 "Heart (หัวใจ)",
-                "Star (ดาว)",
-                "Bear (หมี)",
-                "Circle (ทรงกลม)",
-                "Bow (ซัพพอร์ท)",
+                "Tube Lock",
+                "Self-Lock",
             ]
         if sub_step == 1:
             # ถามวัสดุ — ตัวเลือกขึ้นอยู่กับ box_type
@@ -90,6 +88,7 @@ def get_quick_replies(
                 return [
                     "กระดาษลูกฟูก 2 ชั้น",
                     "กระดาษคราฟท์ 200 GSM",
+                    "กล่องขาว 350 GSM",
                 ]
             else:
                 # die_cut / heart / star / bear / circle / bow ใช้วัสดุกลุ่มเดียวกัน
@@ -155,7 +154,7 @@ def get_quick_replies(
     # ===================================
     if current_step == 6:
         if is_waiting_confirmation:
-            return ["ถูกต้อง ✓", "ขอแก้ไข"]
+            return ["ถูกต้อง ✓", "ขอแก้ไข", "แก้ขนาด", "แก้ลอนกระดาษ", "แก้วัสดุ", "มีซัพพอร์ต", "ไม่ใช้ซัพพอร์ต"]
         return []
 
     # ===================================
@@ -163,7 +162,7 @@ def get_quick_replies(
     # design_steps: is_skip_response → skip | เก็บ free text
     # ===================================
     if current_step == 7:
-        return ["มินิมอล/เรียบหรู", "น่ารัก/สดใส", "หรูหรา/พรีเมียม", "ข้าม"]
+        return ["ข้าม"]
 
     # ===================================
     # Step 8: Logo (มี sub_step)
@@ -195,7 +194,7 @@ def get_quick_replies(
     # ===================================
     if current_step == 10:
         if is_waiting_confirmation:
-            return ["ถูกต้อง ✓", "ขอแก้ไข"]
+            return ["ถูกต้อง ✓", "ขอแก้ไข", "แก้โลโก้", "เพิ่มลูกเล่นพิเศษ", "แก้วัสดุ", "แก้ขนาด"]
         return []
 
     # ===================================

@@ -13,29 +13,30 @@ import * as THREE from 'three';
 
 import { getBowPhases } from '../../engine/animationPhases';
 import { buildSupportHoles } from '../../engine/supportHoles';
+import { getScheme } from './cardboardColors';
 
 const HP = Math.PI / 2;
-const CARD_COLOR = '#dfb48c';
-const EDGE_COLOR = '#b48255';
+const SUPP_FACE = '#a0d2db';
+const SUPP_EDGE = '#5a9aa8';
 
 /* ── Panel: shape mesh + edge lines (same as DieCutBox) ── */
-function Panel({ shape }) {
+function Panel({ shape, faceColor, edgeColor }) {
   const geo = useMemo(() => new THREE.ShapeGeometry(shape), [shape]);
   const edges = useMemo(() => new THREE.EdgesGeometry(geo), [geo]);
 
   return (
     <mesh rotation={[-HP, 0, 0]} castShadow receiveShadow>
       <primitive object={geo} attach="geometry" />
-      <meshStandardMaterial color={CARD_COLOR} side={THREE.DoubleSide} roughness={0.9} />
+      <meshStandardMaterial color={faceColor} side={THREE.DoubleSide} roughness={0.9} />
       <lineSegments>
         <primitive object={edges} attach="geometry" />
-        <lineBasicMaterial color={EDGE_COLOR} transparent opacity={0.5} />
+        <lineBasicMaterial color={edgeColor} transparent opacity={0.5} />
       </lineSegments>
     </mesh>
   );
 }
 
-/* ── Support panel (lighter color) ── */
+/* ── Support insert (distinct tint) ── */
 function SupportPanel({ shape }) {
   const geo = useMemo(() => new THREE.ShapeGeometry(shape), [shape]);
   const edges = useMemo(() => new THREE.EdgesGeometry(geo), [geo]);
@@ -43,10 +44,10 @@ function SupportPanel({ shape }) {
   return (
     <mesh rotation={[-HP, 0, 0]} castShadow receiveShadow>
       <primitive object={geo} attach="geometry" />
-      <meshStandardMaterial color={CARD_COLOR} side={THREE.DoubleSide} roughness={0.9} />
+      <meshStandardMaterial color={SUPP_FACE} side={THREE.DoubleSide} roughness={0.9} />
       <lineSegments>
         <primitive object={edges} attach="geometry" />
-        <lineBasicMaterial color={EDGE_COLOR} transparent opacity={0.5} />
+        <lineBasicMaterial color={SUPP_EDGE} transparent opacity={0.5} />
       </lineSegments>
     </mesh>
   );
@@ -59,8 +60,12 @@ export default function BowBox({
   foldProgress = 0,
   showSupport = false,
   supportConfig,
+  boxStyle = 'kraft',
 }) {
   const group = useRef();
+  const scheme = useMemo(() => getScheme(boxStyle), [boxStyle]);
+  const faceColor = scheme.base;
+  const edgeColor = scheme.wall;
 
   const W = (width || 30) / 10;
   const H = (height || 10) / 10;
@@ -198,49 +203,49 @@ export default function BowBox({
   return (
     <group ref={group} position={[0, ph.lift, 0]}>
       {/* Base */}
-      <Panel shape={boxShapes.base} />
+      <Panel shape={boxShapes.base} faceColor={faceColor} edgeColor={edgeColor} />
 
       {/* Back → Lid → Tuck + Ears */}
       <group position={[0, 0, -D / 2]} rotation={[fbFold, 0, 0]}>
-        <Panel shape={boxShapes.back} />
+        <Panel shape={boxShapes.back} faceColor={faceColor} edgeColor={edgeColor} />
         <group position={[0, 0, -H]} rotation={[lidFold, 0, 0]}>
-          <Panel shape={boxShapes.lid} />
+          <Panel shape={boxShapes.lid} faceColor={faceColor} edgeColor={edgeColor} />
           <group position={[0, 0, -D]} rotation={[tuckFold, 0, 0]}>
-            <Panel shape={boxShapes.tuck} />
+            <Panel shape={boxShapes.tuck} faceColor={faceColor} edgeColor={edgeColor} />
           </group>
           <group position={[-W / 2 + 0.03, 0, 0]} rotation={[0, 0, -earFold]}>
-            <Panel shape={boxShapes.earL} />
+            <Panel shape={boxShapes.earL} faceColor={faceColor} edgeColor={edgeColor} />
           </group>
           <group position={[W / 2 - 0.03, 0, 0]} rotation={[0, 0, earFold]}>
-            <Panel shape={boxShapes.earR} />
+            <Panel shape={boxShapes.earR} faceColor={faceColor} edgeColor={edgeColor} />
           </group>
         </group>
       </group>
 
       {/* Front */}
       <group position={[0, 0, D / 2]} rotation={[-fbFold, 0, 0]}>
-        <Panel shape={boxShapes.front} />
+        <Panel shape={boxShapes.front} faceColor={faceColor} edgeColor={edgeColor} />
       </group>
 
       {/* Left wall + tabs */}
       <group position={[-W / 2, 0, 0]} rotation={[0, 0, -sideFold]}>
-        <Panel shape={boxShapes.left} />
+        <Panel shape={boxShapes.left} faceColor={faceColor} edgeColor={edgeColor} />
         <group position={[0, 0, D / 2 - 0.01]} rotation={[-tabFold, 0, 0]}>
-          <Panel shape={boxShapes.lft} />
+          <Panel shape={boxShapes.lft} faceColor={faceColor} edgeColor={edgeColor} />
         </group>
         <group position={[0, 0, -D / 2 + 0.01]} rotation={[tabFold, 0, 0]}>
-          <Panel shape={boxShapes.lbt} />
+          <Panel shape={boxShapes.lbt} faceColor={faceColor} edgeColor={edgeColor} />
         </group>
       </group>
 
       {/* Right wall + tabs */}
       <group position={[W / 2, 0, 0]} rotation={[0, 0, sideFold]}>
-        <Panel shape={boxShapes.right} />
+        <Panel shape={boxShapes.right} faceColor={faceColor} edgeColor={edgeColor} />
         <group position={[0, 0, D / 2 - 0.01]} rotation={[-tabFold, 0, 0]}>
-          <Panel shape={boxShapes.rft} />
+          <Panel shape={boxShapes.rft} faceColor={faceColor} edgeColor={edgeColor} />
         </group>
         <group position={[0, 0, -D / 2 + 0.01]} rotation={[tabFold, 0, 0]}>
-          <Panel shape={boxShapes.rbt} />
+          <Panel shape={boxShapes.rbt} faceColor={faceColor} edgeColor={edgeColor} />
         </group>
       </group>
 

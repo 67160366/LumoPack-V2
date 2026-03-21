@@ -38,7 +38,7 @@ export default function Panel({
         <boxGeometry args={[width, thickness, height]} />
         {(!outerTex && !innerTex) ? (
           <meshStandardMaterial
-            color="#ffffff"
+            color={color}
             map={noiseTex}
             side={THREE.DoubleSide}
             roughness={0.85}
@@ -46,24 +46,24 @@ export default function Panel({
           />
         ) : (
           <>
-            <meshStandardMaterial attach="material-0" color="#ffffff" map={noiseTex} roughness={0.85} metalness={0.02} />
-            <meshStandardMaterial attach="material-1" color="#ffffff" map={noiseTex} roughness={0.85} metalness={0.02} />
+            <meshStandardMaterial attach="material-0" color={color} map={noiseTex} roughness={0.85} metalness={0.02} />
+            <meshStandardMaterial attach="material-1" color={color} map={noiseTex} roughness={0.85} metalness={0.02} />
             <meshStandardMaterial attach="material-2"
-              color="#ffffff"
+              color={color}
               map={innerTex || noiseTex}
               roughness={innerTex ? 0.7 : 0.85}
               metalness={0.02}
               side={THREE.DoubleSide}
             />
             <meshStandardMaterial attach="material-3"
-              color="#ffffff"
+              color={color}
               map={outerTex || noiseTex}
               roughness={outerTex ? 0.7 : 0.85}
               metalness={0.02}
               side={THREE.DoubleSide}
             />
-            <meshStandardMaterial attach="material-4" color="#ffffff" map={noiseTex} roughness={0.85} metalness={0.02} />
-            <meshStandardMaterial attach="material-5" color="#ffffff" map={noiseTex} roughness={0.85} metalness={0.02} />
+            <meshStandardMaterial attach="material-4" color={color} map={noiseTex} roughness={0.85} metalness={0.02} />
+            <meshStandardMaterial attach="material-5" color={color} map={noiseTex} roughness={0.85} metalness={0.02} />
           </>
         )}
       </mesh>

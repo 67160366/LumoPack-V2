@@ -29,6 +29,9 @@ FLUTE_SPECS = {
     "BC": {"ect": 10.8, "caliper": 6.1, "name": "ลอน BC (2 ชั้น)"},
 }
 
+HUMIDITY_FACTORS = {"dry": 1.00, "normal": 0.85, "humid": 0.65, "wet": 0.50}
+STORAGE_FACTORS = {"short": 1.00, "medium": 0.85, "long": 0.70, "vlong": 0.55}
+
 
 # ===================================
 # Request / Response Models
@@ -39,6 +42,11 @@ class AnalyzeRequest(BaseModel):
     height: float = Field(..., gt=0, description="ความสูง (cm)")
     weight: float = Field(0, ge=0, description="น้ำหนักสินค้า (kg)")
     flute_type: str = Field("C", description="ลอนกระดาษ (A/B/C/E/BC)")
+    humidity: str = Field("normal", description="สภาพความชื้น (dry/normal/humid/wet)")
+    storage: str = Field("short", description="ระยะเวลาจัดเก็บ (short/medium/long/vlong)")
+    stacking_layers: int = Field(3, ge=1, le=12, description="จำนวนชั้นซ้อน")
+    print_coverage: float = Field(0, ge=0, le=100, description="เปอร์เซ็นต์พื้นที่พิมพ์")
+    support_required: bool = Field(False, description="มีซัพพอร์ตภายในหรือไม่")
 
 
 class AnalyzeResponse(BaseModel):
@@ -152,6 +160,86 @@ def analyze_box_strength(
     }
 
 
+def _height_correction(length_cm: float, width_cm: float, height_cm: float) -> float:
+    ratio = height_cm / max(1e-9, math.sqrt(length_cm * width_cm))
+    return 1.0 if ratio <= 1.5 else 1.5 / ratio
+
+
+def analyze_box_strength_v2(
+    length_cm: float,
+    width_cm: float,
+    height_cm: float,
+    weight_kg: float,
+    flute_type: str,
+    humidity: str = "normal",
+    storage: str = "short",
+    stacking_layers: int = 3,
+    print_coverage: float = 0,
+    support_required: bool = False,
+) -> dict:
+    """
+    McKee v2 (aligned with design pages):
+    correction factors: height / humidity / storage / print coverage / support.
+    """
+    flute = FLUTE_SPECS.get(flute_type.upper(), FLUTE_SPECS["C"])
+    perimeter_mm = 2 * (length_cm + width_cm) * 10
+    base_bct = mckee_bct(flute["ect"], flute["caliper"], perimeter_mm)
+
+    h_factor = _height_correction(length_cm, width_cm, height_cm)
+    hu_factor = HUMIDITY_FACTORS.get((humidity or "normal").lower(), HUMIDITY_FACTORS["normal"])
+    st_factor = STORAGE_FACTORS.get((storage or "short").lower(), STORAGE_FACTORS["short"])
+    pr_factor = 1.0 - (max(0.0, min(100.0, print_coverage)) / 100.0) * 0.20
+    sp_factor = 1.08 if support_required else 1.00
+    total_factor = h_factor * hu_factor * st_factor * pr_factor * sp_factor
+
+    adjusted_bct = base_bct * total_factor
+    max_load_kg = adjusted_bct / max(1, stacking_layers)
+    safety_factor = (max_load_kg / weight_kg) if weight_kg > 0 else 999
+
+    if safety_factor >= 5:
+        score = 100
+    elif safety_factor >= 3:
+        score = int(70 + (safety_factor - 3) * 15)
+    elif safety_factor >= 2:
+        score = int(50 + (safety_factor - 2) * 20)
+    elif safety_factor >= 1.5:
+        score = int(30 + (safety_factor - 1.5) * 40)
+    elif safety_factor >= 1:
+        score = int(10 + (safety_factor - 1) * 40)
+    else:
+        score = max(0, int(safety_factor * 10))
+    score = max(0, min(100, score))
+
+    if score >= 70:
+        status = "SAFE"
+        recommendation = f"กล่อง {flute['name']} แข็งแรงเพียงพอสำหรับสินค้าน้ำหนัก {weight_kg:.1f} kg"
+    elif score >= 40:
+        status = "SAFE"
+        recommendation = f"กล่อง {flute['name']} ใช้ได้ แต่มีความเสี่ยงเมื่อเจอความชื้นหรือซ้อนสูง"
+    else:
+        status = "DANGER"
+        recommendation = f"⚠️ กล่อง {flute['name']} ไม่แข็งแรงพอสำหรับ {weight_kg:.1f} kg"
+
+    return {
+        "status": status,
+        "safety_score": score,
+        "max_load_kg": round(max_load_kg, 2),
+        "recommendation": recommendation,
+        "flute_type": flute_type.upper(),
+        "bct_kgf": round(adjusted_bct, 2),
+        "safety_factor": round(safety_factor, 2),
+        "base_bct_kgf": round(base_bct, 2),
+        "corrections": {
+            "height": round(h_factor * 100),
+            "humidity": round(hu_factor * 100),
+            "storage": round(st_factor * 100),
+            "print": round(pr_factor * 100),
+            "support": round(sp_factor * 100),
+            "total": round(total_factor * 100),
+        },
+    }
+
+
 # ===================================
 # Strength Recommendation (สำหรับ DANGER)
 # ===================================
@@ -252,20 +340,70 @@ def format_analysis_for_chat(analysis: dict, weight_kg: float, flute_type: str) 
     return "\n".join(lines)
 
 
+def format_analysis_for_chat_v2(analysis: dict, weight_kg: float, flute_type: str) -> str:
+    """Format ผลวิเคราะห์ McKee v2 สำหรับ chatbot"""
+    flute_name = FLUTE_SPECS.get(flute_type.upper(), FLUTE_SPECS["C"])["name"]
+
+    if weight_kg == 0:
+        return (
+            f"🔬 **ผลวิเคราะห์ความแข็งแรง McKee v2** ({flute_name})\n"
+            f"• BCT ปรับสภาพแวดล้อม: {analysis['bct_kgf']:.1f} kgf\n"
+            f"• รับน้ำหนักได้สูงสุด: {analysis['max_load_kg']:.1f} kg\n"
+            f"*(ยังไม่ระบุน้ำหนักสินค้า จึงไม่ประเมิน SAFE/DANGER)*"
+        )
+
+    status = analysis["status"]
+    score = analysis["safety_score"]
+    icon = "✅" if status == "SAFE" else "⚠️"
+    return (
+        f"🔬 **ผลวิเคราะห์ความแข็งแรง McKee v2** ({flute_name})\n"
+        f"• สถานะ: {icon} **{status}** (คะแนน {score}/100)\n"
+        f"• BCT: {analysis['bct_kgf']:.1f} kgf | รับน้ำหนักได้: {analysis['max_load_kg']:.1f} kg\n"
+        f"• น้ำหนักสินค้า: {weight_kg:.1f} kg | Safety factor: {analysis['safety_factor']:.2f}x\n"
+        f"• {analysis['recommendation']}"
+    )
+
+
 # ===================================
 # Endpoint
 # ===================================
 @router.post("/analyze", response_model=AnalyzeResponse)
 async def analyze(request: AnalyzeRequest):
-    """วิเคราะห์ความแข็งแรงของกล่องด้วย McKee Formula"""
+    """วิเคราะห์ความแข็งแรงของกล่องด้วย McKee v2 (default endpoint)"""
     try:
-        result = analyze_box_strength(
+        result = analyze_box_strength_v2(
             length_cm=request.length,
             width_cm=request.width,
             height_cm=request.height,
             weight_kg=request.weight,
             flute_type=request.flute_type,
+            humidity=request.humidity,
+            storage=request.storage,
+            stacking_layers=request.stacking_layers,
+            print_coverage=request.print_coverage,
+            support_required=request.support_required,
         )
         return AnalyzeResponse(**result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Analysis error: {str(e)}")
+
+
+@router.post("/analyze-v2", response_model=AnalyzeResponse)
+async def analyze_v2(request: AnalyzeRequest):
+    """วิเคราะห์ความแข็งแรง (McKee v2 + correction factors)"""
+    try:
+        result = analyze_box_strength_v2(
+            length_cm=request.length,
+            width_cm=request.width,
+            height_cm=request.height,
+            weight_kg=request.weight,
+            flute_type=request.flute_type,
+            humidity=request.humidity,
+            storage=request.storage,
+            stacking_layers=request.stacking_layers,
+            print_coverage=request.print_coverage,
+            support_required=request.support_required,
+        )
+        return AnalyzeResponse(**result)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Analysis v2 error: {str(e)}")

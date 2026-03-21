@@ -82,12 +82,12 @@ function TexturedBox({ width, height, depth, textureUrl }) {
 /* ============================================================
  * PanelBox — dispatcher ตาม boxType
  * ========================================================== */
-function PanelBox({ width, height, depth, boxType, foldProgress, showSupport, supportConfig }) {
+function PanelBox({ width, height, depth, boxType, foldProgress, showSupport, supportConfig, boxStyle = 'kraft' }) {
   switch (boxType) {
     case 'rsc':
-      return <RSCBox width={width} height={height} depth={depth} foldProgress={foldProgress} />;
+      return <RSCBox width={width} height={height} depth={depth} foldProgress={foldProgress} boxStyle={boxStyle} />;
     case 'bow':
-      return <BowBox width={width} height={height} depth={depth} foldProgress={foldProgress} showSupport={showSupport} supportConfig={supportConfig} />;
+      return <BowBox width={width} height={height} depth={depth} foldProgress={foldProgress} showSupport={showSupport} supportConfig={supportConfig} boxStyle={boxStyle} />;
     case 'heart':
     case 'star':
     case 'bear':
@@ -99,6 +99,7 @@ function PanelBox({ width, height, depth, boxType, foldProgress, showSupport, su
           foldProgress={foldProgress}
           showSupport={showSupport}
           supportConfig={supportConfig}
+          boxStyle={boxStyle}
         />
       );
     case 'circle':
@@ -110,11 +111,12 @@ function PanelBox({ width, height, depth, boxType, foldProgress, showSupport, su
           foldProgress={foldProgress}
           showSupport={showSupport}
           supportConfig={supportConfig}
+          boxStyle={boxStyle}
         />
       );
     case 'die_cut':
     default:
-      return <DxfFoldBox width={width * 10} height={height * 10} depth={depth * 10} foldProgress={foldProgress} />;
+      return <DxfFoldBox width={width * 10} height={height * 10} depth={depth * 10} foldProgress={foldProgress} boxStyle={boxStyle} />;
   }
 }
 
@@ -125,7 +127,7 @@ function PanelBox({ width, height, depth, boxType, foldProgress, showSupport, su
 /* ============================================================
  * BoxViewer Container
  * ========================================================== */
-export default function BoxViewer({ width, height, depth, image, isDanger, boxType = 'rsc', supportConfig }) {
+export default function BoxViewer({ width, height, depth, image, isDanger, boxType = 'rsc', supportConfig, boxStyle = 'kraft' }) {
   const [foldProgress, setFoldProgress] = useState(0);
   const [showSupport, setShowSupport] = useState(false);
 
@@ -173,6 +175,7 @@ export default function BoxViewer({ width, height, depth, image, isDanger, boxTy
               foldProgress={foldProgress}
               showSupport={showSupport}
               supportConfig={supportConfig}
+              boxStyle={boxStyle}
             />
           ) : (
             <PlainBox width={width} height={height} depth={depth} />

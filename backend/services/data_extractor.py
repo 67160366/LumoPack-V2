@@ -54,21 +54,17 @@ def extract_product_type(message: str) -> Optional[str]:
 def extract_box_type(message: str) -> Optional[str]:
     """
     Extract ประเภทกล่อง
-    Returns: "rsc" | "die_cut" | "heart" | "star" | "bear" | "circle" | "bow" | None
+    Returns: "rsc" | "die_cut" | "heart" | "tube_lock" | "self_lock" | None
     """
     msg = message.lower().strip()
 
-    # Contour / special shapes — check before generic keywords
+    # Active types
     if any(w in msg for w in ["heart", "หัวใจ", "heart box"]):
         return "heart"
-    if any(w in msg for w in ["star", "ดาว", "star box"]):
-        return "star"
-    if any(w in msg for w in ["bear", "หมี", "bear box"]):
-        return "bear"
-    if any(w in msg for w in ["circle", "ทรงกลม", "กลม", "วงกลม", "circle box"]):
-        return "circle"
-    if any(w in msg for w in ["bow", "bow box", "ซัพพอร์ท"]):
-        return "bow"
+    if any(w in msg for w in ["tube lock", "tube-lock", "tube", "ท่อล็อก", "ทรงยาว"]):
+        return "tube_lock"
+    if any(w in msg for w in ["self lock", "self-lock", "self", "ล็อกอัตโนมัติ", "เซลฟ์ล็อก", "หนัก"]):
+        return "self_lock"
 
     if any(w in msg for w in ["rsc", "มาตรฐาน", "standard", "ลูกฟูก"]):
         return "rsc"
@@ -77,12 +73,12 @@ def extract_box_type(message: str) -> Optional[str]:
     if re.search(r'die[\s-]?cut|ไดคัท|ไดค์ท|ฝาเสียบ', msg):
         return "die_cut"
 
-    # Match ตัวเลข (1-7)
-    match = re.match(r'^\s*([1-7])\s*$', msg)
+    # Match ตัวเลข (1-5)
+    match = re.match(r'^\s*([1-5])\s*$', msg)
     if match:
         return {
             "1": "rsc", "2": "die_cut", "3": "heart",
-            "4": "star", "5": "bear", "6": "circle", "7": "bow",
+            "4": "tube_lock", "5": "self_lock",
         }[match.group(1)]
 
     return None
@@ -107,7 +103,7 @@ def extract_material(message: str, box_type: str) -> Optional[str]:
         return "cardboard"
     if any(w in msg for w in ["อาร์ต", "art"]):
         return "art_300gsm"
-    if any(w in msg for w in ["กล่องขาว", "กล่องแป้ง", "whiteboard"]):
+    if any(w in msg for w in ["กล่องขาว", "กล่องแป้ง", "whiteboard", "white cardboard", "white"]):
         return "whiteboard_350gsm"
     
     # Match ตัวเลข
@@ -308,24 +304,28 @@ def extract_flute(message: str) -> Optional[str]:
     - "ลอน C", "flute BC", "ลอนบีซี", "ลอนเอ", "ลอน A"
     - ตัวเลข mapping ไม่ได้ทำ (ชื่อลอนชัดเจนอยู่แล้ว)
     """
-    msg = message.upper()
+    msg = message.strip().upper()
     # BC ก่อน B/C เพื่อหลีกเลี่ยง partial match
     flute_patterns = [
-        (r'(?:ลอน|FLUTE)\s*BC', 'BC'),
-        (r'(?:ลอน|FLUTE)\s*A', 'A'),
-        (r'(?:ลอน|FLUTE)\s*B', 'B'),
-        (r'(?:ลอน|FLUTE)\s*C', 'C'),
-        (r'(?:ลอน|FLUTE)\s*E', 'E'),
-        (r'BC\s*FLUTE', 'BC'),
-        # ภาษาไทย
+        (r'(?:\bFLUTE\b|ลอน)\s*BC\b', 'BC'),
+        (r'\bBC\s*FLUTE\b', 'BC'),
         (r'ลอนบีซี', 'BC'),
+        (r'(?:\bFLUTE\b|ลอน)\s*A\b', 'A'),
         (r'ลอนเอ', 'A'),
-        (r'ลอนบี', 'B'),
+        (r'(?:\bFLUTE\b|ลอน)\s*B\b', 'B'),
+        (r'ลอนบี\b', 'B'),
+        (r'(?:\bFLUTE\b|ลอน)\s*C\b', 'C'),
         (r'ลอนซี', 'C'),
+        (r'(?:\bFLUTE\b|ลอน)\s*E\b', 'E'),
         (r'ลอนอี', 'E'),
+        (r'\bBC\b', 'BC'),
+        (r'\bA\b', 'A'),
+        (r'\bB\b', 'B'),
+        (r'\bC\b', 'C'),
+        (r'\bE\b', 'E'),
     ]
     for pattern, flute_code in flute_patterns:
-        if re.search(pattern, msg):
+        if re.search(pattern, msg, re.IGNORECASE):
             return flute_code
     return None
 
@@ -456,6 +456,17 @@ def extract_has_existing_block(message: str) -> Optional[bool]:
     if any(w in msg for w in ["ไม่เคย", "ไม่มี", "ยังไม่", "ครั้งแรก", "no"]):
         return False
     if any(w in msg for w in ["เคย", "มี", "ใช่", "yes", "มีบล็อก"]):
+        return True
+    return None
+
+
+def extract_support_required(message: str) -> Optional[bool]:
+    """Extract support requirement from Thai/English free text."""
+    msg = message.lower().strip()
+    if any(w in msg for w in ["ไม่ใช้ซัพพอร์ต", "ไม่เอาซัพพอร์ต", "ไม่ต้องซัพพอร์ต", "ไม่มีซัพพอร์ต", "no support"]):
+        return False
+    if any(w in msg for w in ["ซัพพอร์ต", "support", "มีถาดรอง", "มีชั้นรอง"]):
+        # If message contains support intent and no explicit negation above -> true
         return True
     return None
 
