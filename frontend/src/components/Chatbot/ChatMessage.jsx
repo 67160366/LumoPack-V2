@@ -16,19 +16,17 @@ export default function ChatMessage({ message }) {
   const content = message.content || '';
   const isSummary = !isUser && content.includes('สรุป Requirement');
   const isPricing = !isUser && content.includes('ใบเสนอราคา');
-  const showMockup = !isUser && content.includes('ขนาด') && !isSummary && !isPricing;
+  const showMockup =
+    !isUser &&
+    !isSummary &&
+    !isPricing &&
+    (
+      content.includes('ขนาด') ||
+      Boolean(collectedData?.box_type) ||
+      Boolean(collectedData?.dimensions)
+    );
 
-  const getParsedDimensions = () => {
-    if (!showMockup) return null;
-    const regex = /กว้าง\s*(\d+).*ยาว\s*(\d+).*สูง\s*(\d+)/;
-    const match = content.match(regex);
-    if (match) {
-      return { width: match[1], length: match[2], height: match[3] };
-    }
-    return null;
-  };
-
-  const parsedDimensions = getParsedDimensions();
+  const previewDimensions = collectedData?.dimensions || null;
 
   return (
     <div className={`chat-enter flex w-full mb-5 flex-col ${isUser ? 'items-end' : 'items-start'}`}>
@@ -113,7 +111,7 @@ export default function ChatMessage({ message }) {
 
       {showMockup && (
         <div className="w-full flex justify-center mt-4 mb-2 px-2">
-          <MockupDisplay boxType={collectedData?.box_type} dimensions={parsedDimensions} />
+          <MockupDisplay boxType={collectedData?.box_type} dimensions={previewDimensions} />
         </div>
       )}
 

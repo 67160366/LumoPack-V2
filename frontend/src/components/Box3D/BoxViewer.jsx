@@ -20,11 +20,12 @@ import { OrbitControls, ContactShadows, Environment } from '@react-three/drei';
 import { TextureLoader } from 'three';
 import HeatmapBox from './HeatmapBox';
 import useCorrugatedTexture from './useCorrugatedTexture';
-import DieCutBox from './DieCutBox';
 import DxfFoldBox from './DxfFoldBox';
 import ContourBox from './ContourBox';
 import BowBox from './BowBox';
 import RSCBox from './RSCBox';
+import TubeLockFoldBox from './TubeLockFoldBox';
+import SelfLockFoldBox from './SelfLockFoldBox';
 
 import {
   getContourSteps,
@@ -39,6 +40,8 @@ import {
 const BOX_TYPE_LABELS = {
   rsc: 'RSC',
   die_cut: 'Die-cut',
+  tube_lock: 'Tube Lock',
+  self_lock: 'Self-Lock',
   heart: 'Heart Box',
   star: 'Star Box',
   bear: 'Bear Box',
@@ -47,11 +50,11 @@ const BOX_TYPE_LABELS = {
 };
 
 // Box types that support fold animation
-const FOLDABLE_TYPES = ['rsc', 'die_cut', 'heart', 'star', 'bear', 'circle', 'bow'];
+const FOLDABLE_TYPES = ['rsc', 'die_cut', 'tube_lock', 'self_lock', 'heart', 'star', 'bear', 'circle', 'bow'];
 // Box types that are contour-based (not panel-based)
 const CONTOUR_TYPES = ['heart', 'star', 'bear', 'circle'];
 // Box types that support the support structure toggle
-const SUPPORT_TYPES = ['die_cut', 'heart', 'star', 'bear', 'circle', 'bow'];
+const SUPPORT_TYPES = ['die_cut', 'self_lock', 'heart', 'star', 'bear', 'circle', 'bow'];
 
 /* ============================================================
  * PlainBox  (RSC — simple boxGeometry)
@@ -88,6 +91,20 @@ function PanelBox({ width, height, depth, boxType, foldProgress, showSupport, su
       return <RSCBox width={width} height={height} depth={depth} foldProgress={foldProgress} boxStyle={boxStyle} />;
     case 'bow':
       return <BowBox width={width} height={height} depth={depth} foldProgress={foldProgress} showSupport={showSupport} supportConfig={supportConfig} boxStyle={boxStyle} />;
+    case 'tube_lock':
+      return <TubeLockFoldBox width={width * 10} length={height * 10} depth={depth * 10} foldProgress={foldProgress} boxStyle={boxStyle} />;
+    case 'self_lock':
+      return (
+        <SelfLockFoldBox
+          width={width * 10}
+          height={height * 10}
+          depth={depth * 10}
+          foldProgress={foldProgress}
+          showSupport={showSupport}
+          supportConfig={supportConfig}
+          boxStyle={boxStyle}
+        />
+      );
     case 'heart':
     case 'star':
     case 'bear':
@@ -127,9 +144,20 @@ function PanelBox({ width, height, depth, boxType, foldProgress, showSupport, su
 /* ============================================================
  * BoxViewer Container
  * ========================================================== */
-export default function BoxViewer({ width, height, depth, image, isDanger, boxType = 'rsc', supportConfig, boxStyle = 'kraft' }) {
+export default function BoxViewer({
+  width,
+  height,
+  depth,
+  image,
+  isDanger,
+  boxType = 'rsc',
+  supportConfig,
+  boxStyle = 'kraft',
+  showSupport: showSupportProp,
+}) {
   const [foldProgress, setFoldProgress] = useState(0);
-  const [showSupport, setShowSupport] = useState(false);
+  const [showSupportInternal, setShowSupportInternal] = useState(false);
+  const showSupport = typeof showSupportProp === 'boolean' ? showSupportProp : showSupportInternal;
 
   const showTexture = image && !isDanger;
   const usePanelBox = !showTexture && !isDanger;
@@ -235,7 +263,7 @@ export default function BoxViewer({ width, height, depth, image, isDanger, boxTy
               <input
                 type="checkbox"
                 checked={showSupport}
-                onChange={(e) => setShowSupport(e.target.checked)}
+                onChange={(e) => setShowSupportInternal(e.target.checked)}
                 style={{ accentColor: '#7c3aed' }}
               />
               <span style={{ fontSize: 11, color: '#7c3aed' }}>ซัพพอร์ท</span>

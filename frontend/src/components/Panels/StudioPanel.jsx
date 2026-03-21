@@ -18,14 +18,12 @@ const PANEL_W = 340;
 const BOX_TYPES = [
   { id: 'rsc',     label: 'RSC',       thai: 'กล่องลูกฟูก' },
   { id: 'die_cut', label: 'Die-cut',   thai: 'ฝาเสียบ' },
+  { id: 'tube_lock', label: 'Tube Lock', thai: 'ทรงยาว' },
+  { id: 'self_lock', label: 'Self-Lock', thai: 'ล็อกอัตโนมัติ' },
   { id: 'heart',   label: 'Heart',     thai: 'หัวใจ' },
-  { id: 'star',    label: 'Star',      thai: 'ดาว' },
-  { id: 'bear',    label: 'Bear',      thai: 'หมี' },
-  { id: 'circle',  label: 'Circle',    thai: 'ทรงกลม' },
-  { id: 'bow',     label: 'Bow',       thai: 'ซัพพอร์ท' },
 ];
 
-const SUPPORT_TYPES = ['die_cut', 'bow', 'heart', 'star', 'bear', 'circle'];
+const SUPPORT_TYPES = ['die_cut', 'self_lock', 'heart'];
 
 /* ─── Tab definitions ─── */
 const TABS = [
@@ -400,6 +398,41 @@ function EditPanel({ formData, onFormChange, image, onImageUpload, onGeneratePDF
           </div>
           <Chevron />
         </RowButton>
+        <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          <label style={{ fontSize: 10, color: '#6b7280', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            Material
+            <select
+              name="box_style"
+              value={formData.box_style || 'kraft'}
+              onChange={onFormChange}
+              style={{
+                background: 'rgba(255,255,255,0.6)', border: '1px solid rgba(0,0,0,0.06)',
+                fontSize: 12, borderRadius: 10, color: '#111827', padding: '7px 10px',
+                outline: 'none', fontFamily: "'DM Sans', sans-serif",
+              }}
+            >
+              <option value="kraft">Kraft</option>
+              <option value="white">White cardboard</option>
+              <option value="heart_red">Heart red</option>
+            </select>
+          </label>
+          <label style={{ fontSize: 10, color: '#6b7280', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            Support
+            <select
+              name="support_required"
+              value={formData.support_required ? 'yes' : 'no'}
+              onChange={(e) => onFormChange({ target: { name: 'support_required', value: e.target.value === 'yes' } })}
+              style={{
+                background: 'rgba(255,255,255,0.6)', border: '1px solid rgba(0,0,0,0.06)',
+                fontSize: 12, borderRadius: 10, color: '#111827', padding: '7px 10px',
+                outline: 'none', fontFamily: "'DM Sans', sans-serif",
+              }}
+            >
+              <option value="no">No support</option>
+              <option value="yes">With support</option>
+            </select>
+          </label>
+        </div>
       </Section>
 
       {/* Dimensions */}
@@ -804,6 +837,20 @@ function BoxPreviewSVG({ type, active }) {
         <rect x="9" y="10" width="26" height="28" rx="1.5" fill={fill} stroke={c} strokeWidth="1.5" />
         <line x1="9" y1="17" x2="35" y2="17" stroke={c} strokeWidth="1" strokeDasharray="3 2" />
         <path d="M16 10 L16 6 Q22 3 28 6 L28 10" fill={fill} stroke={c} strokeWidth="1.5" />
+      </svg>
+    ),
+    tube_lock: (
+      <svg width={s} height={s} viewBox="0 0 44 44" fill="none">
+        <rect x="9" y="9" width="26" height="26" rx="1.5" fill={fill} stroke={c} strokeWidth="1.5" />
+        <line x1="16" y1="9" x2="16" y2="35" stroke={c} strokeWidth="1" strokeDasharray="3 2" />
+        <line x1="28" y1="9" x2="28" y2="35" stroke={c} strokeWidth="1" strokeDasharray="3 2" />
+      </svg>
+    ),
+    self_lock: (
+      <svg width={s} height={s} viewBox="0 0 44 44" fill="none">
+        <rect x="8" y="12" width="28" height="20" rx="1.5" fill={fill} stroke={c} strokeWidth="1.5" />
+        <path d="M8 12 L14 7 L30 7 L36 12" fill={fill} stroke={c} strokeWidth="1.5" />
+        <path d="M8 32 L14 37 L30 37 L36 32" fill={fill} stroke={c} strokeWidth="1.5" />
       </svg>
     ),
     heart: (

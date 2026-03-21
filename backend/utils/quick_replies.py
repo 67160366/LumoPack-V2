@@ -42,10 +42,19 @@ def get_quick_replies(
     data = collected_data or {}
     partial = partial_data or {}
 
-    # === Edit Mode: ไม่แสดงปุ่ม ให้ user พิมพ์เอง ===
-    # เพราะ user กำลังแก้ไขข้อมูลเฉพาะจุด
+    # === Edit Mode: แสดง quick edit เพื่อให้แก้เฉพาะ field ได้เร็ว ===
     if is_edit_mode:
-        return []
+        if current_step in (5,):
+            return ["__FORM_DIMENSIONS__", "500", "1,000", "2,000", "5,000", "ยกเลิกแก้ไข"]
+        if current_step in (6,):
+            return ["แก้ขนาด", "แก้ลอนกระดาษ", "แก้วัสดุ", "มีซัพพอร์ต", "ไม่ใช้ซัพพอร์ต", "ถูกต้อง ✓"]
+        if current_step in (8,):
+            return ["มีโลโก้", "ไม่มีโลโก้", "ด้านบน", "ด้านกว้าง", "ด้านยาว", "ทุกด้าน", "ยกเลิกแก้ไข"]
+        if current_step in (9,):
+            return ["ไม่ต้องการ", "เคลือบเงา", "เคลือบด้าน", "ปั๊มนูน", "ยกเลิกแก้ไข"]
+        if current_step in (10,):
+            return ["แก้โลโก้", "เพิ่มลูกเล่นพิเศษ", "แก้วัสดุ", "แก้ขนาด", "ถูกต้อง ✓"]
+        return ["ขอแก้ไข", "ยกเลิกแก้ไข"]
 
     # ===================================
     # Step 1: Greeting (auto-advance ไม่ต้องมีปุ่ม)

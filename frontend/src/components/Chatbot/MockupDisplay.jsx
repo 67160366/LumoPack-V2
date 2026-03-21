@@ -2,12 +2,18 @@
  * MockupDisplay — Card แสดงพรีวิวรูปทรงกล่องใน chat
  */
 const BOX_TYPE_LABELS = {
-  rsc: 'RSC (กล่องลูกฟูก)', die_cut: 'Die-cut (ฝาเสียบ)',
-  heart: 'Heart (หัวใจ)', star: 'Star (ดาว)', bear: 'Bear (หมี)',
-  circle: 'Circle (ทรงกลม)', bow: 'Bow (ซัพพอร์ท)',
+  rsc: 'RSC (กล่องลูกฟูก)',
+  die_cut: 'Die-cut (ฝาเสียบ)',
+  tube_lock: 'Tube Lock',
+  self_lock: 'Self-Lock',
+  heart: 'Heart (หัวใจ)',
 };
 
 export default function MockupDisplay({ boxType, dimensions }) {
+  const dims = dimensions && dimensions.width && dimensions.length && dimensions.height
+    ? dimensions
+    : null;
+
   return (
     <div className="w-full max-w-[300px] bg-white rounded-xl border border-purple-100 overflow-hidden animate-slide-up">
       <div className="px-4 py-3 flex items-center justify-between">
@@ -28,9 +34,9 @@ export default function MockupDisplay({ boxType, dimensions }) {
             <p className="text-sm font-medium text-purple-800">
               {boxType ? `ทรง ${BOX_TYPE_LABELS[boxType] || boxType}` : 'ทรงกล่องมาตรฐาน'}
             </p>
-            {dimensions ? (
+            {dims ? (
               <p className="text-xs text-purple-500 font-mono mt-0.5">
-                {dimensions.width} x {dimensions.length} x {dimensions.height} cm
+                {dims.width} x {dims.length} x {dims.height} cm
               </p>
             ) : (
               <p className="text-xs text-purple-400 mt-0.5">รอการระบุขนาด...</p>

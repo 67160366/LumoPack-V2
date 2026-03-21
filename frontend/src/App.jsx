@@ -21,6 +21,7 @@ import { ChatbotProvider, useChatbot } from './contexts/ChatbotContext';
 import { useAuth } from './contexts/AuthContext';
 import ChatWindow from './components/Chatbot/ChatWindow';
 import StudioPanel from './components/Panels/StudioPanel';
+import BoxViewer from './components/Box3D/BoxViewer';
 import DielineTestPage from './pages/DielineTestPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
@@ -38,6 +39,14 @@ const RSCTestPage = React.lazy(() => import('./pages/RSCTestPage'));
 const TubeLockTestPage = React.lazy(() => import('./pages/TubeLockTestPage'));
 const HeartBoxTestPage = React.lazy(() => import('./pages/HeartBoxTestPage'));
 const SelfLockTestPage = React.lazy(() => import('./pages/SelfLockTestPage'));
+
+function normalizeBoxStyle(material) {
+  const value = String(material || '').toLowerCase();
+  if (!value) return null;
+  if (value.includes('white') || value.includes('ขาว')) return 'white';
+  if (value.includes('red') || value.includes('แดง') || value.includes('heart')) return 'heart_red';
+  return 'kraft';
+}
 
 
 // ===================================
@@ -83,6 +92,8 @@ function AppLayout() {
   const [formData, setFormData] = useState({
     length: 20, width: 15, height: 10,
     weight: 5, flute_type: 'C',
+    support_required: false,
+    box_style: 'kraft',
   });
   const [analysis, setAnalysis] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -104,9 +115,6 @@ function AppLayout() {
 
   // --- Mobile view toggle ---
   const [mobileView, setMobileView] = useState('chat'); // 'chat' | '3d'
-
-  // --- Center panel view mode (passed to DielineTestPage) ---
-  const [centerView, setCenterView] = useState('3d'); // '3d' | 'dieline'
 
   // --- Auth ---
   const { user, profile, signOut } = useAuth();
@@ -131,11 +139,14 @@ function AppLayout() {
       }
       if (collectedData.weight_kg != null) updates.weight     = collectedData.weight_kg;
       if (collectedData.flute_type)        updates.flute_type = collectedData.flute_type;
+      if (typeof collectedData.support_required === 'boolean') updates.support_required = collectedData.support_required;
+      const mappedStyle = normalizeBoxStyle(collectedData.material);
+      if (mappedStyle) updates.box_style = mappedStyle;
 
       if (Object.keys(updates).length === 0) return prev;
       return { ...prev, ...updates };
     });
-  }, [collectedData?.dimensions, collectedData?.weight_kg, collectedData?.flute_type]);
+  }, [collectedData?.dimensions, collectedData?.weight_kg, collectedData?.flute_type, collectedData?.support_required, collectedData?.material]);
 
   // Sync chatbot box_type → boxType state
   React.useEffect(() => {
@@ -176,7 +187,10 @@ function AppLayout() {
 
   // --- Handlers ---
   const handleFormChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const nextValue = e?.target?.value;
+    const name = e?.target?.name;
+    if (!name) return;
+    setFormData(prev => ({ ...prev, [name]: nextValue }));
   };
 
   const handleImageUpload = (e) => {
@@ -197,6 +211,7 @@ function AppLayout() {
           height: parseFloat(formData.height),
           weight: parseFloat(formData.weight),
           flute_type: formData.flute_type,
+          support_required: Boolean(formData.support_required),
         }),
       });
       const data = await response.json();
@@ -515,8 +530,6 @@ function AppLayout() {
             onBoxTypeChange={(e) => {
               const next = e?.target?.value;
               if (next) setBoxType(next);
-              // Clicking a model should switch the main center to the dieline test view.
-              setCenterView('dieline');
             }}
             supportConfig={supportConfig}
             onSupportConfigChange={setSupportConfig}
@@ -527,13 +540,17 @@ function AppLayout() {
           />
         </div>
 
-        {/* Center viewer — DielineTestPage handles both 2D + 3D */}
-        <DielineTestPage
-          width={displayDims.length * 10}
-          height={displayDims.height * 10}
-          depth={displayDims.width * 10}
-          defaultView={centerView === 'dieline' ? '2d' : '3d'}
-          showControls={false}
+        {/* Center viewer — synced with chatbot box type/material/support */}
+        <BoxViewer
+          width={Number(displayDims.length) || 20}
+          height={Number(displayDims.height) || 10}
+          depth={Number(displayDims.width) || 15}
+          image={image}
+          isDanger={isDanger}
+          boxType={boxType}
+          supportConfig={supportConfig}
+          showSupport={Boolean(formData.support_required)}
+          boxStyle={formData.box_style || 'kraft'}
         />
 
       </div>
