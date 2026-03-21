@@ -305,13 +305,21 @@ export default function DxfFoldBox({
           <group position={[0, t, D / 2]} rotation={flat}>
             <RectPanel w={W} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
           </group>
-          {/* Depth extension L — corner tab, glue flap sits on top */}
-          <group position={[-(W / 2 + D / 2), t, D / 2]} rotation={flat}>
-            <RectPanel w={D} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
+          {/* Depth extension L — pivots at X=-W/2, folds 90° inward */}
+          <group position={[-W / 2, 0, D / 2]}>
+            <group rotation={[0, aSide, 0]}>
+              <group position={[-D / 2, t, 0]} rotation={flat}>
+                <RectPanel w={D} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
+              </group>
+            </group>
           </group>
-          {/* Depth extension R — corner tab, glue flap sits on top */}
-          <group position={[(W / 2 + D / 2), t, D / 2]} rotation={flat}>
-            <RectPanel w={D} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
+          {/* Depth extension R — pivots at X=+W/2, folds 90° inward */}
+          <group position={[W / 2, 0, D / 2]}>
+            <group rotation={[0, -aSide, 0]}>
+              <group position={[D / 2, t, 0]} rotation={flat}>
+                <RectPanel w={D} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
+              </group>
+            </group>
           </group>
         </group>
       </group>
@@ -357,13 +365,21 @@ export default function DxfFoldBox({
           <group position={[0, t, -D / 2]} rotation={flat}>
             <RectPanel w={W} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
           </group>
-          {/* Depth extension L — folds with top strip, glue flap sits on top */}
-          <group position={[-(W / 2 + D / 2), t, -D / 2]} rotation={flat}>
-            <RectPanel w={D} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
+          {/* Depth extension L — pivots at X=-W/2, folds 90° inward */}
+          <group position={[-W / 2, 0, -D / 2]}>
+            <group rotation={[0, aSide, 0]}>
+              <group position={[-D / 2, t, 0]} rotation={flat}>
+                <RectPanel w={D} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
+              </group>
+            </group>
           </group>
-          {/* Depth extension R — folds with top strip, glue flap sits on top */}
-          <group position={[(W / 2 + D / 2), t, -D / 2]} rotation={flat}>
-            <RectPanel w={D} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
+          {/* Depth extension R — pivots at X=+W/2, folds 90° inward */}
+          <group position={[W / 2, 0, -D / 2]}>
+            <group rotation={[0, -aSide, 0]}>
+              <group position={[D / 2, t, 0]} rotation={flat}>
+                <RectPanel w={D} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
+              </group>
+            </group>
           </group>
 
           {/* ─── BACK CHAIN ─── hinged at far edge of depth strip */}

@@ -35,6 +35,7 @@ class StepResult:
                                                 # ใช้เมื่อ handler generate checkpoint summary ในรอบเดียวกัน
     auto_execute: bool = False                  # หลัง advance ให้ orchestrator call handler ถัดไปทันที
                                                 # (ไม่รอ user message) ใช้กับ step 10→11→12→13
+    extra: Optional[Dict[str, Any]] = None      # ข้อมูลเพิ่มเติมส่งไป frontend (เช่น auto_download_pdf)
 
 
 # ===================================
@@ -94,7 +95,7 @@ class ChatbotFlowManager:
         self,
         user_message: str,
         state: ConversationState
-    ) -> Tuple[str, ConversationState]:
+    ) -> Tuple[str, ConversationState, Optional[Dict[str, Any]]]:
         """
         ประมวลผลข้อความจากลูกค้า
         
@@ -125,7 +126,7 @@ class ChatbotFlowManager:
             result = next_result
 
         state.add_message("assistant", result.response)
-        return result.response, state
+        return result.response, state, result.extra
     
     # ===================================
     # Router
@@ -154,7 +155,7 @@ class ChatbotFlowManager:
             ChatbotStep.GENERATE_MOCKUP:       lambda: self.finalize_handlers.handle_mockup(user_message, state),
             ChatbotStep.GENERATE_QUOTE:        lambda: self.finalize_handlers.handle_quote(user_message, state),
             ChatbotStep.CONFIRM_ORDER:         lambda: self.finalize_handlers.handle_confirm(user_message, state),
-            ChatbotStep.END:                   lambda: self.finalize_handlers.handle_end(state),
+            ChatbotStep.END:                   lambda: self.finalize_handlers.handle_end(user_message, state),
         }
         
         handler = handler_map.get(step)

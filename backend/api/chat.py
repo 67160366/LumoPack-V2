@@ -46,6 +46,7 @@ class ChatMessageResponse(BaseModel):
     is_waiting_confirmation: bool = Field(default=False, description="กำลังรอการยืนยันหรือไม่")
     is_complete: bool = Field(default=False, description="สนทนาเสร็จสมบูรณ์แล้วหรือไม่")
     quick_replies: List[str] = Field(default_factory=list, description="ปุ่มเลือกตอบสำหรับลูกค้า")
+    extra: Optional[Dict[str, Any]] = Field(default=None, description="ข้อมูลเพิ่มเติม เช่น auto_download_pdf")
     
     class Config:
         json_schema_extra = {
@@ -186,7 +187,7 @@ async def send_message(request: ChatMessageRequest):
 
         # ประมวลผลข้อความ
         # chatbot_flow.process_message(user_message, state) → Tuple[str, ConversationState]
-        response_text, state = await chatbot_manager.process_message(
+        response_text, state, extra = await chatbot_manager.process_message(
             user_message=effective_message,
             state=state
         )
@@ -212,7 +213,8 @@ async def send_message(request: ChatMessageRequest):
             collected_data=state.collected_data,
             is_waiting_confirmation=getattr(state, 'is_waiting_for_confirmation', False),
             is_complete=int(state.current_step) >= 14,
-            quick_replies=replies
+            quick_replies=replies,
+            extra=extra,
         )
         
     except Exception as e:

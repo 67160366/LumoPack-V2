@@ -325,6 +325,19 @@ export function ChatbotProvider({ children }) {
         step: data.current_step,
       };
       setMessages(prev => [...prev, botMsg]);
+
+      // Auto-download PDF if backend signals it
+      if (data.extra?.auto_download_pdf) {
+        const pdfUrl = data.extra.auto_download_pdf.startsWith('http')
+          ? data.extra.auto_download_pdf
+          : `${window.location.protocol}//${window.location.hostname}:8000${data.extra.auto_download_pdf}`;
+        const a = document.createElement('a');
+        a.href = pdfUrl;
+        a.download = '';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
     } catch (err) {
       console.error('Chat error:', err);
       setError(err.message || 'เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง');

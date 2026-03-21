@@ -108,7 +108,16 @@ export default function MyProjectsPage() {
   }
 
   function handleLoad(project) {
-    navigate('/', { state: { loadProject: project } });
+    // Navigate to the correct box test page based on box_type
+    const BOX_ROUTES = {
+      rsc: '/rsc-test',
+      die_cut: '/dieline-test',
+      tube_lock: '/tube-lock-test',
+      heart: '/heart-box-test',
+      self_lock: '/self-lock-test',
+    };
+    const route = BOX_ROUTES[project.box_type] || '/';
+    navigate(route, { state: { loadProject: project } });
   }
 
   const jk = "'Plus Jakarta Sans', sans-serif";

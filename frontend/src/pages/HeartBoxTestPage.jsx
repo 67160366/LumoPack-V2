@@ -8,7 +8,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect, Component } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import FloatingChat from '../components/Chatbot/FloatingChat';
 import { useChatbot } from '../contexts/ChatbotContext';
 import { parseDxf } from '../engine/dxfParser';
@@ -248,6 +248,27 @@ function HeartBoxInner() {
     wallHeight: 0.78,
     holes: [{ id: 1, type: 'circle', x: 0, y: 0, r: 2.5 }],
   });
+
+  // --- Load project from navigation state ---
+  const location = useLocation();
+  useEffect(() => {
+    const proj = location.state?.loadProject;
+    if (!proj) return;
+    window.history.replaceState({}, '');
+    if (proj.dimensions) {
+      if (proj.dimensions.width)  setLength(proj.dimensions.width * 10);
+      if (proj.dimensions.height) setHeight(proj.dimensions.height * 10);
+    }
+    if (proj.material) {
+      const v = proj.material.toLowerCase();
+      if (v === 'red' || v.includes('แดง')) setBoxStyle('heart_red');
+      else if (v === 'white' || v.includes('ขาว')) setBoxStyle('white');
+      else setBoxStyle('kraft');
+    }
+    if (proj.support_required != null) {
+      setShowSupport(!!proj.support_required);
+    }
+  }, []);
 
   // --- Chatbot sync: dimensions, material, support ---
   const { collectedData } = useChatbot();

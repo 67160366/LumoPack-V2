@@ -11,7 +11,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect, Component } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment, ContactShadows } from '@react-three/drei';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import FloatingChat from '../components/Chatbot/FloatingChat';
 import { useChatbot } from '../contexts/ChatbotContext';
 import { parseDxf } from '../engine/dxfParser';
@@ -530,6 +530,26 @@ function DielineStandalone() {
   const [activeTab, setActiveTab] = useState(null);
   const [selectedZone, setSelectedZone] = useState(null);
   const [boxStyle, setBoxStyle] = useState('kraft');
+
+  // --- Load project from navigation state ---
+  const location = useLocation();
+  useEffect(() => {
+    const proj = location.state?.loadProject;
+    if (!proj) return;
+    window.history.replaceState({}, '');
+    if (proj.dimensions) {
+      if (proj.dimensions.width)  setW(proj.dimensions.width * 10);
+      if (proj.dimensions.length) setH(proj.dimensions.length * 10);
+      if (proj.dimensions.height) setD(proj.dimensions.height * 10);
+    }
+    if (proj.material) {
+      const v = proj.material.toLowerCase();
+      setBoxStyle(v === 'white' || v.includes('ขาว') ? 'white' : 'kraft');
+    }
+    if (proj.support_required != null) {
+      setShowSupport(!!proj.support_required);
+    }
+  }, []);
 
   // --- Chatbot sync: dimensions, material, support ---
   const { collectedData } = useChatbot();

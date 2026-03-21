@@ -175,23 +175,38 @@ class FinalizeStepHandlers:
     # ===================================
     # Step 14: End
     # ===================================
-    async def handle_end(self, state: ConversationState):
-        print(f"[handle_end] called for session {state.session_id}")
-        prompt = get_prompt_for_step(14)
-        response = await self.groq.generate_response(
-            system_prompt=SYSTEM_PROMPT,
-            user_message=prompt,
-            conversation_history=[]
-        )
-        response += f"\n\nหมายเลขอ้างอิง: {state.session_id}"
-        response += f"\n\nดาวน์โหลดใบเสนอราคา PDF:\n/api/pricing/quote-pdf/{state.session_id}"
+    async def handle_end(self, user_message: str, state: ConversationState):
+        print(f"[handle_end] called for session {state.session_id}, sub_step={state.sub_step}")
 
-        # Auto-save order to Supabase (if configured)
+        # sub_step 0: Ask for project name
+        if state.sub_step == 0:
+            return _make_result(
+                response="เยี่ยมเลยค่ะ! ก่อนจบ ช่วยตั้งชื่อโปรเจกต์นี้ให้หน่อยนะคะ\nเช่น \"กล่องขนม A\" หรือ \"โปรเจกต์ทดสอบ\"",
+                update_sub_step=1,
+            )
+
+        # sub_step 1: Receive project name → save + auto-download PDF
+        project_name = user_message.strip()
+        if not project_name:
+            project_name = f"Project {state.session_id[:8]}"
+        state.collected_data["project_name"] = project_name
+
+        # Auto-save order & project to Supabase
         print(f"[handle_end] saving order, user_id={getattr(state, 'user_id', None)}")
         self._save_project_to_db(state)
         self._save_order_to_db(state)
 
-        return _make_result(response=response)
+        response = (
+            f"บันทึกโปรเจกต์ \"{project_name}\" เรียบร้อยแล้วค่ะ\n\n"
+            f"หมายเลขอ้างอิง: {state.session_id}\n\n"
+            f"ขอบคุณที่ใช้บริการ LumoPack ค่ะ ทีมงานจะติดต่อกลับภายใน 1-2 วันทำการค่ะ"
+        )
+
+        return _make_result(
+            response=response,
+            update_data={"project_name": project_name},
+            extra={"auto_download_pdf": f"/api/pricing/quote-pdf/{state.session_id}"},
+        )
 
     # ===================================
     # Save Order to Supabase
@@ -242,7 +257,7 @@ class FinalizeStepHandlers:
             grand_total = pricing.get("grand_total", 0)
             box_type = c.get("box_type")
             qty = c.get("quantity")
-            project_name = f"{(box_type or 'project').upper()} {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}"
+            project_name = c.get("project_name") or f"{(box_type or 'project').upper()} {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}"
 
             row = {
                 "name": project_name,

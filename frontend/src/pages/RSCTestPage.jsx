@@ -10,7 +10,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect, Component } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import FloatingChat from '../components/Chatbot/FloatingChat';
 import { useChatbot } from '../contexts/ChatbotContext';
 import { parseDxf } from '../engine/dxfParser';
@@ -298,12 +298,29 @@ function RSCTestPageInner() {
   const [activeTab, setActiveTab] = useState(null);
   const [boxStyle, setBoxStyle] = useState('kraft');
 
+  // --- Load project from navigation state ---
+  const location = useLocation();
+  useEffect(() => {
+    const proj = location.state?.loadProject;
+    if (!proj) return;
+    window.history.replaceState({}, '');
+    if (proj.dimensions) {
+      if (proj.dimensions.width)  setW(proj.dimensions.width * 10);
+      if (proj.dimensions.length) setH(proj.dimensions.length * 10);
+      if (proj.dimensions.height) setD(proj.dimensions.height * 10);
+    }
+    if (proj.material) {
+      const v = proj.material.toLowerCase();
+      setBoxStyle(v === 'white' || v.includes('ขาว') ? 'white' : 'kraft');
+    }
+  }, []);
+
   // --- Chatbot sync: dimensions, material ---
   const { collectedData } = useChatbot();
   useEffect(() => {
     const dims = collectedData?.dimensions;
     if (!dims) return;
-    if (dims.width)  setW(dims.width * 10);   // cm → mm
+    if (dims.width)  setW(dims.width * 10);
     if (dims.length) setH(dims.length * 10);
     if (dims.height) setD(dims.height * 10);
   }, [collectedData?.dimensions]);
