@@ -208,33 +208,33 @@ export default function HomePage() {
           <div style={{
             position: 'relative', zIndex: 1,
             maxWidth: 900, margin: '0 auto',
-            padding: '80px 40px 60px',
+            padding: '36px 40px 28px',
             textAlign: 'center',
           }}>
             {/* Logo badge */}
             <div style={{
               display: 'inline-flex', alignItems: 'center', gap: 8,
-              background: 'rgba(124,58,237,0.08)', borderRadius: 20, padding: '6px 16px',
-              marginBottom: 24,
+              background: 'rgba(124,58,237,0.08)', borderRadius: 20, padding: '5px 14px',
+              marginBottom: 14,
             }}>
-              <img src="/logo.png" alt="LumoPack" style={{ width: 28, height: 28, objectFit: 'contain' }} />
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#7c3aed', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              <img src="/logo.png" alt="LumoPack" style={{ width: 22, height: 22, objectFit: 'contain' }} />
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#7c3aed', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                 LumoPack Studio
               </span>
             </div>
 
             <h1 style={{
-              fontSize: 42, fontWeight: 800, color: '#1a1a2e',
+              fontSize: 30, fontWeight: 800, color: '#1a1a2e',
               fontFamily: "'Plus Jakarta Sans', sans-serif",
-              lineHeight: 1.2, margin: '0 0 16px',
+              lineHeight: 1.25, margin: '0 0 10px',
             }}>
-              ออกแบบบรรจุภัณฑ์<br />
-              <span style={{ color: '#7c3aed' }}>ของคุณ</span>
+              ออกแบบบรรจุภัณฑ์
+              <span style={{ color: '#7c3aed' }}> ของคุณ</span>
             </h1>
 
             <p style={{
-              fontSize: 16, color: '#6b7280', maxWidth: 500, margin: '0 auto 32px',
-              fontFamily: "'Sarabun', sans-serif", lineHeight: 1.7,
+              fontSize: 14, color: '#6b7280', maxWidth: 460, margin: '0 auto 20px',
+              fontFamily: "'Sarabun', sans-serif", lineHeight: 1.6,
             }}>
               เลือกโมเดลกล่องที่ต้องการ แล้วปรับแต่งขนาด วัสดุ และดีไซน์ ได้ตามใจชอบ
             </p>
@@ -245,8 +245,8 @@ export default function HomePage() {
               }}
               style={{
                 background: 'linear-gradient(135deg, #7c3aed, #6d28d9)',
-                color: '#fff', border: 'none', borderRadius: 14,
-                padding: '14px 36px', fontSize: 15, fontWeight: 700,
+                color: '#fff', border: 'none', borderRadius: 12,
+                padding: '10px 28px', fontSize: 13, fontWeight: 700,
                 cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif",
                 boxShadow: '0 4px 14px rgba(124,58,237,0.3)',
                 transition: 'transform 0.2s, box-shadow 0.2s',
@@ -264,25 +264,25 @@ export default function HomePage() {
           id="models-section"
           style={{
             maxWidth: 1000, margin: '0 auto', width: '100%',
-            padding: '48px 40px 80px',
+            padding: '28px 40px 60px',
           }}
         >
-          <div style={{ textAlign: 'center', marginBottom: 36 }}>
+          <div style={{ textAlign: 'center', marginBottom: 24 }}>
             <h2 style={{
-              fontSize: 24, fontWeight: 800, color: '#1a1a2e',
-              fontFamily: "'Plus Jakarta Sans', sans-serif", margin: '0 0 8px',
+              fontSize: 20, fontWeight: 800, color: '#1a1a2e',
+              fontFamily: "'Plus Jakarta Sans', sans-serif", margin: '0 0 6px',
             }}>
               เลือกโมเดลกล่อง
             </h2>
-            <p style={{ fontSize: 14, color: '#6b7280', fontFamily: "'Sarabun', sans-serif" }}>
+            <p style={{ fontSize: 13, color: '#6b7280', fontFamily: "'Sarabun', sans-serif" }}>
               คลิกเลือกแบบกล่องเพื่อเริ่มออกแบบ
             </p>
           </div>
 
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-            gap: 20,
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 16,
           }}>
             {BOX_TYPES.map(bt => {
               const isHovered = hoveredModel === bt.id;
@@ -294,8 +294,8 @@ export default function HomePage() {
                   onMouseLeave={() => setHoveredModel(null)}
                   style={{
                     display: 'flex', flexDirection: 'column', alignItems: 'center',
-                    gap: 12, padding: '28px 16px 20px',
-                    borderRadius: 20, cursor: 'pointer',
+                    gap: 10, padding: '20px 14px 16px',
+                    borderRadius: 18, cursor: 'pointer',
                     border: isHovered ? '2px solid #7c3aed' : '1px solid rgba(0,0,0,0.08)',
                     background: isHovered ? 'rgba(124,58,237,0.03)' : '#fff',
                     boxShadow: isHovered
@@ -306,7 +306,7 @@ export default function HomePage() {
                   }}
                 >
                   <div style={{
-                    width: 80, height: 80, borderRadius: 16,
+                    width: 64, height: 64, borderRadius: 14,
                     background: isHovered ? 'rgba(124,58,237,0.06)' : '#f9fafb',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     transition: 'background 0.2s',
@@ -315,7 +315,7 @@ export default function HomePage() {
                   </div>
                   <div style={{ textAlign: 'center' }}>
                     <div style={{
-                      fontSize: 15, fontWeight: 700,
+                      fontSize: 14, fontWeight: 700,
                       color: isHovered ? '#7c3aed' : '#111827',
                       fontFamily: "'Plus Jakarta Sans', sans-serif",
                       transition: 'color 0.2s',
@@ -323,13 +323,13 @@ export default function HomePage() {
                       {bt.label}
                     </div>
                     <div style={{
-                      fontSize: 12, color: isHovered ? '#7c3aed' : '#6b7280',
-                      fontWeight: 500, marginTop: 2,
+                      fontSize: 11, color: isHovered ? '#7c3aed' : '#6b7280',
+                      fontWeight: 500, marginTop: 1,
                     }}>
                       {bt.thai}
                     </div>
                     <div style={{
-                      fontSize: 11, color: '#9ca3af', marginTop: 6,
+                      fontSize: 10, color: '#9ca3af', marginTop: 4,
                       fontFamily: "'Sarabun', sans-serif", lineHeight: 1.4,
                     }}>
                       {bt.desc}
@@ -338,7 +338,7 @@ export default function HomePage() {
 
                   {/* Arrow button */}
                   <div style={{
-                    width: 36, height: 36, borderRadius: 10,
+                    width: 32, height: 32, borderRadius: 8,
                     background: isHovered ? '#7c3aed' : '#f3f4f6',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     transition: 'all 0.2s', marginTop: 4,

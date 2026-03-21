@@ -7,7 +7,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 
-const API_BASE = `${window.location.protocol}//${window.location.hostname}:8000`;
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 const STATUS_CFG = {
   draft:         { label: 'แบบร่าง',       bg: '#f3f4f6', color: '#6b7280', dot: '#9ca3af' },
@@ -331,9 +331,31 @@ function ProjectCard({ project, onLoad, onDelete, deletingId, onSlipUploaded }) 
   const jk = "'Plus Jakarta Sans', sans-serif";
   const sb = "'Sarabun', sans-serif";
 
-  const handleDownloadPdf = (e) => {
+  const handleDownloadPdf = async (e) => {
     e.stopPropagation();
-    window.open(`${API_BASE}/api/pricing/project-quote-pdf/${project.id}`, '_blank');
+    const token = (await supabase?.auth.getSession())?.data?.session?.access_token;
+    if (!token) {
+      alert('กรุณาเข้าสู่ระบบก่อนดาวน์โหลดใบเสนอราคา');
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/api/pricing/project-quote-pdf/${project.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        let msg = 'โหลดไม่สำเร็จ';
+        if (typeof err.detail === 'string') msg = err.detail;
+        else if (Array.isArray(err.detail) && err.detail[0]?.msg) msg = err.detail[0].msg;
+        throw new Error(msg);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (err) {
+      alert(err.message || 'โหลดใบเสนอราคาไม่สำเร็จ');
+    }
   };
 
   const handleUploadSlip = async (e) => {

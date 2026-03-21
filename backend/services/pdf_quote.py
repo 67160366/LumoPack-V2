@@ -277,3 +277,26 @@ def generate_quote_pdf(
     pdf.cell(0, 5, f"อ้างอิง: {session_id}", ln=True)
 
     return pdf.output()
+
+
+def pdf_bytes_from_project_row(project: Dict[str, Any]) -> bytes:
+    """สร้าง PDF ใบเสนอราคาจากแถวตาราง projects (collected_data + pricing หรือคำนวณใหม่)"""
+    from models.requirement import CompleteRequirement
+    from services.pricing_calculator import get_price_estimate
+
+    collected = project.get("collected_data") or {}
+    sid = project.get("session_id") or project.get("id")
+    session_id = str(sid) if sid is not None else "unknown"
+
+    pricing_data = project.get("pricing")
+    if not pricing_data:
+        if not collected.get("dimensions") or not collected.get("box_type"):
+            raise ValueError("ข้อมูลยังไม่ครบ ไม่สามารถออกใบเสนอราคาได้")
+        requirement = CompleteRequirement.from_collected_data(
+            session_id=session_id,
+            collected_data=collected,
+        )
+        pricing_request = requirement.to_pricing_request()
+        pricing_data = get_price_estimate(pricing_request)
+
+    return generate_quote_pdf(session_id, collected, pricing_data)

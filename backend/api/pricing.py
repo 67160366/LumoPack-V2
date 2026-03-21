@@ -3,8 +3,10 @@ Pricing API Endpoints
 คำนวณราคากล่อง
 """
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.responses import Response
+
+from middleware.auth import AuthUser, get_current_user
 from pydantic import BaseModel, Field, validator
 from typing import Optional, Dict, Any, List
 
@@ -348,43 +350,55 @@ async def download_quote_pdf(session_id: str):
 
 
 @router.get("/project-quote-pdf/{project_id}")
-async def download_project_quote_pdf(project_id: str):
+async def download_project_quote_pdf(
+    project_id: str,
+    user: AuthUser = Depends(get_current_user),
+):
     """
     ดาวน์โหลดใบเสนอราคา PDF จากข้อมูลโปรเจกต์ใน Supabase
+    ต้องส่ง Authorization: Bearer <access_token> และเป็นเจ้าของโปรเจกต์
     """
-    from services.pdf_quote import generate_quote_pdf
-    from models.requirement import CompleteRequirement
+    from services.pdf_quote import pdf_bytes_from_project_row
     from services.supabase_client import get_supabase
 
     supabase = get_supabase()
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase not configured")
 
-    result = supabase.table("projects").select("*").eq("id", project_id).execute()
-    if not result.data:
-        raise HTTPException(status_code=404, detail="ไม่พบโปรเจกต์นี้")
-
-    project = result.data[0]
-    collected = project.get("collected_data") or {}
-    session_id = project.get("session_id") or project.get("id", "unknown")
-
-    # Use stored pricing if available, otherwise recalculate
-    pricing_data = project.get("pricing")
-    if not pricing_data:
-        if not collected.get("dimensions") or not collected.get("box_type"):
-            raise HTTPException(status_code=400, detail="ข้อมูลยังไม่ครบ ไม่สามารถออกใบเสนอราคาได้")
+    result = (
+        supabase.table("projects")
+        .select("*")
+        .eq("id", project_id)
+        .eq("user_id", user.id)
+        .execute()
+    )
+    rows = result.data if result.data else []
+    if not rows:
         try:
-            requirement = CompleteRequirement.from_collected_data(
-                session_id=session_id,
-                collected_data=collected,
+            r2 = (
+                supabase.table("projects")
+                .select("*")
+                .eq("session_id", project_id)
+                .eq("user_id", user.id)
+                .limit(1)
+                .execute()
             )
-            pricing_request = requirement.to_pricing_request()
-            pricing_data = get_price_estimate(pricing_request)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"คำนวณราคาไม่สำเร็จ: {str(e)}")
+            rows = r2.data or []
+        except Exception:
+            rows = []
+
+    if not rows:
+        raise HTTPException(
+            status_code=404,
+            detail="ไม่พบโปรเจกต์นี้หรือไม่มีสิทธิ์เข้าถึง",
+        )
+
+    project = rows[0]
 
     try:
-        pdf_bytes = generate_quote_pdf(session_id, collected, pricing_data)
+        pdf_bytes = pdf_bytes_from_project_row(project)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"สร้าง PDF ไม่สำเร็จ: {str(e)}")
 

@@ -328,9 +328,10 @@ export function ChatbotProvider({ children }) {
 
       // Auto-download PDF if backend signals it
       if (data.extra?.auto_download_pdf) {
+        const apiBase = import.meta?.env?.VITE_API_URL ?? '';
         const pdfUrl = data.extra.auto_download_pdf.startsWith('http')
           ? data.extra.auto_download_pdf
-          : `${window.location.protocol}//${window.location.hostname}:8000${data.extra.auto_download_pdf}`;
+          : `${apiBase}${data.extra.auto_download_pdf}`;
         const a = document.createElement('a');
         a.href = pdfUrl;
         a.download = '';
