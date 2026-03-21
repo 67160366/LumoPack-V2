@@ -343,7 +343,7 @@ async def download_quote_pdf(session_id: str):
 
     filename = f"LumoPack_Quote_{session_id[:8]}.pdf"
     return Response(
-        content=pdf_bytes,
+        content=bytes(pdf_bytes),
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
@@ -405,7 +405,7 @@ async def download_project_quote_pdf(
     safe_name = (project.get("name") or "quote").replace(" ", "_")[:30]
     filename = f"LumoPack_{safe_name}.pdf"
     return Response(
-        content=pdf_bytes,
+        content=bytes(pdf_bytes),
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
