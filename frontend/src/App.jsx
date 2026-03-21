@@ -2,7 +2,8 @@
  * App.jsx LumoPack Studio (Responsive 3-Panel Layout + Routing)
  *
  * Routes:
- * /              → Studio (3-panel layout)
+ * /              → Home (model gallery, protected)
+ * /studio        → Studio (3-panel layout, protected)
  * /login         → Login
  * /register      → Register
  * /checkout      → Checkout (protected)
@@ -20,8 +21,7 @@ import { ChatbotProvider, useChatbot } from './contexts/ChatbotContext';
 import { useAuth } from './contexts/AuthContext';
 import ChatWindow from './components/Chatbot/ChatWindow';
 import StudioPanel from './components/Panels/StudioPanel';
-import BoxViewer from './components/Box3D/BoxViewer';
-import DielineViewer from './components/Dieline/DielineViewer';
+import DielineTestPage from './pages/DielineTestPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import CheckoutPage from './pages/CheckoutPage';
@@ -31,7 +31,13 @@ import OrderDetailPage from './pages/OrderDetailPage';
 import AdminDashboard from './pages/AdminDashboard';
 import ForgotpasswordPage from './pages/ForgotpasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
+import HomePage from './pages/HomePage';
 import { supabase } from './lib/supabase';
+
+const RSCTestPage = React.lazy(() => import('./pages/RSCTestPage'));
+const TubeLockTestPage = React.lazy(() => import('./pages/TubeLockTestPage'));
+const HeartBoxTestPage = React.lazy(() => import('./pages/HeartBoxTestPage'));
+const SelfLockTestPage = React.lazy(() => import('./pages/SelfLockTestPage'));
 
 
 // ===================================
@@ -99,7 +105,7 @@ function AppLayout() {
   // --- Mobile view toggle ---
   const [mobileView, setMobileView] = useState('chat'); // 'chat' | '3d'
 
-  // --- Center panel view mode ---
+  // --- Center panel view mode (passed to DielineTestPage) ---
   const [centerView, setCenterView] = useState('3d'); // '3d' | 'dieline'
 
   // --- Auth ---
@@ -506,7 +512,12 @@ function AppLayout() {
             onImageUpload={handleImageUpload}
             onGeneratePDF={handleGeneratePDF}
             boxType={boxType}
-            onBoxTypeChange={(e) => setBoxType(e.target.value)}
+            onBoxTypeChange={(e) => {
+              const next = e?.target?.value;
+              if (next) setBoxType(next);
+              // Clicking a model should switch the main center to the dieline test view.
+              setCenterView('dieline');
+            }}
             supportConfig={supportConfig}
             onSupportConfigChange={setSupportConfig}
             onSignOut={signOut}
@@ -516,43 +527,14 @@ function AppLayout() {
           />
         </div>
 
-        {centerView === '3d' ? (
-          <BoxViewer
-            width={displayDims.length}
-            height={displayDims.height}
-            depth={displayDims.width}
-            image={image}
-            isDanger={isDanger}
-            boxType={boxType}
-            supportConfig={supportConfig}
-          />
-        ) : (
-          <DielineViewer
-            width={displayDims.length * 10}
-            height={displayDims.height * 10}
-            depth={displayDims.width * 10}
-          />
-        )}
-
-        {/* View mode toggle (3D / 2D Dieline) */}
-        <div className="absolute top-3 right-3 z-10 flex rounded-lg overflow-hidden border border-purple-200 bg-white/80 backdrop-blur-sm shadow-sm">
-          <button
-            onClick={() => setCenterView('3d')}
-            className={`px-3 py-1.5 text-xs font-mono transition-colors ${
-              centerView === '3d' ? 'text-purple-700 bg-purple-50' : 'text-purple-400 hover:text-purple-600'
-            }`}
-          >
-            3D
-          </button>
-          <button
-            onClick={() => setCenterView('dieline')}
-            className={`px-3 py-1.5 text-xs font-mono transition-colors ${
-              centerView === 'dieline' ? 'text-purple-700 bg-purple-50' : 'text-purple-400 hover:text-purple-600'
-            }`}
-          >
-            2D Dieline
-          </button>
-        </div>
+        {/* Center viewer — DielineTestPage handles both 2D + 3D */}
+        <DielineTestPage
+          width={displayDims.length * 10}
+          height={displayDims.height * 10}
+          depth={displayDims.width * 10}
+          defaultView={centerView === 'dieline' ? '2d' : '3d'}
+          showControls={false}
+        />
 
       </div>
 
@@ -619,51 +601,67 @@ function AppLayout() {
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
-      <Route path="/forgot-password" element={<ForgotpasswordPage />} />
-      <Route path="/reset-password" element={<ResetPasswordPage />} />
-      <Route
-        path="/checkout"
-        element={
-          <ProtectedRoute>
-            <ChatbotProvider><CheckoutPage /></ChatbotProvider>
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/projects"
-        element={
-          <ProtectedRoute><MyProjectsPage /></ProtectedRoute>
-        }
-      />
-      <Route
-        path="/orders"
-        element={
-          <ProtectedRoute><MyOrdersPage /></ProtectedRoute>
-        }
-      />
-      <Route
-        path="/orders/:id"
-        element={
-          <ProtectedRoute><OrderDetailPage /></ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin"
-        element={
-          <AdminRoute><AdminDashboard /></AdminRoute>
-        }
-      />
-      <Route
-        path="/*"
-        element={
-          <ProtectedRoute>
-            <ChatbotProvider><AppLayout /></ChatbotProvider>
-          </ProtectedRoute>
-        }
-      />
-    </Routes>
+    <ChatbotProvider>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotpasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/dieline-test" element={<DielineTestPage />} />
+        <Route path="/rsc-test" element={<React.Suspense fallback={<LoadingScreen />}><RSCTestPage /></React.Suspense>} />
+        <Route path="/tube-lock-test" element={<React.Suspense fallback={<LoadingScreen />}><TubeLockTestPage /></React.Suspense>} />
+        <Route path="/heart-box-test" element={<React.Suspense fallback={<LoadingScreen />}><HeartBoxTestPage /></React.Suspense>} />
+        <Route path="/self-lock-test" element={<React.Suspense fallback={<LoadingScreen />}><SelfLockTestPage /></React.Suspense>} />
+        <Route
+          path="/checkout"
+          element={
+            <ProtectedRoute>
+              <CheckoutPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/projects"
+          element={
+            <ProtectedRoute><MyProjectsPage /></ProtectedRoute>
+          }
+        />
+        <Route
+          path="/orders"
+          element={
+            <ProtectedRoute><MyOrdersPage /></ProtectedRoute>
+          }
+        />
+        <Route
+          path="/orders/:id"
+          element={
+            <ProtectedRoute><OrderDetailPage /></ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute><AdminDashboard /></AdminRoute>
+          }
+        />
+        <Route
+          path="/studio"
+          element={
+            <ProtectedRoute>
+              <AppLayout />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <HomePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </ChatbotProvider>
   );
 }

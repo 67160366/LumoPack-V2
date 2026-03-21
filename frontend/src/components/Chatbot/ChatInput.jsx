@@ -1,5 +1,5 @@
 /**
- * ChatInput — Input field + Send button (Teal Theme)
+ * ChatInput — Input field + Send button — Navy Theme
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -43,14 +43,23 @@ export default function ChatInput() {
   };
 
   return (
-    <div className="flex-shrink-0 border-t border-teal-100 bg-white p-3">
+    <div style={{
+      flexShrink: 0,
+      borderTop: '1px solid #e2e8f0',
+      background: '#fff',
+      padding: '14px 16px',
+    }}>
       {isComplete && (
-        <div className="text-center text-xs text-teal-500 mb-2 py-1">
-          ✅ การสนทนาเสร็จสิ้น
+        <div style={{
+          textAlign: 'center', fontSize: 12, color: '#64748b',
+          marginBottom: 10, padding: '4px 0',
+          fontFamily: "'Sarabun', sans-serif",
+        }}>
+          การสนทนาเสร็จสิ้น
         </div>
       )}
 
-      <div className="flex items-end gap-2">
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
         <textarea
           ref={textareaRef}
           value={text}
@@ -65,37 +74,48 @@ export default function ChatInput() {
           }
           disabled={isDisabled}
           rows={1}
-          className={`
-            flex-1 resize-none bg-teal-50/50 border border-teal-200
-            rounded-xl px-3.5 py-2.5 text-sm text-teal-900
-            placeholder-teal-300 font-body
-            focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent
-            disabled:opacity-50 disabled:cursor-not-allowed
-            transition-colors duration-200
-          `}
+          style={{
+            flex: 1, resize: 'none',
+            background: '#f8fafc',
+            border: '1px solid #e2e8f0',
+            borderRadius: 14,
+            padding: '11px 16px',
+            fontSize: 13,
+            color: '#0f172a',
+            fontFamily: "'Sarabun', sans-serif",
+            outline: 'none',
+            transition: 'border-color 0.2s, box-shadow 0.2s',
+            opacity: isDisabled ? 0.5 : 1,
+            cursor: isDisabled ? 'not-allowed' : 'text',
+          }}
+          onFocus={e => { if (!isDisabled) { e.target.style.borderColor = '#3b82f6'; e.target.style.boxShadow = '0 0 0 3px rgba(59,130,246,0.1)'; } }}
+          onBlur={e => { e.target.style.borderColor = '#e2e8f0'; e.target.style.boxShadow = 'none'; }}
         />
 
         <button
           onClick={handleSend}
           disabled={isDisabled || !text.trim()}
-          className={`
-            flex-shrink-0 w-10 h-10 rounded-xl
-            flex items-center justify-center
-            transition-all duration-200 shadow-sm
-            ${text.trim() && !isDisabled
-              ? 'bg-teal-600 text-white hover:bg-teal-700 active:scale-95'
-              : 'bg-purple-50 text-purple-300 cursor-not-allowed'
-            }
-          `}
+          style={{
+            flexShrink: 0,
+            width: 44, height: 44, borderRadius: 14,
+            border: 'none', cursor: (isDisabled || !text.trim()) ? 'not-allowed' : 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'all 0.2s',
+            background: (text.trim() && !isDisabled)
+              ? 'linear-gradient(135deg, #3b82f6, #2563eb)'
+              : '#f1f5f9',
+            color: (text.trim() && !isDisabled) ? '#fff' : '#cbd5e1',
+            boxShadow: (text.trim() && !isDisabled) ? '0 2px 8px rgba(37,99,235,0.3)' : 'none',
+          }}
           title="ส่งข้อความ"
         >
           {isLoading ? (
-            <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-25" />
+            <svg style={{ width: 18, height: 18, animation: 'spin 1s linear infinite' }} viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" opacity="0.25" />
               <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
             </svg>
           ) : (
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg style={{ width: 18, height: 18 }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="22" y1="2" x2="11" y2="13" />
               <polygon points="22 2 15 22 11 13 2 9 22 2" />
             </svg>

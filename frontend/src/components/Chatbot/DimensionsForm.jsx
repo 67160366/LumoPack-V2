@@ -4,8 +4,9 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 
-const MIN_DIMENSION = 1;
-const MAX_DIMENSION = 200;
+// UI accepts mm, but the rest of the app/back-end expects cm.
+const MIN_DIMENSION_MM = 10;
+const MAX_DIMENSION_MM = 2000;
 const MIN_QUANTITY  = 500;
 const MAX_QUANTITY  = 100000;
 
@@ -37,12 +38,12 @@ export default function DimensionsForm({ onSubmit, showQuantity = true }) {
     const l = parseFloat(length);
     const h = parseFloat(height);
 
-    if (!width  || isNaN(w) || w < MIN_DIMENSION || w > MAX_DIMENSION)
-      newErrors.width  = `${MIN_DIMENSION}–${MAX_DIMENSION} ซม.`;
-    if (!length || isNaN(l) || l < MIN_DIMENSION || l > MAX_DIMENSION)
-      newErrors.length = `${MIN_DIMENSION}–${MAX_DIMENSION} ซม.`;
-    if (!height || isNaN(h) || h < MIN_DIMENSION || h > MAX_DIMENSION)
-      newErrors.height = `${MIN_DIMENSION}–${MAX_DIMENSION} ซม.`;
+    if (!width  || isNaN(w) || w < MIN_DIMENSION_MM || w > MAX_DIMENSION_MM)
+      newErrors.width  = `${MIN_DIMENSION_MM}–${MAX_DIMENSION_MM} mm`;
+    if (!length || isNaN(l) || l < MIN_DIMENSION_MM || l > MAX_DIMENSION_MM)
+      newErrors.length = `${MIN_DIMENSION_MM}–${MAX_DIMENSION_MM} mm`;
+    if (!height || isNaN(h) || h < MIN_DIMENSION_MM || h > MAX_DIMENSION_MM)
+      newErrors.height = `${MIN_DIMENSION_MM}–${MAX_DIMENSION_MM} mm`;
 
     if (showQuantity) {
       const q = parseInt(quantity, 10);
@@ -67,7 +68,12 @@ export default function DimensionsForm({ onSubmit, showQuantity = true }) {
     if (!validate()) return;
     setIsSubmitting(true);
 
-    let text = `กว้าง ${width} ยาว ${length} สูง ${height}`;
+    // Convert mm -> cm for the chatbot/back-end which expects cm.
+    const wCm = (parseFloat(width) || 0) / 10;
+    const lCm = (parseFloat(length) || 0) / 10;
+    const hCm = (parseFloat(height) || 0) / 10;
+
+    let text = `กว้าง ${wCm} ยาว ${lCm} สูง ${hCm} ซม.`;
     if (showQuantity && quantity) text += ` จำนวน ${quantity} ชิ้น`;
     if (weight)                   text += ` น้ำหนัก ${weight} kg`;
     if (flute)                    text += ` ลอน ${flute}`;
@@ -109,13 +115,13 @@ export default function DimensionsForm({ onSubmit, showQuantity = true }) {
 
         {/* บังคับ: กว้าง / ยาว / สูง */}
         <div className="grid grid-cols-3 gap-2 mb-2">
-          <DimInput ref={firstInputRef} name="width"  label="กว้าง" unit="ซม."
+          <DimInput ref={firstInputRef} name="width"  label="กว้าง" unit="mm"
             value={width}  error={errors.width}
             onChange={handleNumberChange(setWidth, 'width')}   onKeyDown={handleKeyDown} />
-          <DimInput name="length" label="ยาว" unit="ซม."
+          <DimInput name="length" label="ยาว" unit="mm"
             value={length} error={errors.length}
             onChange={handleNumberChange(setLength, 'length')} onKeyDown={handleKeyDown} />
-          <DimInput name="height" label="สูง" unit="ซม."
+          <DimInput name="height" label="สูง" unit="mm"
             value={height} error={errors.height}
             onChange={handleNumberChange(setHeight, 'height')} onKeyDown={handleKeyDown} />
         </div>

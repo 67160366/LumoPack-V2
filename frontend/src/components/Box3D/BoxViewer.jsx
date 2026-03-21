@@ -14,13 +14,14 @@
  * - ContourBox:  กล่องรูปทรงพิเศษ (heart, star, bear, circle)
  */
 
-import { useState, useMemo, Suspense } from 'react';
+import { useEffect, useState, useMemo, Suspense } from 'react';
 import { Canvas, useLoader } from '@react-three/fiber';
 import { OrbitControls, ContactShadows, Environment } from '@react-three/drei';
 import { TextureLoader } from 'three';
 import HeatmapBox from './HeatmapBox';
 import useCorrugatedTexture from './useCorrugatedTexture';
 import DieCutBox from './DieCutBox';
+import DxfFoldBox from './DxfFoldBox';
 import ContourBox from './ContourBox';
 import BowBox from './BowBox';
 import RSCBox from './RSCBox';
@@ -113,7 +114,7 @@ function PanelBox({ width, height, depth, boxType, foldProgress, showSupport, su
       );
     case 'die_cut':
     default:
-      return <DieCutBox width={width} height={height} depth={depth} foldProgress={foldProgress} showSupport={showSupport} supportConfig={supportConfig} />;
+      return <DxfFoldBox width={width * 10} height={height * 10} depth={depth * 10} foldProgress={foldProgress} />;
   }
 }
 

@@ -1,5 +1,5 @@
 /**
- * ChatMessage — แสดงข้อความแต่ละ bubble + แสดง UI Cards อัตโนมัติ
+ * ChatMessage — แสดงข้อความแต่ละ bubble + แสดง UI Cards อัตโนมัติ — Navy Theme
  */
 
 import React from 'react';
@@ -33,36 +33,67 @@ export default function ChatMessage({ message }) {
   return (
     <div className={`chat-enter flex w-full mb-5 flex-col ${isUser ? 'items-end' : 'items-start'}`}>
 
-      {/* Chat bubble (Teal theme) */}
+      {/* Chat bubble */}
       <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'}`}>
         {!isUser && (
-          <div className="flex-shrink-0 w-7 h-7 rounded-lg bg-teal-100 flex items-center justify-center mr-2.5 mt-1">
-            <span className="text-xs font-display font-semibold text-teal-600">LP</span>
-          </div>
+          <img
+            src="/logo.png"
+            alt="LP"
+            className="flex-shrink-0 mr-3 mt-1"
+            style={{ width: 32, height: 32, objectFit: 'contain' }}
+          />
         )}
 
         <div
-          className={`
-            relative max-w-[85%] px-5 py-3.5 rounded-xl text-sm leading-relaxed shadow-sm
-            ${isUser
-              ? 'bg-teal-600 text-white rounded-tr-sm'
+          style={{
+            maxWidth: '82%',
+            padding: '12px 16px',
+            borderRadius: isUser ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
+            fontSize: 13,
+            lineHeight: 1.7,
+            ...(isUser
+              ? {
+                  background: 'linear-gradient(135deg, #1e293b, #0f172a)',
+                  color: '#fff',
+                  boxShadow: '0 2px 8px rgba(15,23,42,0.2)',
+                }
               : isError
-                ? 'bg-red-50 text-red-600 border border-red-200 rounded-tl-sm'
-                : 'bg-white text-teal-900 border border-teal-100 rounded-tl-sm'
-            }
-          `}
+                ? {
+                    background: '#fef2f2',
+                    color: '#dc2626',
+                    border: '1px solid #fecaca',
+                  }
+                : {
+                    background: '#f1f5f9',
+                    color: '#0f172a',
+                    border: '1px solid #e2e8f0',
+                  }
+            ),
+          }}
         >
-          <div className="whitespace-pre-wrap break-words">
+          <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
             {content}
           </div>
-          <div className={`text-xs mt-1.5 select-none text-right ${isUser ? 'text-teal-200' : 'text-teal-300'}`}>
+          <div style={{
+            fontSize: 10, marginTop: 6, textAlign: 'right',
+            color: isUser ? 'rgba(255,255,255,0.4)' : '#94a3b8',
+          }}>
             {formatTime(message.timestamp)}
           </div>
         </div>
 
         {isUser && (
-          <div className="flex-shrink-0 w-7 h-7 rounded-lg bg-purple-100 flex items-center justify-center ml-2.5 mt-1">
-            <span className="text-xs font-display font-semibold text-purple-600">Me</span>
+          <div
+            className="flex-shrink-0 flex items-center justify-center ml-3 mt-1"
+            style={{
+              width: 32, height: 32, borderRadius: 10,
+              background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+            }}
+          >
+            <span style={{
+              color: '#fff', fontSize: 10, fontWeight: 700,
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+            }}>Me</span>
           </div>
         )}
       </div>

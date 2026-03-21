@@ -414,7 +414,7 @@ function EditPanel({ formData, onFormChange, image, onImageUpload, onGeneratePDF
           padding: '7px 0', textAlign: 'center',
           fontSize: 13, fontFamily: "'JetBrains Mono', monospace", fontWeight: 600, color: '#111827',
         }}>
-          {formData.length} × {formData.width} × {formData.height} cm
+          {(Number(formData.length) * 10).toFixed(0)} × {(Number(formData.width) * 10).toFixed(0)} × {(Number(formData.height) * 10).toFixed(0)} mm
         </div>
       </Section>
     </div>
@@ -745,13 +745,27 @@ function Chevron() {
 }
 
 function DimSlider({ label, name, value, max, onChange }) {
+  // UI in mm, internal state stays in cm (App.jsx expects cm for calculations).
+  const mmValue = Number(value) * 10;
+  const mmMax = Number(max) * 10;
+  const mmMin = 10;
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
         <span style={{ fontSize: 11, fontWeight: 600, color: '#374151' }}>{label}</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
           <input
-            type="number" name={name} value={value} min={1} max={max} onChange={onChange}
+            type="number"
+            name={name}
+            value={Number.isFinite(mmValue) ? mmValue : 0}
+            min={mmMin}
+            max={mmMax}
+            step={1}
+            onChange={(e) => {
+              const nextMm = Number(e.target.value);
+              const nextCm = (Number.isFinite(nextMm) ? nextMm : 0) / 10;
+              onChange({ target: { name, value: nextCm } });
+            }}
             style={{
               width: 48, background: 'rgba(255,255,255,0.6)', border: '1px solid rgba(0,0,0,0.1)',
               borderRadius: 8, padding: '4px 6px', fontSize: 12,
@@ -759,13 +773,9 @@ function DimSlider({ label, name, value, max, onChange }) {
               textAlign: 'center', outline: 'none',
             }}
           />
-          <span style={{ fontSize: 10, color: '#6b7280', fontFamily: "'JetBrains Mono', monospace" }}>cm</span>
+          <span style={{ fontSize: 10, color: '#6b7280', fontFamily: "'JetBrains Mono', monospace" }}>mm</span>
         </div>
       </div>
-      <input
-        type="range" name={name} min={1} max={max} value={value} onChange={onChange}
-        style={{ width: '100%', height: 4, accentColor: '#7c3aed', cursor: 'pointer' }}
-      />
     </div>
   );
 }

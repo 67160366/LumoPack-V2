@@ -103,6 +103,14 @@ export function parseDxf(dxfText) {
   const lines = dxfText.split(/\r?\n/).map(l => l.trim());
   const entities = { cut: [], crease: [] };
 
+  // Map layer names to our categories (case-insensitive)
+  function normalizeLayer(raw) {
+    const l = (raw || '').toLowerCase();
+    if (l === 'cut') return 'cut';
+    if (l === 'crease' || l === 'valley' || l === 'mountain') return 'crease';
+    return l; // fallback to raw lowercase
+  }
+
   let i = 0;
 
   // Skip to ENTITIES section
@@ -124,7 +132,7 @@ export function parseDxf(dxfText) {
       i += 2;
       const result = parsePolyline(lines, i);
       i = result.nextIndex;
-      const layer = result.layer || 'cut';
+      const layer = normalizeLayer(result.layer);
       if (entities[layer]) {
         entities[layer].push(result.points);
       }
@@ -132,7 +140,7 @@ export function parseDxf(dxfText) {
       i += 2;
       const result = parseLine(lines, i);
       i = result.nextIndex;
-      const layer = result.layer || 'crease';
+      const layer = normalizeLayer(result.layer);
       if (entities[layer]) {
         entities[layer].push(result.points);
       }

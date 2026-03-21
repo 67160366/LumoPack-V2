@@ -8,6 +8,7 @@ venv/
 # Node
 node_modules/
 dist/
+/frontend/dist/
 dist-ssr/
 .vite/
 *.local
@@ -46,3 +47,8 @@ _extracted/
 *.tmp
 
 .agents/
+
+# Local sample assets (root only)
+/*.dxf
+/*.avif
+/*.jpg

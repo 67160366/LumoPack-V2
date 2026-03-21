@@ -106,13 +106,14 @@ export class ApiError extends Error {
  *   is_complete: boolean
  * }>}
  */
-export async function sendChatMessage(message, sessionId = null, userId = null) {
+export async function sendChatMessage(message, sessionId = null, userId = null, prefillData = null) {
   return apiFetch('/api/chat/message', {
     method: 'POST',
     body: JSON.stringify({
       message,
       session_id: sessionId,
       user_id: userId,
+      prefill_data: prefillData,
     }),
   });
 }

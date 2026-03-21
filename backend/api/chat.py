@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any, List
 import uuid
 
 from services.chatbot_flow import ChatbotFlowManager
-from models.chat_state import session_storage, ConversationState
+from models.chat_state import session_storage, ConversationState, ChatbotStep
 from utils.quick_replies import get_quick_replies
 
 
@@ -22,6 +22,10 @@ class ChatMessageRequest(BaseModel):
     message: str = Field(..., min_length=1, description="ข้อความจากลูกค้า")
     session_id: Optional[str] = Field(None, description="Session ID (ถ้ามีอยู่แล้ว)")
     user_id: Optional[str] = Field(None, description="User ID (Optional)")
+    prefill_data: Optional[Dict[str, Any]] = Field(
+        None,
+        description="ข้อมูลที่ frontend pre-flow เก็บมาแล้ว เช่น product_type/box_type/support_required"
+    )
     
     class Config:
         json_schema_extra = {
@@ -122,6 +126,34 @@ async def send_message(request: ChatMessageRequest):
         # Store user_id in state (for order creation)
         if request.user_id:
             state.user_id = request.user_id
+
+        # Apply prefill data from frontend onboarding flow.
+        # This prevents asking product/box type again when the user has already selected them.
+        prefill = request.prefill_data or {}
+        if prefill:
+            merged = {}
+            if prefill.get("product_type") and not state.collected_data.get("product_type"):
+                merged["product_type"] = prefill["product_type"]
+            if prefill.get("box_type") and not state.collected_data.get("box_type"):
+                merged["box_type"] = prefill["box_type"]
+            if "support_required" in prefill:
+                merged["support_required"] = bool(prefill.get("support_required"))
+
+            if merged:
+                state.update_collected_data(merged)
+
+            # Skip already-answered questions.
+            if state.current_step <= ChatbotStep.COLLECT_PRODUCT_TYPE and state.collected_data.get("product_type"):
+                state.current_step = ChatbotStep.COLLECT_BOX_TYPE
+                state.sub_step = 0
+            if (
+                state.current_step == ChatbotStep.COLLECT_BOX_TYPE
+                and state.sub_step == 0
+                and state.collected_data.get("box_type")
+            ):
+                # Jump directly to material question sub-step, do not ask box type again.
+                state.partial_data["box_type"] = state.collected_data["box_type"]
+                state.sub_step = 1
         
         # ประมวลผลข้อความ
         # chatbot_flow.process_message(user_message, state) → Tuple[str, ConversationState]
