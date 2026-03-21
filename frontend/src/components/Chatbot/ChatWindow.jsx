@@ -7,6 +7,7 @@ import { useChatbot } from '../../contexts/ChatbotContext';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import DimensionsForm from './DimensionsForm';
+import HeartDimensionsForm from './HeartDimensionsForm';
 
 export default function ChatWindow() {
   const {
@@ -17,6 +18,7 @@ export default function ChatWindow() {
     quickReplies,
     sendMessage,
     resetChat,
+    collectedData,
   } = useChatbot();
 
   const messagesEndRef = useRef(null);
@@ -161,7 +163,11 @@ export default function ChatWindow() {
         {/* Quick Reply Buttons */}
         {!isLoading && quickReplies.length > 0 && (
           quickReplies.includes('__FORM_DIMENSIONS__') ? (
-            <DimensionsForm onSubmit={(text) => sendMessage(text)} />
+            collectedData?.box_type === 'heart' ? (
+              <HeartDimensionsForm onSubmit={(text) => sendMessage(text)} />
+            ) : (
+              <DimensionsForm onSubmit={(text) => sendMessage(text)} />
+            )
           ) : (
             <div className="flex flex-wrap gap-2 mt-2 mb-3 ml-11 chat-enter">
               {quickReplies.map((text, idx) => (

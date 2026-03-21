@@ -16,8 +16,9 @@ from models.chat_state import ConversationState, ChatbotStep
 from services.groq_service import get_groq_service
 from services.data_extractor import (
     extract_product_type, extract_box_type, extract_material,
-    extract_inner, extract_dimensions, extract_quantity,
-    extract_weight, extract_flute, extract_support_required,
+    extract_inner, extract_dimensions, extract_heart_dimensions,
+    extract_quantity, extract_weight, extract_flute,
+    extract_support_required,
     is_confirmation, is_rejection, is_skip_response,
     is_add_request, detect_edit_target,
 )
@@ -110,6 +111,64 @@ class ChatbotFlowManagerV2:
         return StepResult(response="ขออภัยค่ะ เกิดข้อผิดพลาด")
 
     # ===================================
+    # LLM-based extraction (fallback when regex fails)
+    # ===================================
+    async def _classify_box_type(self, user_message: str) -> Optional[str]:
+        """Use LLM to classify box type from natural language when regex fails."""
+        prompt = (
+            "จากข้อความลูกค้าด้านล่าง จงตอบเฉพาะ 1 คำ ว่าต้องการกล่องแบบไหน:\n"
+            "- rsc (กล่องลูกฟูก, กล่องส่งของ, กล่องขนส่ง, กล่องแข็งแรง, กล่องมาตรฐาน)\n"
+            "- die_cut (กล่องฝาเสียบ, กล่องไดคัท, กล่องเปิดฝา, กล่องโชว์สินค้า, กล่องพรีเมียม, กล่องสวย)\n"
+            "- heart (กล่องหัวใจ, กล่องรูปหัวใจ, กล่องวาเลนไทน์, กล่องของขวัญรูปหัวใจ)\n"
+            "- tube_lock (กล่องทรงยาว, กล่องใส่ขวด, กล่องทรงสูง, กล่องท่อ)\n"
+            "- self_lock (กล่องเซลฟ์ล็อก, กล่องล็อกอัตโนมัติ, กล่องใส่ของหนัก)\n"
+            "- none (ไม่สามารถระบุได้)\n\n"
+            f"ข้อความลูกค้า: \"{user_message}\"\n\n"
+            "ตอบเฉพาะคำเดียว: rsc / die_cut / heart / tube_lock / self_lock / none"
+        )
+        try:
+            result = await self.groq.generate_response(
+                system_prompt="คุณเป็น classifier ตอบเฉพาะ 1 คำเท่านั้น ห้ามอธิบาย",
+                user_message=prompt,
+                conversation_history=[],
+            )
+            result = result.strip().lower().replace(" ", "_")
+            valid = {"rsc", "die_cut", "heart", "tube_lock", "self_lock"}
+            if result in valid:
+                return result
+        except Exception:
+            pass
+        return None
+
+    async def _classify_product_type(self, user_message: str) -> Optional[str]:
+        """Use LLM to classify product type from natural language when regex fails."""
+        prompt = (
+            "จากข้อความลูกค้าด้านล่าง จงตอบเฉพาะ 1 คำ ว่าสินค้าเป็นประเภทไหน:\n"
+            "- food (อาหาร, ขนม, เบเกอรี่, เครื่องดื่ม)\n"
+            "- cosmetic (เครื่องสำอาง, ครีม, สกินแคร์, น้ำหอม, สบู่)\n"
+            "- electronic (อิเล็กทรอนิกส์, มือถือ, อุปกรณ์ไฟฟ้า)\n"
+            "- clothing (เสื้อผ้า, แฟชั่น, เครื่องแต่งกาย)\n"
+            "- jewelry (เครื่องประดับ, แหวน, สร้อย)\n"
+            "- general (อื่นๆ, ของใช้ทั่วไป, ไม่ระบุ)\n"
+            "- none (ไม่สามารถระบุได้)\n\n"
+            f"ข้อความลูกค้า: \"{user_message}\"\n\n"
+            "ตอบเฉพาะคำเดียว: food / cosmetic / electronic / clothing / jewelry / general / none"
+        )
+        try:
+            result = await self.groq.generate_response(
+                system_prompt="คุณเป็น classifier ตอบเฉพาะ 1 คำเท่านั้น ห้ามอธิบาย",
+                user_message=prompt,
+                conversation_history=[],
+            )
+            result = result.strip().lower()
+            valid = {"food", "cosmetic", "electronic", "clothing", "jewelry", "general"}
+            if result in valid:
+                return result
+        except Exception:
+            pass
+        return None
+
+    # ===================================
     # LLM call helper
     # ===================================
     async def _ask_llm(
@@ -143,6 +202,12 @@ class ChatbotFlowManagerV2:
         product_type = extract_product_type(msg)
         # Also try to extract box_type if user said "ต้องการกล่องหัวใจ" etc.
         box_type = extract_box_type(msg)
+
+        # LLM fallback: if regex can't extract, ask LLM to classify
+        if not product_type:
+            product_type = await self._classify_product_type(msg)
+        if not box_type:
+            box_type = await self._classify_box_type(msg)
 
         extra = ""
         if product_type and box_type:
@@ -195,6 +260,11 @@ class ChatbotFlowManagerV2:
 
     async def _step_box_type_select(self, msg: str, state: ConversationState) -> StepResult:
         box_type = extract_box_type(msg)
+
+        # LLM fallback: if regex can't extract, ask LLM to classify
+        if not box_type:
+            box_type = await self._classify_box_type(msg)
+
         if box_type:
             hint = self._get_material_hint(box_type)
             response = await self._ask_llm(3, msg, state, sub_step=0,
@@ -268,7 +338,16 @@ class ChatbotFlowManagerV2:
     # Step 5: Dimensions + Quantity (ใช้ form fields)
     # ===================================
     async def _step_dimensions(self, msg: str, state: ConversationState) -> StepResult:
-        dims = extract_dimensions(msg)
+        box_type = (state.collected_data or {}).get("box_type", "rsc")
+        is_heart = box_type == "heart"
+
+        # Heart box: extract shape/tilt + length/height
+        if is_heart:
+            heart_dims = extract_heart_dimensions(msg)
+            dims = heart_dims if heart_dims else extract_dimensions(msg)
+        else:
+            dims = extract_dimensions(msg)
+
         qty = extract_quantity(msg)
         w = extract_weight(msg)
         fl = extract_flute(msg)
@@ -289,11 +368,21 @@ class ChatbotFlowManagerV2:
         if final_fl:
             partial["flute_type"] = final_fl
 
+        # Heart: also store shape_pct / tilt_deg at top level
+        if is_heart and final_dims:
+            if "shape_pct" in final_dims:
+                partial["shape_pct"] = final_dims["shape_pct"]
+            if "tilt_deg" in final_dims:
+                partial["tilt_deg"] = final_dims["tilt_deg"]
+
         # ถ้ายังไม่ครบ
         if not final_dims or not final_qty:
             missing = []
             if not final_dims:
-                missing.append("ขนาดกล่อง (กว้าง×ยาว×สูง ซม.)")
+                if is_heart:
+                    missing.append("ขนาดกล่อง (ยาว×สูง + Shape/Tilt)")
+                else:
+                    missing.append("ขนาดกล่อง (กว้าง×ยาว×สูง ซม.)")
             if not final_qty:
                 missing.append("จำนวน (ขั้นต่ำ 500)")
             extra = f"ยังขาด: {', '.join(missing)}"
@@ -311,8 +400,10 @@ class ChatbotFlowManagerV2:
         state.partial_data.update(partial)
         state.commit_partial_data()
 
-        # Strength analysis
-        analysis_text = await self._run_strength_analysis(state)
+        # Strength analysis (skip for heart — no flute/weight relevance)
+        analysis_text = ""
+        if not is_heart:
+            analysis_text = await self._run_strength_analysis(state)
         extra = f"ข้อมูลครบแล้ว ยืนยันขนาดและจำนวน"
         if analysis_text:
             extra += f"\n\nผลวิเคราะห์ความแข็งแรง:\n{analysis_text}"
@@ -323,6 +414,11 @@ class ChatbotFlowManagerV2:
             "dimensions": final_dims,
             "quantity": final_qty,
         }
+        if is_heart and final_dims:
+            if "shape_pct" in final_dims:
+                data["shape_pct"] = final_dims["shape_pct"]
+            if "tilt_deg" in final_dims:
+                data["tilt_deg"] = final_dims["tilt_deg"]
         if final_w is not None:
             data["weight_kg"] = final_w
         if final_fl:
@@ -724,4 +820,5 @@ class ChatbotFlowManagerV2:
         opts = ["Kraft (คราฟท์)", "White (ขาว)"]
         if box_type == "heart":
             opts.append("Red (แดง)")
-        return ", ".join(opts)
+        eco = ["Recycled (รีไซเคิล)", "FSC (ปลูกทดแทน)", "Bagasse (ชานอ้อย)"]
+        return ", ".join(opts) + " | Eco: " + ", ".join(eco)

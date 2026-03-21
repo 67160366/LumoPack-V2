@@ -26,6 +26,7 @@ export default function FloatingChat() {
     }
   };
 
+  // Escape key still closes for convenience
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape' && isOpen) handleToggle(); };
     window.addEventListener('keydown', onKey);
@@ -34,17 +35,7 @@ export default function FloatingChat() {
 
   return (
     <>
-      {/* ═══ Backdrop ═══ */}
-      {isOpen && (
-        <div
-          onClick={handleToggle}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 48,
-            background: 'rgba(0,0,0,0.15)',
-            animation: isAnimating ? 'chatFadeOut 0.25s ease' : 'chatFadeIn 0.25s ease',
-          }}
-        />
-      )}
+      {/* Backdrop removed — chat stays open while interacting with other content */}
 
       {/* ═══ Expanded Chat Panel ═══ */}
       {isOpen && (
@@ -210,14 +201,6 @@ export default function FloatingChat() {
         @keyframes chatPanelOut {
           from { opacity: 1; transform: translateY(0) scale(1); }
           to   { opacity: 0; transform: translateY(24px) scale(0.92); }
-        }
-        @keyframes chatFadeIn {
-          from { opacity: 0; }
-          to   { opacity: 1; }
-        }
-        @keyframes chatFadeOut {
-          from { opacity: 1; }
-          to   { opacity: 0; }
         }
         @keyframes chatPulse {
           0%, 100% { transform: scale(1); opacity: 0.6; }

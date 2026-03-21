@@ -39,6 +39,11 @@ MATERIAL_LABELS = {
     "whiteboard_350gsm": "White Board 350 GSM",
     "cardboard": "Cardboard",
     "art_300gsm": "Art Paper 300 GSM",
+    # Eco-friendly
+    "recycled": "Recycled Paper (Eco)",
+    "kraft_unbleached": "Kraft Unbleached (Eco)",
+    "fsc": "FSC Certified (Eco)",
+    "bagasse": "Bagasse / Sugarcane (Eco)",
 }
 
 
@@ -180,8 +185,18 @@ def generate_quote_pdf(
     pdf._row("Product type:", product_type or "-")
     pdf._row("Box type:", BOX_TYPE_LABELS.get(box_type, box_type))
     pdf._row("Material:", MATERIAL_LABELS.get(material, material))
-    pdf._row("Size (W x L x H):",
-             f"{dims.get('width', 0)} x {dims.get('length', 0)} x {dims.get('height', 0)} cm")
+
+    if box_type == "heart":
+        # Heart box: show length, height, shape%, tilt°
+        pdf._row("Heart length:", f"{dims.get('length', 0)} cm")
+        pdf._row("Box height:", f"{dims.get('height', 0)} cm")
+        shape_pct = dims.get('shape_pct') or collected_data.get('shape_pct') or 55
+        tilt_deg = dims.get('tilt_deg') or collected_data.get('tilt_deg') or 45
+        pdf._row("Shape / Tilt:", f"{shape_pct}% / {tilt_deg} deg")
+    else:
+        pdf._row("Size (W x L x H):",
+                 f"{dims.get('width', 0)} x {dims.get('length', 0)} x {dims.get('height', 0)} cm")
+
     pdf._row("Quantity:", f"{quantity:,} pcs")
 
     flute = collected_data.get("flute_type")
@@ -191,6 +206,12 @@ def generate_quote_pdf(
     support = collected_data.get("support_required")
     if support is not None:
         pdf._row("Support insert:", "Yes" if support else "No")
+
+    support_config = collected_data.get("support_config")
+    if support_config and isinstance(support_config, dict):
+        holes = support_config.get("holes", [])
+        if holes:
+            pdf._row("Support holes:", f"{len(holes)} holes")
 
     inner = collected_data.get("inner")
     if inner and inner != "skip":
@@ -310,6 +331,14 @@ def pdf_bytes_from_project_row(project: Dict[str, Any]) -> bytes:
     collected = project.get("collected_data") or {}
     sid = project.get("session_id") or project.get("id")
     session_id = str(sid) if sid is not None else "unknown"
+
+    # Merge heart fields from project row into collected_data if missing
+    if project.get("shape_pct") is not None and "shape_pct" not in collected:
+        collected["shape_pct"] = project["shape_pct"]
+    if project.get("tilt_deg") is not None and "tilt_deg" not in collected:
+        collected["tilt_deg"] = project["tilt_deg"]
+    if project.get("support_config") and "support_config" not in collected:
+        collected["support_config"] = project["support_config"]
 
     pricing_data = project.get("pricing")
     if not pricing_data:

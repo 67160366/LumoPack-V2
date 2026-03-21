@@ -91,9 +91,20 @@ def extract_material(message: str, box_type: str) -> Optional[str]:
     """
     Extract วัสดุกล่อง
     Simplified: kraft, white (all box types), red (heart only)
+    Eco: recycled, kraft_unbleached, fsc, bagasse
     Legacy: corrugated_2layer, kraft_200gsm, cardboard, art_300gsm, whiteboard_350gsm
     """
     msg = message.lower().strip()
+
+    # --- Eco-friendly materials ---
+    if any(w in msg for w in ["รีไซเคิล", "recycle", "recycled"]):
+        return "recycled"
+    if any(w in msg for w in ["fsc", "ปลูกทดแทน", "ใบรับรอง"]):
+        return "fsc"
+    if any(w in msg for w in ["ชานอ้อย", "bagasse", "อ้อย"]):
+        return "bagasse"
+    if any(w in msg for w in ["ไม่ฟอก", "unbleach", "ไม่bleach"]):
+        return "kraft_unbleached"
 
     # --- Simplified material names (from onboarding) ---
     if any(w in msg for w in ["คราฟท์", "craft", "kraft"]):
@@ -111,14 +122,20 @@ def extract_material(message: str, box_type: str) -> Optional[str]:
     if any(w in msg for w in ["อาร์ต", "art"]):
         return "art_300gsm"
 
-    # Match ตัวเลข (1=Kraft, 2=White, 3=Red for heart)
-    match = re.match(r'^\s*([1-3])\s*$', msg)
+    # Match ตัวเลข (1-6 depending on box type)
+    match = re.match(r'^\s*([1-6])\s*$', msg)
     if match:
         num = match.group(1)
         if box_type == "heart":
-            return {"1": "kraft", "2": "white", "3": "red"}.get(num)
+            return {
+                "1": "kraft", "2": "white", "3": "red",
+                "4": "recycled", "5": "fsc", "6": "bagasse",
+            }.get(num)
         else:
-            return {"1": "kraft", "2": "white"}.get(num)
+            return {
+                "1": "kraft", "2": "white",
+                "3": "recycled", "4": "fsc", "5": "bagasse",
+            }.get(num)
 
     return None
 
@@ -240,6 +257,29 @@ def extract_dimensions(message: str) -> Optional[Dict[str, float]]:
 
 def _make_dims(w: str, l: str, h: str) -> Dict[str, float]:
     return {"width": float(w), "length": float(l), "height": float(h)}
+
+
+def extract_heart_dimensions(message: str) -> Optional[Dict[str, float]]:
+    """
+    Extract ขนาดกล่องหัวใจ (ยาว × สูง + shape% + tilt°)
+    Format: "ยาว X สูง Y ซม. shape Z% tilt W°"
+    """
+    text = re.sub(r'[,\s]+', ' ', message)
+
+    length_m = re.search(r'ยาว\s*(\d+(?:\.\d+)?)', text)
+    height_m = re.search(r'สูง\s*(\d+(?:\.\d+)?)', text)
+    shape_m  = re.search(r'shape\s*(\d+(?:\.\d+)?)\s*%?', text, re.IGNORECASE)
+    tilt_m   = re.search(r'tilt\s*(\d+(?:\.\d+)?)\s*[°]?', text, re.IGNORECASE)
+
+    if length_m and height_m and shape_m and tilt_m:
+        return {
+            "width": float(length_m.group(1)),   # heart uses length as width
+            "length": float(length_m.group(1)),
+            "height": float(height_m.group(1)),
+            "shape_pct": float(shape_m.group(1)),
+            "tilt_deg": float(tilt_m.group(1)),
+        }
+    return None
 
 
 def extract_quantity(message: str) -> Optional[int]:

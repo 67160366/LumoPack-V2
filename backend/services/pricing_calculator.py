@@ -19,32 +19,107 @@ from utils.constants import (
 
 class PricingCalculator:
     """คำนวณราคากล่อง"""
-    
+
     def __init__(self):
         self.standard_area = STANDARD_BOX["surface_area_cm2"]
-    
+
     # ===================================
     # 1. คำนวณพื้นที่ผิว
     # ===================================
     def calculate_surface_area(
-        self, 
-        width: float, 
-        length: float, 
+        self,
+        width: float,
+        length: float,
         height: float
     ) -> float:
         """
-        คำนวณพื้นที่ผิวทั้ง 6 ด้าน
+        คำนวณพื้นที่ผิวทั้ง 6 ด้าน (กล่องสี่เหลี่ยม)
         Formula: 2 × ((กว้าง×ยาว) + (กว้าง×สูง) + (ยาว×สูง))
-        
+        """
+        return 2 * ((width * length) + (width * height) + (length * height))
+
+    def calculate_heart_surface_area(
+        self,
+        length_cm: float,
+        height_cm: float,
+        shape_pct: float = 55,
+        tilt_deg: float = 45,
+    ) -> float:
+        """
+        คำนวณพื้นที่ผิวกล่องหัวใจ
+        - ใช้สูตร ellipse parametric เหมือน frontend
+        - Heart outline → คำนวณพื้นที่หน้าตัด + เส้นรอบรูป × สูง
+
         Args:
-            width: กว้าง (cm)
-            length: ยาว (cm)  
-            height: สูง (cm)
-            
+            length_cm: ความยาวหัวใจ (cm) — ใช้เป็น bounding size
+            height_cm: ความสูงกล่อง (cm) — ผนังข้าง
+            shape_pct: Shape % (20-90)
+            tilt_deg: Tilt degrees (10-80)
+
         Returns:
             พื้นที่ผิวในหน่วย ตร.ซม.
         """
-        return 2 * ((width * length) + (width * height) + (length * height))
+        import math
+        tilt = math.radians(tilt_deg)
+        b = shape_pct / 100
+        t0 = math.atan2(math.cos(tilt), b * math.sin(tilt))
+
+        # Generate right-half outline (same algo as frontend)
+        right = []
+        n = 60
+        for i in range(n + 1):
+            t = t0 + (i / n) * math.pi
+            x = math.cos(t) * math.cos(tilt) - b * math.sin(t) * math.sin(tilt)
+            y = math.cos(t) * math.sin(tilt) + b * math.sin(t) * math.cos(tilt)
+            right.append((x, y))
+
+        if right[n // 2][0] < 0:
+            right = []
+            for i in range(n + 1):
+                t = t0 + math.pi + (i / n) * math.pi
+                x = math.cos(t) * math.cos(tilt) - b * math.sin(t) * math.sin(tilt)
+                y = math.cos(t) * math.sin(tilt) + b * math.sin(t) * math.cos(tilt)
+                right.append((x, y))
+
+        top_y = right[0][1]
+        bot_y = right[-1][1]
+        scale = 1.0 / abs(top_y - bot_y)
+
+        # Full outline (right + mirrored left)
+        left = [(-x, y) for x, y in reversed(right)]
+        outline = [(x * scale, y * scale) for x, y in right] + \
+                  [(x * scale, y * scale) for x, y in left[1:]]
+
+        # Scale to actual cm size (length_cm = bounding width)
+        # Find bounding width of normalised outline
+        xs = [p[0] for p in outline]
+        norm_w = max(xs) - min(xs)
+        actual_scale = length_cm / norm_w if norm_w > 0 else length_cm
+
+        pts = [(x * actual_scale, y * actual_scale) for x, y in outline]
+
+        # Perimeter (sum of segment lengths)
+        perimeter = 0.0
+        for i in range(len(pts) - 1):
+            dx = pts[i + 1][0] - pts[i][0]
+            dy = pts[i + 1][1] - pts[i][1]
+            perimeter += math.sqrt(dx * dx + dy * dy)
+        # Close the loop
+        dx = pts[0][0] - pts[-1][0]
+        dy = pts[0][1] - pts[-1][1]
+        perimeter += math.sqrt(dx * dx + dy * dy)
+
+        # Area (Shoelace formula)
+        area = 0.0
+        for i in range(len(pts)):
+            j = (i + 1) % len(pts)
+            area += pts[i][0] * pts[j][1]
+            area -= pts[j][0] * pts[i][1]
+        area = abs(area) / 2.0
+
+        # Surface = 2 × heart_area (top + bottom) + perimeter × height (walls)
+        surface = 2 * area + perimeter * height_cm
+        return surface
     
     # ===================================
     # 2. คำนวณ Factor เทียบกับกล่องมาตรฐาน
@@ -54,31 +129,34 @@ class PricingCalculator:
         width: float,
         length: float,
         height: float,
-        box_type: str
+        box_type: str,
+        shape_pct: float = 55,
+        tilt_deg: float = 45,
     ) -> float:
         """
         คำนวณอัตราส่วนเทียบกับกล่อง 10x10x10
-        
+
         Args:
             width, length, height: ขนาดกล่อง (cm)
-            box_type: "rsc" หรือ "die_cut"
-            
+            box_type: "rsc" / "die_cut" / "heart" / ...
+            shape_pct, tilt_deg: Heart shape params (ใช้เฉพาะ heart)
+
         Returns:
             Factor สำหรับคูณราคา
         """
-        # ดึงค่า production factor (RSC=1.1, Die-cut=1.5, Heart=1.8 ...)
         production_factor = BOX_TYPES.get(box_type, {}).get("production_factor", 1.1)
-        
-        # พื้นที่กล่องมาตรฐาน 10x10x10 + factor
+
         standard_with_factor = self.standard_area * production_factor
-        
-        # พื้นที่กล่องที่ลูกค้าสั่ง + factor
-        custom_area = self.calculate_surface_area(width, length, height)
+
+        if box_type == "heart":
+            custom_area = self.calculate_heart_surface_area(
+                length, height, shape_pct, tilt_deg
+            )
+        else:
+            custom_area = self.calculate_surface_area(width, length, height)
         custom_with_factor = custom_area * production_factor
-        
-        # หาอัตราส่วน
+
         ratio = custom_with_factor / standard_with_factor
-        
         return ratio
     
     # ===================================
@@ -91,48 +169,41 @@ class PricingCalculator:
         height: float,
         box_type: str,
         material: str,
-        quantity: int
+        quantity: int,
+        shape_pct: float = 55,
+        tilt_deg: float = 45,
     ) -> Dict:
         """
         คำนวณราคากล่องเปล่า (ไม่รวม Inner, Coating, ลูกเล่น)
-        
+
         Args:
             width, length, height: ขนาด (cm)
-            box_type: "rsc" หรือ "die_cut"
-            material: ชื่อวัสดุ (เช่น "corrugated_2layer")
+            box_type: "rsc" / "die_cut" / "heart" / ...
+            material: ชื่อวัสดุ
             quantity: จำนวนกล่อง
-            
-        Returns:
-            {
-                "price_per_box": ราคาต่อใบ,
-                "total_price": ราคารวม,
-                "material_info": ข้อมูลวัสดุ,
-                "ratio": Factor ที่ใช้คำนวณ
-            }
+            shape_pct, tilt_deg: Heart shape params (ใช้เฉพาะ heart)
         """
-        # เลือก material database ตาม material_group ของ box type
         material_group = BOX_TYPES.get(box_type, {}).get("material_group", "die_cut")
         materials_db = RSC_MATERIALS if material_group == "rsc" else DIE_CUT_MATERIALS
-        
+
         if material not in materials_db:
             raise ValueError(f"ไม่มีวัสดุ '{material}' สำหรับกล่อง {box_type}")
-        
+
         mat_data = materials_db[material]
-        
+
         # คำนวณราคาวัสดุขนาด 10x10x10 (base price)
         base_price = self._calculate_material_cost(
             10, 10, 10, box_type, mat_data
         )
-        
-        # หา Factor
-        ratio = self.calculate_price_ratio(width, length, height, box_type)
-        
-        # ราคาต่อกล่อง = base_price × ratio
+
+        # หา Factor (heart uses shape/tilt for area calc)
+        ratio = self.calculate_price_ratio(
+            width, length, height, box_type, shape_pct, tilt_deg
+        )
+
         price_per_box = base_price * ratio
-        
-        # ถ้าสั่งมากอาจได้ส่วนลด (ตอนนี้ยังไม่ใส่)
         total_price = price_per_box * quantity
-        
+
         return {
             "price_per_box": round(price_per_box, 2),
             "total_price": round(total_price, 2),
@@ -354,11 +425,15 @@ class PricingCalculator:
         box_type: str,
         material: str,
         quantity: int,
-        
+
         # ตัวเลือกเพิ่มเติม (Optional)
         inner_type: Optional[str] = None,
-        coatings: Optional[List[Dict]] = None,  # [{"type": "uv_gloss", "category": "gloss"}]
-        stampings: Optional[List[Dict]] = None,  # [{"type": "emboss", "has_block": False}]
+        coatings: Optional[List[Dict]] = None,
+        stampings: Optional[List[Dict]] = None,
+
+        # Heart-specific
+        shape_pct: float = 55,
+        tilt_deg: float = 45,
     ) -> Dict:
         """
         คำนวณราคารวมทั้งหมด
@@ -376,7 +451,8 @@ class PricingCalculator:
         """
         # 1. ราคากล่องเปล่า
         box_base = self.calculate_box_base_price(
-            width, length, height, box_type, material, quantity
+            width, length, height, box_type, material, quantity,
+            shape_pct=shape_pct, tilt_deg=tilt_deg,
         )
         
         # 2. ราคา Inner
@@ -458,9 +534,9 @@ def get_price_estimate(requirement_data: Dict) -> Dict:
         ข้อมูลราคาทั้งหมด
     """
     calculator = PricingCalculator()
-    
+
     dims = requirement_data["dimensions"]
-    
+
     return calculator.calculate_total_price(
         width=dims["width"],
         length=dims["length"],
@@ -470,5 +546,7 @@ def get_price_estimate(requirement_data: Dict) -> Dict:
         quantity=requirement_data["quantity"],
         inner_type=requirement_data.get("inner"),
         coatings=requirement_data.get("coatings"),
-        stampings=requirement_data.get("stampings")
+        stampings=requirement_data.get("stampings"),
+        shape_pct=dims.get("shape_pct", 55),
+        tilt_deg=dims.get("tilt_deg", 45),
     )

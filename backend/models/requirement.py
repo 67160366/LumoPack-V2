@@ -157,11 +157,20 @@ class CompleteRequirement(BaseModel):
             inner_list = [{"type": inner_raw, "category": "cushion"}]
         # inner_raw == "skip" หรือ None → inner_list = None
         
+        # Build dimensions dict, include heart params if present
+        dims = collected_data.get("dimensions", {"width": 10, "length": 10, "height": 10})
+        dims = dict(dims)  # copy
+        if collected_data.get("box_type") == "heart":
+            if collected_data.get("shape_pct") is not None:
+                dims["shape_pct"] = collected_data["shape_pct"]
+            if collected_data.get("tilt_deg") is not None:
+                dims["tilt_deg"] = collected_data["tilt_deg"]
+
         structure = BoxStructure(
             product_type=collected_data.get("product_type", "general"),
             box_type=collected_data.get("box_type", "rsc"),
             inner=inner_list,
-            dimensions=collected_data.get("dimensions", {"width": 10, "length": 10, "height": 10}),
+            dimensions=dims,
             quantity=collected_data.get("quantity", 500),
             material=collected_data.get("material"),
             weight_kg=collected_data.get("weight_kg", 0.0),
@@ -199,6 +208,11 @@ class CompleteRequirement(BaseModel):
             "kraft": "kraft_200gsm",
             "white": "whiteboard_350gsm",
             "red": "whiteboard_350gsm",  # Red Heart uses whiteboard as base
+            # Eco materials → map to closest real material for pricing (demo)
+            "recycled": "corrugated_2layer",
+            "kraft_unbleached": "kraft_200gsm",
+            "fsc": "kraft_200gsm",
+            "bagasse": "kraft_200gsm",
         }
         from utils.constants import RSC_MATERIALS, DIE_CUT_MATERIALS, BOX_TYPES
         # If already a valid pricing key, return as-is
@@ -211,8 +225,9 @@ class CompleteRequirement(BaseModel):
     def to_pricing_request(self) -> dict:
         """แปลงเป็น format ที่ pricing_calculator ใช้ได้"""
         raw_material = self.structure.material or self._select_default_material()
+        dims = dict(self.structure.dimensions)  # copy so we can add heart fields
         result = {
-            "dimensions": self.structure.dimensions,
+            "dimensions": dims,
             "box_type": self.structure.box_type,
             "material": self._normalize_material_for_pricing(raw_material, self.structure.box_type),
             "quantity": self.structure.quantity,
