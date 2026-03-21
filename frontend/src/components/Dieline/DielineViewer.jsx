@@ -234,7 +234,7 @@ export default function DielineViewer({ width = 500, height = 300, depth = 80 })
       </div>
 
       {/* Legend */}
-      <div className="absolute bottom-3 right-3 bg-white/90 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-gray-300 shadow-sm flex gap-3">
+      <div className="absolute bottom-28 right-3 bg-white/90 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-gray-300 shadow-sm flex gap-3">
         <span className="text-xs font-mono flex items-center gap-1">
           <span className="inline-block w-3 h-0.5" style={{ backgroundColor: CUT_COLOR }} />
           <span className="text-gray-600">Cut</span>

@@ -15,6 +15,11 @@ import { parseDxf } from '../engine/dxfParser';
 import SelfLockFoldBox from '../components/Box3D/SelfLockFoldBox';
 import MaterialPresetPicker, { MATERIAL_PRESETS } from '../components/Box3D/MaterialPresetPicker';
 import { MATERIAL_PRESETS_STANDARD } from '../components/Box3D/cardboardColors';
+import useImagePlacement from '../hooks/useImagePlacement';
+import ImageUploadPanel from '../components/DesignOverlay/ImageUploadPanel';
+import DielineImageOverlay from '../components/DesignOverlay/DielineImageOverlay';
+import { generatePanelTextures } from '../utils/textureGenerator';
+import ExportButtons from '../components/ExportButtons';
 import selfLockDxfRaw from '../assets/400x250x80mm-self-locking-box.dxf?raw';
 
 /* ── Reference box dimensions ── */
@@ -269,6 +274,7 @@ function LogoutIcon({ size = 20 }) {
 }
 
 const TABS = [
+  { id: 'design',   label: 'Design',   icon: DesignIcon },
   { id: 'size',     label: 'Size',     icon: DimensionsIcon },
   { id: 'fold',     label: 'Fold',     icon: FoldIcon },
   { id: 'material', label: 'Material', icon: MaterialIcon },
@@ -448,6 +454,45 @@ function SelfLockStandalone() {
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [svgVBStart, setSvgVBStart] = useState(null);
 
+  // Image placement
+  const [panelTextureUrls, setPanelTextureUrls] = useState({});
+  const placement = useImagePlacement({ svgRef, viewBox: svgVB, defaultPlaceWidth: Math.min(300, W) });
+
+  const faceW = W + 9;
+  const depthW = D + T;
+  const faceH = H + 2 * T;
+  const lockPanelW = D + 1.5;
+  const lockStrip = 6;
+  const lockBump = 4.5;
+
+  const panelZones = useMemo(() => [
+    { id: 'face',      label: 'หน้ากล่อง',   x: 0,      y: 0, w: faceW,  h: faceH },
+    { id: 'depth_l',   label: 'ข้าง ซ้าย',  x: -depthW, y: 0, w: depthW, h: faceH },
+    { id: 'depth_r',   label: 'ข้าง ขวา',   x: faceW,   y: 0, w: depthW, h: faceH },
+    { id: 'top_flap',  label: 'ฝาบน',       x: 0,      y: faceH, w: faceW, h: D },
+    { id: 'bottom_flap', label: 'ฝาล่าง',   x: 0,      y: -D,    w: faceW, h: D },
+  ], [faceW, faceH, depthW, D]);
+  const panelZonesRef = useRef(panelZones);
+  panelZonesRef.current = panelZones;
+
+  const regenerateTextures = useCallback(async () => {
+    if (placement.placedImages.length === 0) { setPanelTextureUrls({}); return; }
+    const bounds = { minX: -(lockBump + lockPanelW + lockStrip + depthW) - 20, maxX: faceW + depthW + 100, minY: -D - 20, maxY: faceH + D + 20 };
+    const textures = await generatePanelTextures(placement.placedImages, panelZonesRef.current, bounds);
+    setPanelTextureUrls(textures);
+  }, [placement.placedImages, W, H, D, faceW, faceH, depthW, lockBump, lockPanelW, lockStrip]);
+
+  const switchTo3D = useCallback(async () => {
+    await regenerateTextures();
+    setView('3d');
+  }, [regenerateTextures]);
+
+  const handleViewIn3D = useCallback(async () => {
+    await regenerateTextures();
+    setView('3d');
+    setFold(1);
+  }, [regenerateTextures]);
+
   const analysisOpts = useMemo(() => ({ humidity, storage, stackingLayers, printCoverage }), [humidity, storage, stackingLayers, printCoverage]);
   const strength = useMemo(() => analyzeStrength(W, D, H, weightKg, fluteType, analysisOpts), [W, D, H, weightKg, fluteType, analysisOpts]);
   const fluteComparison = useMemo(() => Object.entries(FLUTE_SPECS).map(([k]) => ({ key: k, ...analyzeStrength(W, D, H, weightKg, k, analysisOpts) })), [W, D, H, weightKg, analysisOpts]);
@@ -497,11 +542,6 @@ function SelfLockStandalone() {
   const dashPattern = `${vb.w * 0.006} ${vb.w * 0.004}`;
   const toggle = (id) => setActiveTab(prev => prev === id ? null : id);
 
-  // Derived values for layout diagram
-  const faceW = W + 9;
-  const faceH = H + 2 * T;
-  const depthW = D + T;
-
   return (
     <div style={{ display: 'flex', height: '100vh', fontFamily: FONT, background: '#1a1d23', position: 'relative' }}>
 
@@ -516,20 +556,14 @@ function SelfLockStandalone() {
       }}>
         {/* Logo */}
         <div style={{ marginBottom: 12, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 12,
-            background: `linear-gradient(135deg, ${PURPLE}, ${PURPLE_DARK})`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#fff', fontSize: 13, fontWeight: 800, fontFamily: FONT,
-          }}>SL</div>
-          <span style={{ fontSize: 7, fontWeight: 700, color: '#9ca3af', marginTop: 3, fontFamily: FONT, letterSpacing: '0.05em' }}>SELF-LOCK</span>
+          <img src="/logo.png" alt="LumoPack" style={{ width: 36, height: 36, objectFit: 'contain' }} />
         </div>
 
         <div style={{ width: 32, height: 1, background: 'rgba(0,0,0,0.08)', marginBottom: 8 }} />
 
         {/* View toggle */}
         {['2d', '3d'].map(v => (
-          <button key={v} onClick={() => setView(v)} title={v === '2d' ? '2D Dieline' : '3D Fold'} style={{
+          <button key={v} onClick={() => v === '3d' ? switchTo3D() : setView('2d')} title={v === '2d' ? '2D Dieline' : '3D Fold'} style={{
             width: 44, height: 36, borderRadius: 10, border: 'none', cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             background: view === v ? 'rgba(124,58,237,0.1)' : 'transparent',
@@ -643,6 +677,13 @@ function SelfLockStandalone() {
 
           {/* Panel content */}
           <div className="scrollbar-thin" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>
+
+            {/* ── Design tab ── */}
+            {activeTab === 'design' && (
+              <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <ImageUploadPanel placement={placement} onViewIn3D={handleViewIn3D} currentView={view} />
+              </div>
+            )}
 
             {/* ── Size tab ── */}
             {activeTab === 'size' && (
@@ -1011,10 +1052,10 @@ function SelfLockStandalone() {
           <div style={{ width: '100%', height: '100%', background: '#1a1d23' }}>
             <svg
               ref={svgRef}
-              style={{ width: '100%', height: '100%', overflow: 'visible', cursor: isPanning ? 'grabbing' : 'grab' }}
+              style={{ width: '100%', height: '100%', overflow: 'visible', cursor: placement.selectedImageId ? 'crosshair' : (isPanning ? 'grabbing' : 'grab') }}
               viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
               onWheel={handleWheel}
-              onMouseDown={handleMouseDown}
+              onMouseDown={e => { if (placement.selectedImageId) placement.handleDielinePlace(e); else { placement.setActiveImgId(null); handleMouseDown(e); } }}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
@@ -1025,8 +1066,10 @@ function SelfLockStandalone() {
                 for (let y = Math.floor(vb.y / step) * step; y < vb.y + vb.h; y += step) lines.push(<line key={`gy-${y}`} x1={vb.x} y1={y} x2={vb.x + vb.w} y2={y} stroke={GRID_COLOR} strokeWidth={vb.w * 0.0005} />);
                 return lines;
               })()}
+              {panelZones.map(z => <rect key={`z-${z.id}`} x={z.x} y={-(z.y + z.h)} width={z.w} height={z.h} fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={vb.w * 0.0008} strokeDasharray={`${vb.w * 0.004} ${vb.w * 0.003}`} style={{ pointerEvents: 'none' }} />)}
               {dieline.crease.map((pl, i) => <path key={`cr-${i}`} d={polylineToPath(pl)} fill="none" stroke={CREASE_COLOR} strokeWidth={creaseStroke} strokeDasharray={dashPattern} strokeLinejoin="round" />)}
               {dieline.cut.map((pl, i) => <path key={`ct-${i}`} d={polylineToPath(pl)} fill="none" stroke={CUT_COLOR} strokeWidth={cutStroke} strokeLinejoin="round" strokeLinecap="round" />)}
+              <DielineImageOverlay placement={placement} viewBox={vb} />
             </svg>
           </div>
         ) : (
@@ -1034,7 +1077,7 @@ function SelfLockStandalone() {
             <color attach="background" args={['#5c5c5c']} />
             <ambientLight intensity={0.6} />
             <directionalLight position={[5, 10, 5]} intensity={0.8} />
-            <SelfLockFoldBox width={W} height={H} depth={D} foldProgress={fold} showSupport={showSupport} supportConfig={supportConfig} boxStyle={boxStyle} />
+            <SelfLockFoldBox width={W} height={H} depth={D} foldProgress={fold} panelImages={panelTextureUrls} showSupport={showSupport} supportConfig={supportConfig} boxStyle={boxStyle} />
             <OrbitControls makeDefault />
             <gridHelper args={[20, 20, '#e9d5ff', '#f3e8ff']} />
           </Canvas>
@@ -1050,9 +1093,11 @@ function SelfLockStandalone() {
           {W} x {H} x {D} mm (Self-Lock) · {MATERIAL_PRESETS.find(m => m.id === boxStyle)?.label ?? boxStyle}
         </div>
 
+        <ExportButtons dieline={dieline} W={W} H={H} D={D} prefix="self-lock" />
+
         {view === '2d' && (
           <div style={{
-            position: 'absolute', bottom: 16, right: 16, zIndex: 10,
+            position: 'absolute', bottom: 116, right: 16, zIndex: 10,
             background: 'rgba(255,255,255,0.95)', borderRadius: 10,
             padding: '6px 14px', display: 'flex', gap: 16, fontSize: 11,
             fontFamily: FONT, fontWeight: 600, color: '#111827',

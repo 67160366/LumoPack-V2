@@ -15,6 +15,7 @@ import { parseDxf } from '../engine/dxfParser';
 import HeartFoldBox from '../components/Box3D/HeartFoldBox';
 import { getScheme } from '../components/Box3D/cardboardColors';
 import MaterialPresetPicker, { MATERIAL_PRESETS } from '../components/Box3D/MaterialPresetPicker';
+import ExportButtons from '../components/ExportButtons';
 import heartDxfRaw from '../assets/heart-100x40.dxf?raw';
 
 /* ── Design tokens ── */
@@ -386,13 +387,7 @@ function HeartBoxInner() {
       }}>
         {/* Logo */}
         <div style={{ marginBottom: 12, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 12,
-            background: `linear-gradient(135deg, ${PINK}, ${PINK_DARK})`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#fff', fontSize: 15, fontWeight: 800, fontFamily: FONT,
-          }}>H</div>
-          <span style={{ fontSize: 8, fontWeight: 700, color: '#9ca3af', marginTop: 3, fontFamily: FONT, letterSpacing: '0.05em' }}>HEART</span>
+          <img src="/logo.png" alt="LumoPack" style={{ width: 36, height: 36, objectFit: 'contain' }} />
         </div>
 
         <div style={{ width: 32, height: 1, background: 'rgba(0,0,0,0.08)', marginBottom: 8 }} />
@@ -846,9 +841,11 @@ function HeartBoxInner() {
           {length} x {height} mm | {MATERIAL_PRESETS.find(m => m.id === boxStyle)?.label ?? boxStyle} | Shape {shapePct}% | Tilt {tiltDeg}deg
         </div>
 
+        <ExportButtons dieline={dieline} W={length} H={height} D={height} prefix="heart-box" />
+
         {view === '2d' && (
           <div style={{
-            position: 'absolute', bottom: 12, right: 12,
+            position: 'absolute', bottom: 116, right: 12,
             background: 'rgba(255,255,255,0.9)', borderRadius: 8,
             padding: '4px 10px', display: 'flex', gap: 12,
             fontSize: 11, fontFamily: MONO, zIndex: 10,

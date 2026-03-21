@@ -21,6 +21,7 @@ import useImagePlacement from '../hooks/useImagePlacement';
 import ImageUploadPanel from '../components/DesignOverlay/ImageUploadPanel';
 import DielineImageOverlay from '../components/DesignOverlay/DielineImageOverlay';
 import { generatePanelTextures } from '../utils/textureGenerator';
+import ExportButtons from '../components/ExportButtons';
 import rscDxfRaw from '../assets/400x300x300mm-heavy-duty-box.dxf?raw';
 
 /* ── Reference box dimensions (from the DXF file name) ── */
@@ -449,13 +450,7 @@ function RSCTestPageInner() {
       }}>
         {/* Logo */}
         <div style={{ marginBottom: 12, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 12,
-            background: `linear-gradient(135deg, ${PURPLE}, ${PURPLE_DARK})`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#fff', fontSize: 15, fontWeight: 800, fontFamily: FONT,
-          }}>R</div>
-          <span style={{ fontSize: 8, fontWeight: 700, color: '#9ca3af', marginTop: 3, fontFamily: FONT, letterSpacing: '0.05em' }}>RSC</span>
+          <img src="/logo.png" alt="LumoPack" style={{ width: 36, height: 36, objectFit: 'contain' }} />
         </div>
 
         <div style={{ width: 32, height: 1, background: 'rgba(0,0,0,0.08)', marginBottom: 8 }} />
@@ -870,9 +865,11 @@ function RSCTestPageInner() {
           {W} x {D} x {H} mm (RSC) · {MATERIAL_PRESETS.find(m => m.id === boxStyle)?.label ?? boxStyle}
         </div>
 
+        <ExportButtons dieline={dieline} W={W} H={H} D={D} prefix="rsc" />
+
         {view === '2d' && (
           <div style={{
-            position: 'absolute', bottom: 16, right: 16, zIndex: 10,
+            position: 'absolute', bottom: 116, right: 16, zIndex: 10,
             background: 'rgba(255,255,255,0.95)', borderRadius: 10,
             padding: '6px 14px', display: 'flex', gap: 16, fontSize: 11,
             fontFamily: FONT, fontWeight: 600, color: '#111827',
