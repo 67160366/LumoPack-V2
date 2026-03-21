@@ -1,5 +1,5 @@
 /**
- * MyProjectsPage — รายการโปรเจคของผู้ใช้ (Light Purple Theme)
+ * MyProjectsPage — รายการโปรเจคของผู้ใช้ (Gray/Purple theme — matches HomePage)
  */
 
 import { useState, useEffect } from 'react';
@@ -7,28 +7,17 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 
-const STATUS_LABELS = {
-  draft: 'แบบร่าง',
-  quoted: 'เสนอราคาแล้ว',
-  ordered: 'สั่งผลิตแล้ว',
-  archived: 'เก็บถาวร',
-};
-
-const STATUS_COLORS = {
-  draft: 'text-purple-400 border-purple-200',
-  quoted: 'text-amber-600 border-amber-200',
-  ordered: 'text-emerald-600 border-emerald-200',
-  archived: 'text-gray-400 border-gray-200',
+const STATUS_CFG = {
+  draft:    { label: 'แบบร่าง',       bg: '#f3f4f6', color: '#6b7280', dot: '#9ca3af' },
+  quoted:   { label: 'เสนอราคาแล้ว',  bg: '#fffbeb', color: '#b45309', dot: '#f59e0b' },
+  ordered:  { label: 'สั่งผลิตแล้ว',  bg: '#ecfdf5', color: '#047857', dot: '#10b981' },
+  archived: { label: 'เก็บถาวร',      bg: '#f9fafb', color: '#9ca3af', dot: '#d1d5db' },
 };
 
 const BOX_TYPE_LABELS = {
-  rsc: 'RSC',
-  die_cut: 'Die-cut',
-  heart: 'Heart Box',
-  star: 'Star Box',
-  bear: 'Bear Box',
-  circle: 'Circle Box',
-  bow: 'Bow Box',
+  rsc: 'RSC', die_cut: 'Die-cut', heart: 'Heart Box', star: 'Star Box',
+  bear: 'Bear Box', circle: 'Circle Box', bow: 'Bow Box',
+  self_lock: 'Self-Lock', tube_lock: 'Tube Lock',
 };
 
 export default function MyProjectsPage() {
@@ -44,17 +33,13 @@ export default function MyProjectsPage() {
 
   useEffect(() => {
     if (!supabase || !user) { setLoading(false); return; }
-
     let cancelled = false;
 
     async function load() {
       try {
         const { data, error: err } = await supabase
-          .from('projects')
-          .select('*')
-          .eq('user_id', user.id)
+          .from('projects').select('*').eq('user_id', user.id)
           .order('updated_at', { ascending: false });
-
         if (!cancelled) {
           if (err) throw err;
           setProjects(data || []);
@@ -77,11 +62,11 @@ export default function MyProjectsPage() {
 
   async function fetchProjects() {
     if (!supabase || !user) return;
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
       const { data, error: err } = await supabase
-        .from('projects').select('*').eq('user_id', user.id).order('updated_at', { ascending: false });
+        .from('projects').select('*').eq('user_id', user.id)
+        .order('updated_at', { ascending: false });
       if (err) throw err;
       setProjects(data || []);
     } catch (err) {
@@ -97,8 +82,7 @@ export default function MyProjectsPage() {
     try {
       const { error: err } = await supabase.from('projects').insert({ user_id: user.id, name: newName.trim() });
       if (err) throw err;
-      setNewName('');
-      setShowCreate(false);
+      setNewName(''); setShowCreate(false);
       await fetchProjects();
     } catch (err) {
       alert(`สร้างโปรเจคไม่สำเร็จ: ${err.message || 'Unknown error'}`);
@@ -127,54 +111,123 @@ export default function MyProjectsPage() {
     navigate('/', { state: { loadProject: project } });
   }
 
+  const jk = "'Plus Jakarta Sans', sans-serif";
+  const sb = "'Sarabun', sans-serif";
+
   return (
-    <div className="min-h-screen bg-purple-50">
-      {/* Header */}
-      <div className="border-b border-purple-100 bg-white shadow-sm">
-        <div className="max-w-3xl mx-auto px-8 sm:px-12 py-5 flex items-center justify-between">
-          <div>
-            <h1 className="font-display font-bold text-lg text-purple-700">My Projects</h1>
-            <p className="text-purple-400 text-xs mt-0.5">จัดการโปรเจคออกแบบกล่อง</p>
+    <div style={{ minHeight: '100vh', background: '#f9fafb' }}>
+
+      {/* ═══ Header ═══ */}
+      <div style={{
+        borderBottom: '1px solid rgba(0,0,0,0.06)',
+        background: '#fff',
+      }}>
+        <div style={{
+          maxWidth: 820, margin: '0 auto',
+          padding: '20px 32px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <Link to="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
+              <img src="/logo.png" alt="LP" style={{ width: 36, height: 36, objectFit: 'contain' }} />
+            </Link>
+            <div>
+              <h1 style={{
+                fontSize: 18, fontWeight: 800, color: '#111827', margin: 0,
+                fontFamily: jk, letterSpacing: '-0.02em',
+              }}>My Projects</h1>
+              <p style={{ fontSize: 12, color: '#9ca3af', margin: 0, fontFamily: sb }}>
+                จัดการโปรเจคออกแบบกล่อง
+              </p>
+            </div>
           </div>
-          <div className="flex items-center gap-4">
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button
               onClick={() => setShowCreate(true)}
-              className="px-3 py-1.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-xs font-display font-semibold transition-colors duration-200 shadow-sm"
+              style={{
+                background: 'linear-gradient(135deg, #7c3aed, #6d28d9)',
+                color: '#fff', border: 'none', borderRadius: 12,
+                padding: '10px 20px', fontSize: 13, fontWeight: 700,
+                cursor: 'pointer', fontFamily: jk,
+                boxShadow: '0 2px 8px rgba(124,58,237,0.25)',
+                transition: 'transform 0.15s, box-shadow 0.15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(124,58,237,0.35)'; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(124,58,237,0.25)'; }}
             >
               + สร้างโปรเจคใหม่
             </button>
-            <Link to="/" className="text-xs text-purple-500 hover:text-purple-700 transition-colors">
+            <Link
+              to="/"
+              style={{
+                fontSize: 13, color: '#6b7280', textDecoration: 'none',
+                fontFamily: jk, fontWeight: 600,
+                padding: '10px 16px', borderRadius: 12,
+                border: '1px solid rgba(0,0,0,0.08)', background: '#fff',
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#7c3aed'; e.currentTarget.style.color = '#7c3aed'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.08)'; e.currentTarget.style.color = '#6b7280'; }}
+            >
               กลับหน้าหลัก
             </Link>
           </div>
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto px-8 sm:px-12 py-8">
+      {/* ═══ Content ═══ */}
+      <div style={{ maxWidth: 820, margin: '0 auto', padding: '28px 32px 60px' }}>
+
         {/* Create dialog */}
         {showCreate && (
-          <div className="mb-6 bg-white rounded-xl border border-purple-100 p-4 shadow-sm">
-            <h3 className="text-sm font-display font-semibold text-purple-700 mb-3">สร้างโปรเจคใหม่</h3>
-            <div className="flex gap-2">
+          <div style={{
+            marginBottom: 24, background: '#fff', borderRadius: 16,
+            border: '1px solid rgba(0,0,0,0.08)', padding: '20px 24px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+          }}>
+            <h3 style={{
+              fontSize: 14, fontWeight: 700, color: '#111827', margin: '0 0 14px',
+              fontFamily: jk,
+            }}>สร้างโปรเจคใหม่</h3>
+            <div style={{ display: 'flex', gap: 10 }}>
               <input
                 type="text"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
                 placeholder="ชื่อโปรเจค เช่น กล่องสินค้า A"
-                className="flex-1 px-4 py-2.5 rounded-xl bg-purple-50/50 border border-purple-200 text-sm text-purple-900 placeholder:text-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-colors duration-200"
                 autoFocus
+                style={{
+                  flex: 1, padding: '11px 16px', borderRadius: 12,
+                  fontSize: 13, fontFamily: sb, color: '#111827',
+                  border: '1px solid rgba(0,0,0,0.1)', background: '#f9fafb',
+                  outline: 'none', transition: 'border-color 0.2s',
+                }}
+                onFocus={e => { e.currentTarget.style.borderColor = '#7c3aed'; }}
+                onBlur={e => { e.currentTarget.style.borderColor = 'rgba(0,0,0,0.1)'; }}
               />
               <button
                 onClick={handleCreate}
                 disabled={creating || !newName.trim()}
-                className="px-4 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white text-sm font-semibold transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{
+                  padding: '11px 22px', borderRadius: 12, border: 'none',
+                  background: creating || !newName.trim() ? '#e5e7eb' : '#7c3aed',
+                  color: creating || !newName.trim() ? '#9ca3af' : '#fff',
+                  fontSize: 13, fontWeight: 700, fontFamily: jk,
+                  cursor: creating || !newName.trim() ? 'not-allowed' : 'pointer',
+                }}
               >
                 {creating ? '...' : 'สร้าง'}
               </button>
               <button
                 onClick={() => { setShowCreate(false); setNewName(''); }}
-                className="px-3 py-2.5 rounded-xl border border-purple-200 text-purple-500 hover:text-purple-700 text-sm transition-colors duration-200"
+                style={{
+                  padding: '11px 18px', borderRadius: 12,
+                  border: '1px solid rgba(0,0,0,0.1)', background: '#fff',
+                  color: '#6b7280', fontSize: 13, fontWeight: 600,
+                  fontFamily: jk, cursor: 'pointer',
+                }}
               >
                 ยกเลิก
               </button>
@@ -182,81 +235,231 @@ export default function MyProjectsPage() {
           </div>
         )}
 
-        {/* Project list */}
+        {/* Loading */}
         {loading ? (
-          <div className="flex justify-center py-16">
-            <div className="w-7 h-7 border-2 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '80px 0' }}>
+            <div style={{
+              width: 32, height: 32, borderRadius: '50%',
+              border: '3px solid #ede9fe', borderTopColor: '#7c3aed',
+              animation: 'spin 0.8s linear infinite',
+            }} />
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
           </div>
         ) : error ? (
-          <div className="text-center py-16">
-            <p className="text-red-500 text-sm mb-3">{error}</p>
-            <button onClick={fetchProjects} className="text-sm text-purple-600 hover:text-purple-800 font-medium">ลองใหม่</button>
+          <div style={{ textAlign: 'center', padding: '80px 0' }}>
+            <p style={{ fontSize: 14, color: '#ef4444', marginBottom: 12, fontFamily: sb }}>{error}</p>
+            <button
+              onClick={fetchProjects}
+              style={{
+                fontSize: 13, color: '#7c3aed', background: 'none', border: 'none',
+                cursor: 'pointer', fontWeight: 600, fontFamily: jk,
+              }}
+            >
+              ลองใหม่
+            </button>
           </div>
         ) : projects.length === 0 ? (
-          <div className="text-center py-16">
-            <p className="text-purple-400 text-sm mb-4">ยังไม่มีโปรเจค</p>
-            <button onClick={() => setShowCreate(true)} className="text-sm text-purple-600 hover:text-purple-800 font-medium">สร้างโปรเจคแรก →</button>
+          /* Empty state */
+          <div style={{ textAlign: 'center', padding: '80px 0' }}>
+            <div style={{
+              width: 64, height: 64, borderRadius: 16,
+              background: '#f3f4f6', margin: '0 auto 20px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />
+              </svg>
+            </div>
+            <p style={{
+              fontSize: 15, fontWeight: 600, color: '#374151', margin: '0 0 6px',
+              fontFamily: jk,
+            }}>ยังไม่มีโปรเจค</p>
+            <p style={{ fontSize: 13, color: '#9ca3af', margin: '0 0 20px', fontFamily: sb }}>
+              เริ่มสร้างโปรเจคแรกของคุณ
+            </p>
+            <button
+              onClick={() => setShowCreate(true)}
+              style={{
+                background: 'linear-gradient(135deg, #7c3aed, #6d28d9)',
+                color: '#fff', border: 'none', borderRadius: 12,
+                padding: '12px 28px', fontSize: 13, fontWeight: 700,
+                cursor: 'pointer', fontFamily: jk,
+                boxShadow: '0 2px 8px rgba(124,58,237,0.25)',
+              }}
+            >
+              สร้างโปรเจคแรก
+            </button>
           </div>
         ) : (
-          <div className="space-y-3">
+          /* Project list */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {projects.map((project) => (
-              <div
+              <ProjectCard
                 key={project.id}
-                className="bg-white rounded-xl border border-purple-100 p-4 hover:border-purple-300 hover:shadow-md transition-all"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-display font-semibold text-purple-800 truncate mr-3">
-                    {project.name}
-                  </h3>
-                  <span className={`text-xs px-2 py-0.5 rounded-full border flex-shrink-0 ${STATUS_COLORS[project.status] || 'text-purple-400'}`}>
-                    {STATUS_LABELS[project.status] || project.status}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-3 text-xs text-purple-400 mb-3">
-                  {project.box_type && <span>{BOX_TYPE_LABELS[project.box_type] || project.box_type}</span>}
-                  {project.dimensions && (
-                    <span>
-                      {project.dimensions.length || project.dimensions.width} x{' '}
-                      {project.dimensions.width || project.dimensions.length} x{' '}
-                      {project.dimensions.height} cm
-                    </span>
-                  )}
-                  {project.quantity && <span>{project.quantity.toLocaleString()} ชิ้น</span>}
-                  {project.grand_total != null && (
-                    <span className="text-purple-700 font-semibold">฿{project.grand_total.toLocaleString()}</span>
-                  )}
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-purple-400">
-                    อัปเดต:{' '}
-                    {new Date(project.updated_at).toLocaleDateString('th-TH', {
-                      day: 'numeric', month: 'short', year: 'numeric',
-                      hour: '2-digit', minute: '2-digit',
-                    })}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => handleLoad(project)}
-                      className="px-3 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-600 text-xs font-semibold transition-colors border border-purple-200"
-                    >
-                      เปิดใน Studio
-                    </button>
-                    <button
-                      onClick={(e) => handleDelete(project.id, e)}
-                      disabled={deletingId === project.id}
-                      className="px-2 py-1 rounded-lg hover:bg-red-50 text-purple-400 hover:text-red-500 text-xs transition-colors disabled:opacity-50"
-                    >
-                      {deletingId === project.id ? '...' : 'ลบ'}
-                    </button>
-                  </div>
-                </div>
-              </div>
+                project={project}
+                onLoad={handleLoad}
+                onDelete={handleDelete}
+                deletingId={deletingId}
+              />
             ))}
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+
+function ProjectCard({ project, onLoad, onDelete, deletingId }) {
+  const [hovered, setHovered] = useState(false);
+  const status = STATUS_CFG[project.status] || STATUS_CFG.draft;
+  const jk = "'Plus Jakarta Sans', sans-serif";
+  const sb = "'Sarabun', sans-serif";
+
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        background: '#fff',
+        borderRadius: 16,
+        border: hovered ? '1px solid #c4b5fd' : '1px solid rgba(0,0,0,0.06)',
+        padding: '18px 22px',
+        boxShadow: hovered
+          ? '0 8px 24px rgba(124,58,237,0.1)'
+          : '0 1px 4px rgba(0,0,0,0.04)',
+        transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)',
+        transform: hovered ? 'translateY(-2px)' : 'translateY(0)',
+      }}
+    >
+      {/* Row 1: Name + Status */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <h3 style={{
+          fontSize: 15, fontWeight: 700, color: '#111827', margin: 0,
+          fontFamily: jk, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          maxWidth: 'calc(100% - 120px)',
+        }}>
+          {project.name}
+        </h3>
+        <span style={{
+          fontSize: 11, fontWeight: 600, fontFamily: jk,
+          padding: '4px 10px', borderRadius: 20,
+          background: status.bg, color: status.color,
+          display: 'inline-flex', alignItems: 'center', gap: 5,
+          flexShrink: 0,
+        }}>
+          <span style={{
+            width: 6, height: 6, borderRadius: '50%', background: status.dot,
+            display: 'inline-block',
+          }} />
+          {status.label}
+        </span>
+      </div>
+
+      {/* Row 2: Meta chips */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+        {project.box_type && (
+          <MetaChip>{BOX_TYPE_LABELS[project.box_type] || project.box_type}</MetaChip>
+        )}
+        {project.dimensions && (
+          <MetaChip>
+            {project.dimensions.length || project.dimensions.width} x{' '}
+            {project.dimensions.width || project.dimensions.length} x{' '}
+            {project.dimensions.height} cm
+          </MetaChip>
+        )}
+        {project.quantity && (
+          <MetaChip>{project.quantity.toLocaleString()} ชิ้น</MetaChip>
+        )}
+        {project.grand_total != null && (
+          <span style={{
+            fontSize: 12, fontWeight: 700, color: '#7c3aed', fontFamily: jk,
+          }}>
+            ฿{project.grand_total.toLocaleString()}
+          </span>
+        )}
+      </div>
+
+      {/* Row 3: Date + Actions */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 11, color: '#9ca3af', fontFamily: sb }}>
+          อัปเดต{' '}
+          {new Date(project.updated_at).toLocaleDateString('th-TH', {
+            day: 'numeric', month: 'short', year: 'numeric',
+            hour: '2-digit', minute: '2-digit',
+          })}
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <ActionButton
+            onClick={() => onLoad(project)}
+            primary
+          >
+            เปิดใน Studio
+          </ActionButton>
+          <ActionButton
+            onClick={(e) => onDelete(project.id, e)}
+            disabled={deletingId === project.id}
+            danger
+          >
+            {deletingId === project.id ? '...' : 'ลบ'}
+          </ActionButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+function MetaChip({ children }) {
+  return (
+    <span style={{
+      fontSize: 11, fontWeight: 500, color: '#6b7280',
+      fontFamily: "'Sarabun', sans-serif",
+      background: '#f3f4f6', borderRadius: 8,
+      padding: '3px 10px',
+    }}>
+      {children}
+    </span>
+  );
+}
+
+
+function ActionButton({ children, onClick, primary, danger, disabled }) {
+  const [hovered, setHovered] = useState(false);
+  const jk = "'Plus Jakarta Sans', sans-serif";
+
+  let bg, color, borderColor;
+  if (primary) {
+    bg = hovered ? '#7c3aed' : '#f5f3ff';
+    color = hovered ? '#fff' : '#7c3aed';
+    borderColor = hovered ? '#7c3aed' : '#ede9fe';
+  } else if (danger) {
+    bg = hovered ? '#fef2f2' : 'transparent';
+    color = hovered ? '#ef4444' : '#9ca3af';
+    borderColor = hovered ? '#fecaca' : 'transparent';
+  } else {
+    bg = '#f3f4f6';
+    color = '#374151';
+    borderColor = 'rgba(0,0,0,0.06)';
+  }
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        padding: '6px 14px', borderRadius: 10,
+        fontSize: 12, fontWeight: 600, fontFamily: jk,
+        border: `1px solid ${borderColor}`,
+        background: bg, color,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
+        transition: 'all 0.15s',
+      }}
+    >
+      {children}
+    </button>
   );
 }

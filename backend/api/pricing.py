@@ -4,10 +4,12 @@ Pricing API Endpoints
 """
 
 from fastapi import APIRouter, HTTPException, status
+from fastapi.responses import Response
 from pydantic import BaseModel, Field, validator
 from typing import Optional, Dict, Any, List
 
 from services.pricing_calculator import get_price_estimate
+from models.chat_state import session_storage
 
 
 # ===================================
@@ -302,3 +304,44 @@ async def get_available_stampings():
         "stampings": stampings,
         "note": "การป๊ัมครั้งแรกต้องทำบล็อกป๊ัม (has_block: false)"
     }
+
+
+@router.get("/quote-pdf/{session_id}")
+async def download_quote_pdf(session_id: str):
+    """
+    ดาวน์โหลดใบเสนอราคา PDF สำหรับ session ที่ระบุ
+    """
+    from services.pdf_quote import generate_quote_pdf
+    from models.requirement import CompleteRequirement
+
+    state = session_storage.get_session(session_id)
+    if not state:
+        raise HTTPException(status_code=404, detail="ไม่พบ session นี้")
+
+    collected = state.collected_data or {}
+    if not collected.get("dimensions") or not collected.get("box_type"):
+        raise HTTPException(status_code=400, detail="ข้อมูลยังไม่ครบ ไม่สามารถออกใบเสนอราคาได้")
+
+    # Calculate pricing
+    try:
+        requirement = CompleteRequirement.from_collected_data(
+            session_id=session_id,
+            collected_data=collected
+        )
+        pricing_request = requirement.to_pricing_request()
+        pricing_data = get_price_estimate(pricing_request)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"คำนวณราคาไม่สำเร็จ: {str(e)}")
+
+    # Generate PDF
+    try:
+        pdf_bytes = generate_quote_pdf(session_id, collected, pricing_data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"สร้าง PDF ไม่สำเร็จ: {str(e)}")
+
+    filename = f"LumoPack_Quote_{session_id[:8]}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

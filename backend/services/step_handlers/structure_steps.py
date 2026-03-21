@@ -146,7 +146,7 @@ class StructureStepHandlers:
             state.commit_partial_data()
 
             # สร้าง response หลัก
-            response = f"เรียบร้อยค่ะ! เลือกกล่อง {box_type.upper()} วัสดุ {material} 📦"
+            response = f"เรียบร้อยค่ะ! เลือกกล่อง {box_type.upper()} วัสดุ {material}"
 
             # เพิ่ม transition ตาม path (ถ้าไม่ได้อยู่ใน edit mode)
             if not state.edit_mode:
@@ -156,16 +156,16 @@ class StructureStepHandlers:
                     response += (
                         "\n\nต้องการ Inner เพิ่มในกล่องไหมคะ? เลือกได้หลายตัวเลือก "
                         "เพียงพิมพ์หมายเลขรวมกัน เช่น '1' หรือ '2, 5'\n\n"
-                        "🛡️ กันกระแทก\n"
+                        "กันกระแทก\n"
                         "  1. กระดาษฝอย (Shredded Paper)\n"
                         "  2. บับเบิ้ล (Air Bubble Roll)\n"
                         "  3. ถุงลม (Air Cushion)\n\n"
-                        "💧 เคลือบกันชื้น\n"
+                        "เคลือบกันชื้น\n"
                         "  4. AQ Coating (Acrylic polymer)\n"
                         "  5. PE Coating (Polyethylene)\n"
                         "  6. Wax Coating (Paraffin wax)\n"
                         "  7. Bio/Water-based Barrier\n\n"
-                        "🍽️ Food-grade Coating\n"
+                        "Food-grade Coating\n"
                         "  8. Water-based Food Coating\n"
                         "  9. PE Food-grade Coating\n"
                         "  10. PLA/Bio Coating\n"
@@ -175,7 +175,7 @@ class StructureStepHandlers:
                 else:
                     # RSC ข้าม Inner → ไปถามขนาดเลย
                     response += (
-                        "\n\n📐 ต่อไป ขอทราบขนาดกล่องที่ต้องการนะคะ "
+                        "\n\nต่อไป ขอทราบขนาดกล่องที่ต้องการนะคะ "
                         "(กว้าง×ยาว×สูง เป็น ซม.) และจำนวนที่ต้องการผลิต (ขั้นต่ำ 500 ชิ้น)"
                     )
 
@@ -204,7 +204,7 @@ class StructureStepHandlers:
         return opts
 
     def _format_material_question(self, box_type: str, options: dict) -> str:
-        lines = ["🧱 เลือกวัสดุสำหรับกล่องค่ะ:"]
+        lines = ["เลือกวัสดุสำหรับกล่องค่ะ:"]
         for i, (_, desc) in enumerate(options.items(), 1):
             lines.append(f"  {i}. {desc}")
         return "\n".join(lines)
@@ -224,7 +224,7 @@ class StructureStepHandlers:
 
         # Transition สำหรับถามขนาดกล่อง (ใช้ร่วมกัน)
         dims_transition = (
-            "\n\n📐 ต่อไป ขอทราบขนาดกล่องที่ต้องการนะคะ "
+            "\n\nต่อไป ขอทราบขนาดกล่องที่ต้องการนะคะ "
             "(กว้าง×ยาว×สูง เป็น ซม.) และจำนวนที่ต้องการผลิต (ขั้นต่ำ 500 ชิ้น)"
         )
 
@@ -316,7 +316,7 @@ class StructureStepHandlers:
                     height_cm=final_dims["height"],
                     current_flute=flute_type,
                 )
-                rec_lines = ["\n💡 **แนะนำ:**"]
+                rec_lines = ["\n**แนะนำ:**"]
 
                 if alts["needs_larger_box"]:
                     # กล่องเล็กเกินไป → ต้องเพิ่มขนาดก่อน
@@ -383,12 +383,12 @@ class StructureStepHandlers:
             if qty_pattern:
                 raw_num = int((qty_pattern.group(1) or qty_pattern.group(2)).replace(",", ""))
                 if raw_num < 500:
-                    below_min_msg = f"\n\n⚠️ จำนวน {raw_num:,} ชิ้น ต่ำกว่าขั้นต่ำค่ะ"
+                    below_min_msg = f"\n\nจำนวน {raw_num:,} ชิ้น ต่ำกว่าขั้นต่ำค่ะ"
 
             return _make_result(
                 response=(
                     f"ขนาดกล่อง {dims['width']}×{dims['length']}×{dims['height']} ซม. "
-                    f"รับทราบค่ะ 📐{below_min_msg}\n\n"
+                    f"รับทราบค่ะ{below_min_msg}\n\n"
                     f"ขอทราบจำนวนที่ต้องการผลิตด้วยนะคะ (ขั้นต่ำ 500 ชิ้น)"
                 ),
                 merge_partial={"dimensions": dims}
@@ -398,7 +398,7 @@ class StructureStepHandlers:
         if qty and not final_dims:
             return _make_result(
                 response=(
-                    f"จำนวน {qty:,} ชิ้น รับทราบค่ะ 📦\n\n"
+                    f"จำนวน {qty:,} ชิ้น รับทราบค่ะ\n\n"
                     f"ขอทราบขนาดกล่องด้วยนะคะ (กว้าง×ยาว×สูง เป็น ซม.)"
                 ),
                 merge_partial={"quantity": qty}
@@ -420,7 +420,7 @@ class StructureStepHandlers:
         if qty_ctx:
             raw_num = int((qty_ctx.group(1) or qty_ctx.group(2)).replace(",", ""))
             if 0 < raw_num < 500:
-                response += f"\n\n⚠️ จำนวน {raw_num:,} ชิ้น ต่ำกว่าขั้นต่ำค่ะ จำนวนขั้นต่ำคือ 500 ชิ้น"
+                response += f"\n\nจำนวน {raw_num:,} ชิ้น ต่ำกว่าขั้นต่ำค่ะ จำนวนขั้นต่ำคือ 500 ชิ้น"
 
         return _make_result(response=response)
 
@@ -453,27 +453,28 @@ class StructureStepHandlers:
             state.is_waiting_for_confirmation = False
             return _make_result(
                 response=(
-                    "เยี่ยมเลยค่ะ! ✅ ต่อไปเป็นส่วนออกแบบ\n\n"
-                    "คุณมี Mood & Tone ที่อยากได้สำหรับกล่องไหมคะ? 🎨\n"
-                    "เช่น: สดใส / เรียบหรู / มินิมอล / พรีเมียม\n"
-                    "(หรือพิมพ์ 'ข้าม' ถ้ายังไม่แน่ใจ)"
+                    "เรียบร้อยค่ะ ต่อไปเป็นส่วนออกแบบ\n\n"
+                    "คุณมีโลโก้ที่อยากใส่บนกล่องไหมคะ?\n"
+                    "ถ้ามี อัปโหลดไฟล์รูปโลโก้ได้เลย แล้วบอกตำแหน่งที่ต้องการวาง\n"
+                    "(หรือพิมพ์ 'ไม่มี' ถ้ายังไม่มี)"
                 ),
                 advance=True,
             )
 
+        # ซัพพอร์ต (ตรวจก่อน rejection เพราะ "ไม่ใช้ซัพพอร์ต" ไม่มี keyword แก้ไข)
+        support_required = extract_support_required(user_message)
+        if support_required is not None:
+            state.is_waiting_for_confirmation = True
+            return _make_result(
+                response=(
+                    f"รับทราบค่ะ {'เปิด' if support_required else 'ปิด'}ซัพพอร์ตภายในแล้ว\n"
+                    "ถ้าต้องการแก้อย่างอื่นต่อ บอกได้เลย หรือกด 'ถูกต้อง' เพื่อไปต่อ"
+                ),
+                update_data={"support_required": support_required},
+            )
+
         # แก้ไข / เพิ่ม
         if is_rejection(user_message) or is_add_request(user_message):
-            support_required = extract_support_required(user_message)
-            if support_required is not None:
-                state.is_waiting_for_confirmation = True
-                return _make_result(
-                    response=(
-                        f"รับทราบค่ะ {'เพิ่ม' if support_required else 'ปิด'}ซัพพอร์ตภายในแล้ว ✅\n"
-                        "ถ้าต้องการแก้อย่างอื่นต่อ บอกได้เลย หรือกด 'ถูกต้อง ✓' เพื่อไปต่อ"
-                    ),
-                    update_data={"support_required": support_required},
-                )
-
             target = detect_edit_target(user_message)
             if target:
                 action = "append" if is_add_request(user_message) else "replace"
@@ -489,7 +490,7 @@ class StructureStepHandlers:
                         state.partial_data["box_type"] = state.collected_data.get("box_type", "rsc")
                         state.sub_step = 1
                 label = "เพิ่ม" if action == "append" else "แก้ไข"
-                return _make_result(response=f"ได้เลยค่ะ! {label}ข้อมูลได้เลยนะคะ 📝")
+                return _make_result(response=f"ได้เลยค่ะ! {label}ข้อมูลได้เลยนะคะ")
 
             # detect ไม่ได้ → แสดงตัวเลือกชัดเจน
             state.is_waiting_for_confirmation = False
@@ -509,7 +510,7 @@ class StructureStepHandlers:
         state.is_waiting_for_confirmation = True
         return _make_result(
             response=(
-                "ตอบ 'ถูกต้อง' เพื่อไปต่อ หรือบอกส่วนที่ต้องการแก้ไขได้เลยค่ะ 🙏\n"
+                "ตอบ 'ถูกต้อง' เพื่อไปต่อ หรือบอกส่วนที่ต้องการแก้ไขได้เลยค่ะ\n"
                 "เช่น: แก้ไขขนาด / แก้ไขจำนวน / แก้ไขลอนกระดาษ"
             )
         )

@@ -146,7 +146,7 @@ def analyze_box_strength(
         else:
             suggestion = "แนะนำเพิ่มขนาดกล่อง หรือใช้ลอน BC (2 ชั้น)"
         recommendation = (
-            f"⚠️ กล่อง {flute['name']} ไม่แข็งแรงพอสำหรับ {weight_kg:.1f} kg — {suggestion}"
+            f"[DANGER] กล่อง {flute['name']} ไม่แข็งแรงพอสำหรับ {weight_kg:.1f} kg — {suggestion}"
         )
 
     return {
@@ -218,7 +218,7 @@ def analyze_box_strength_v2(
         recommendation = f"กล่อง {flute['name']} ใช้ได้ แต่มีความเสี่ยงเมื่อเจอความชื้นหรือซ้อนสูง"
     else:
         status = "DANGER"
-        recommendation = f"⚠️ กล่อง {flute['name']} ไม่แข็งแรงพอสำหรับ {weight_kg:.1f} kg"
+        recommendation = f"[DANGER] กล่อง {flute['name']} ไม่แข็งแรงพอสำหรับ {weight_kg:.1f} kg"
 
     return {
         "status": status,
@@ -319,18 +319,18 @@ def format_analysis_for_chat(analysis: dict, weight_kg: float, flute_type: str) 
 
     if weight_kg == 0:
         return (
-            f"🔬 **ผลวิเคราะห์ความแข็งแรง** ({flute_name})\n"
+            f"**ผลวิเคราะห์ความแข็งแรง** ({flute_name})\n"
             f"• BCT (รับแรงกด): {bct:.1f} kgf\n"
             f"• รับน้ำหนักได้สูงสุด: {max_load:.1f} kg (stacking ×3)\n"
             f"*(ไม่ได้ระบุน้ำหนักสินค้า — ไม่สามารถประเมิน SAFE/DANGER ได้)*"
         )
 
-    icon = "✅" if status == "SAFE" else "⚠️"
+    icon = "[SAFE]" if status == "SAFE" else "[DANGER]"
     bar_filled = int(score / 10)
     bar = "█" * bar_filled + "░" * (10 - bar_filled)
 
     lines = [
-        f"🔬 **ผลวิเคราะห์ความแข็งแรง** ({flute_name})",
+        f"**ผลวิเคราะห์ความแข็งแรง** ({flute_name})",
         f"• สถานะ: {icon} **{status}** (คะแนน {score}/100)",
         f"  [{bar}]",
         f"• รับน้ำหนักได้สูงสุด: {max_load:.1f} kg | น้ำหนักสินค้า: {weight_kg:.1f} kg",
@@ -346,7 +346,7 @@ def format_analysis_for_chat_v2(analysis: dict, weight_kg: float, flute_type: st
 
     if weight_kg == 0:
         return (
-            f"🔬 **ผลวิเคราะห์ความแข็งแรง McKee v2** ({flute_name})\n"
+            f"**ผลวิเคราะห์ความแข็งแรง McKee v2** ({flute_name})\n"
             f"• BCT ปรับสภาพแวดล้อม: {analysis['bct_kgf']:.1f} kgf\n"
             f"• รับน้ำหนักได้สูงสุด: {analysis['max_load_kg']:.1f} kg\n"
             f"*(ยังไม่ระบุน้ำหนักสินค้า จึงไม่ประเมิน SAFE/DANGER)*"
@@ -354,9 +354,9 @@ def format_analysis_for_chat_v2(analysis: dict, weight_kg: float, flute_type: st
 
     status = analysis["status"]
     score = analysis["safety_score"]
-    icon = "✅" if status == "SAFE" else "⚠️"
+    icon = "[SAFE]" if status == "SAFE" else "[DANGER]"
     return (
-        f"🔬 **ผลวิเคราะห์ความแข็งแรง McKee v2** ({flute_name})\n"
+        f"**ผลวิเคราะห์ความแข็งแรง McKee v2** ({flute_name})\n"
         f"• สถานะ: {icon} **{status}** (คะแนน {score}/100)\n"
         f"• BCT: {analysis['bct_kgf']:.1f} kgf | รับน้ำหนักได้: {analysis['max_load_kg']:.1f} kg\n"
         f"• น้ำหนักสินค้า: {weight_kg:.1f} kg | Safety factor: {analysis['safety_factor']:.2f}x\n"

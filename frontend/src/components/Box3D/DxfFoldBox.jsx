@@ -247,10 +247,10 @@ export default function DxfFoldBox({
   const aBottom   = ease(p, 0.00, 0.22) * HP;
   const aTop      = ease(p, 0.00, 0.22) * HP;
   const aSide     = ease(p, 0.18, 0.38) * HP;
-  const aSlot     = ease(p, 0.35, 0.52) * HP;
+  const aSlot     = ease(p, 0.35, 0.52) * Math.PI;
   const aBack     = ease(p, 0.48, 0.68) * HP;
   const aBackFlap = ease(p, 0.58, 0.72) * HP;
-  const aTongue   = ease(p, 0.48, 0.68) * HP;
+  const aTongue   = ease(p, 0.58, 0.72) * HP;
 
   const shapes = useMemo(() => ({
     depthPanel: createDepthPanelShape(D, H),
@@ -301,8 +301,17 @@ export default function DxfFoldBox({
       {/* ═══ BOTTOM FLAP ═══ hinged at bottom edge of front (folds UP, toward +Y) */}
       <group position={[0, 0, H / 2]}>
         <group rotation={[-aBottom, 0, 0]}>
+          {/* Main bottom strip */}
           <group position={[0, t, D / 2]} rotation={flat}>
-            <RectPanel w={W + 2 * D} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
+            <RectPanel w={W} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
+          </group>
+          {/* Depth extension L — corner tab, glue flap sits on top */}
+          <group position={[-(W / 2 + D / 2), t, D / 2]} rotation={flat}>
+            <RectPanel w={D} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
+          </group>
+          {/* Depth extension R — corner tab, glue flap sits on top */}
+          <group position={[(W / 2 + D / 2), t, D / 2]} rotation={flat}>
+            <RectPanel w={D} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
           </group>
         </group>
       </group>
@@ -313,9 +322,9 @@ export default function DxfFoldBox({
           <group position={[-D / 2, t, 0]} rotation={flat}>
             <ShapePanel shape={shapes.depthPanel} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
           </group>
-          {/* Slot strip — hinged at outer edge of depth panel (folds DOWN/inward) */}
+          {/* Slot strip — hinged at outer edge, folds 180° INWARD */}
           <group position={[-D, 0, 0]}>
-            <group rotation={[0, 0, aSlot]}>
+            <group rotation={[0, 0, -aSlot]}>
               <group position={[-D / 2, t * 2, 0]} rotation={flat}>
                 <ShapePanel shape={shapes.slotStrip} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
               </group>
@@ -330,9 +339,9 @@ export default function DxfFoldBox({
           <group position={[D / 2, t, 0]} rotation={flat}>
             <ShapePanel shape={shapes.depthPanel} flipX noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
           </group>
-          {/* Slot strip — hinged at outer edge of depth panel (folds DOWN/inward) */}
+          {/* Slot strip — hinged at outer edge, folds 180° INWARD */}
           <group position={[D, 0, 0]}>
-            <group rotation={[0, 0, -aSlot]}>
+            <group rotation={[0, 0, aSlot]}>
               <group position={[D / 2, t * 2, 0]} rotation={flat}>
                 <ShapePanel shape={shapes.slotStrip} flipX noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
               </group>
@@ -348,13 +357,12 @@ export default function DxfFoldBox({
           <group position={[0, t, -D / 2]} rotation={flat}>
             <RectPanel w={W} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
           </group>
-
-          {/* Depth extension L */}
+          {/* Depth extension L — folds with top strip, glue flap sits on top */}
           <group position={[-(W / 2 + D / 2), t, -D / 2]} rotation={flat}>
             <RectPanel w={D} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
           </group>
-          {/* Depth extension R */}
-          <group position={[W / 2 + D / 2, t, -D / 2]} rotation={flat}>
+          {/* Depth extension R — folds with top strip, glue flap sits on top */}
+          <group position={[(W / 2 + D / 2), t, -D / 2]} rotation={flat}>
             <RectPanel w={D} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
           </group>
 

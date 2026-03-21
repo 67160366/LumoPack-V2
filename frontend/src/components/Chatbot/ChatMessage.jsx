@@ -1,37 +1,17 @@
 /**
- * ChatMessage — แสดงข้อความแต่ละ bubble + แสดง UI Cards อัตโนมัติ — Navy Theme
+ * ChatMessage — แสดงข้อความแต่ละ bubble — Navy Theme
  */
 
 import React from 'react';
-import { useChatbot } from '../../contexts/ChatbotContext';
-import RequirementSummary from './RequirementSummary';
-import PricingQuote from './PricingQuote';
-import MockupDisplay from './MockupDisplay';
 
 export default function ChatMessage({ message }) {
   const isUser = message.role === 'user';
   const isError = message.isError;
-  const { collectedData } = useChatbot();
-
   const content = message.content || '';
-  const isSummary = !isUser && content.includes('สรุป Requirement');
-  const isPricing = !isUser && content.includes('ใบเสนอราคา');
-  const showMockup =
-    !isUser &&
-    !isSummary &&
-    !isPricing &&
-    (
-      content.includes('ขนาด') ||
-      Boolean(collectedData?.box_type) ||
-      Boolean(collectedData?.dimensions)
-    );
-
-  const previewDimensions = collectedData?.dimensions || null;
 
   return (
     <div className={`chat-enter flex w-full mb-5 flex-col ${isUser ? 'items-end' : 'items-start'}`}>
 
-      {/* Chat bubble */}
       <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'}`}>
         {!isUser && (
           <img
@@ -95,25 +75,6 @@ export default function ChatMessage({ message }) {
           </div>
         )}
       </div>
-
-      {/* UI Cards */}
-      {isSummary && (
-        <div className="w-full flex justify-center mt-4 mb-2 px-2">
-          <RequirementSummary data={collectedData} />
-        </div>
-      )}
-
-      {isPricing && (
-        <div className="w-full flex justify-center mt-4 mb-2 px-2">
-          <PricingQuote pricing={collectedData?.pricing} />
-        </div>
-      )}
-
-      {showMockup && (
-        <div className="w-full flex justify-center mt-4 mb-2 px-2">
-          <MockupDisplay boxType={collectedData?.box_type} dimensions={previewDimensions} />
-        </div>
-      )}
 
     </div>
   );

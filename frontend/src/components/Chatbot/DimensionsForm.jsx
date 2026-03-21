@@ -1,10 +1,9 @@
 /**
- * DimensionsForm — Structured input สำหรับ Step 5 (Teal/Purple Theme)
+ * DimensionsForm — Structured input สำหรับ Step 5 (Navy/Slate Theme)
  */
 
 import React, { useState, useRef, useEffect } from 'react';
 
-// UI accepts mm, but the rest of the app/back-end expects cm.
 const MIN_DIMENSION_MM = 10;
 const MAX_DIMENSION_MM = 2000;
 const MIN_QUANTITY  = 500;
@@ -68,7 +67,6 @@ export default function DimensionsForm({ onSubmit, showQuantity = true }) {
     if (!validate()) return;
     setIsSubmitting(true);
 
-    // Convert mm -> cm for the chatbot/back-end which expects cm.
     const wCm = (parseFloat(width) || 0) / 10;
     const lCm = (parseFloat(length) || 0) / 10;
     const hCm = (parseFloat(height) || 0) / 10;
@@ -102,22 +100,33 @@ export default function DimensionsForm({ onSubmit, showQuantity = true }) {
   };
 
   return (
-    <div className="ml-9 mb-3 animate-slide-up">
-      <div className="bg-white border border-teal-200 rounded-2xl p-5 max-w-sm shadow-sm">
-
+    <div className="ml-11 mb-4 animate-slide-up">
+      <div
+        style={{
+          background: '#f8fafc',
+          border: '1px solid #e2e8f0',
+          borderRadius: 16,
+          padding: '20px 20px 16px',
+          maxWidth: 360,
+        }}
+      >
         {/* Header */}
-        <div className="flex items-center gap-2.5 mb-4">
-          <span className="text-base leading-none">📐</span>
-          <span className="text-sm font-display font-semibold text-teal-800 tracking-tight">
-            กรอกขนาดกล่อง
-          </span>
+        <div style={{
+          fontSize: 13,
+          fontWeight: 700,
+          color: '#0f172a',
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          marginBottom: 16,
+          letterSpacing: '-0.01em',
+        }}>
+          กรอกขนาดกล่อง
         </div>
 
-        {/* บังคับ: กว้าง / ยาว / สูง */}
-        <div className="grid grid-cols-3 gap-3 mb-3">
-          <DimInput ref={firstInputRef} name="width"  label="กว้าง" unit="mm"
-            value={width}  error={errors.width}
-            onChange={handleNumberChange(setWidth, 'width')}   onKeyDown={handleKeyDown} />
+        {/* W / L / H */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 12 }}>
+          <DimInput ref={firstInputRef} name="width" label="กว้าง" unit="mm"
+            value={width} error={errors.width}
+            onChange={handleNumberChange(setWidth, 'width')} onKeyDown={handleKeyDown} />
           <DimInput name="length" label="ยาว" unit="mm"
             value={length} error={errors.length}
             onChange={handleNumberChange(setLength, 'length')} onKeyDown={handleKeyDown} />
@@ -126,9 +135,9 @@ export default function DimensionsForm({ onSubmit, showQuantity = true }) {
             onChange={handleNumberChange(setHeight, 'height')} onKeyDown={handleKeyDown} />
         </div>
 
-        {/* บังคับ: จำนวน */}
+        {/* Quantity */}
         {showQuantity && (
-          <div className="mb-4">
+          <div style={{ marginBottom: 16 }}>
             <DimInput name="quantity" label="จำนวน" unit="ชิ้น"
               value={quantity} error={errors.quantity}
               onChange={handleQuantityChange} onKeyDown={handleKeyDown}
@@ -136,37 +145,60 @@ export default function DimensionsForm({ onSubmit, showQuantity = true }) {
           </div>
         )}
 
-        {/* Divider: optional section */}
-        <div className="flex items-center gap-3 mb-4">
-          <div className="h-px flex-1 bg-teal-100" />
-          <span className="text-[11px] text-teal-400 font-body whitespace-nowrap tracking-wide">
+        {/* Divider */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 10,
+          marginBottom: 16,
+        }}>
+          <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
+          <span style={{
+            fontSize: 11, color: '#94a3b8', whiteSpace: 'nowrap',
+            fontFamily: "'Sarabun', sans-serif",
+          }}>
             ไม่บังคับ — ใช้วิเคราะห์ความแข็งแรง
           </span>
-          <div className="h-px flex-1 bg-teal-100" />
+          <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
         </div>
 
-        {/* Optional: น้ำหนัก + ลอนกระดาษ */}
-        <div className="grid grid-cols-2 gap-3 mb-4">
+        {/* Weight + Flute */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
           <DimInput name="weight" label="น้ำหนักสินค้า" unit="kg"
             value={weight} error={errors.weight}
             onChange={handleNumberChange(setWeight, 'weight')} onKeyDown={handleKeyDown}
             placeholder="เว้นว่างได้" />
 
           <div>
-            <label htmlFor="dim-flute" className="block text-xs text-teal-600 font-body mb-1.5 tracking-wide">
-              ลอนกระดาษ
-              <span className="text-teal-400 ml-1">(ชั้น)</span>
+            <label
+              htmlFor="dim-flute"
+              style={{
+                display: 'block', fontSize: 12, color: '#475569',
+                fontFamily: "'Sarabun', sans-serif",
+                marginBottom: 6,
+              }}
+            >
+              ลอนกระดาษ <span style={{ color: '#94a3b8' }}>(ชั้น)</span>
             </label>
             <select
               id="dim-flute"
               value={flute}
               onChange={(e) => setFlute(e.target.value)}
-              className="
-                w-full px-3 py-2.5 rounded-xl text-xs font-body text-teal-900
-                bg-teal-50/50 border border-teal-200
-                focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent
-                transition-colors duration-200 appearance-none cursor-pointer
-              "
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: 10,
+                fontSize: 13,
+                fontFamily: "'Sarabun', sans-serif",
+                color: '#0f172a',
+                background: '#fff',
+                border: '1px solid #e2e8f0',
+                outline: 'none',
+                cursor: 'pointer',
+                appearance: 'none',
+                WebkitAppearance: 'none',
+                backgroundImage: `url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%2394a3b8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
+                backgroundRepeat: 'no-repeat',
+                backgroundPosition: 'right 12px center',
+              }}
             >
               {FLUTE_OPTIONS.map(opt => (
                 <option key={opt.value} value={opt.value}>
@@ -181,16 +213,30 @@ export default function DimensionsForm({ onSubmit, showQuantity = true }) {
         <button
           onClick={handleSubmit}
           disabled={isSubmitting}
-          className={`
-            w-full py-3 rounded-xl text-sm font-display font-semibold tracking-wide
-            transition-all duration-200 shadow-sm
-            ${isSubmitting
-              ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-              : 'bg-teal-600 hover:bg-teal-700 text-white active:scale-[0.98]'
-            }
-          `}
+          style={{
+            width: '100%',
+            padding: '12px 0',
+            borderRadius: 12,
+            fontSize: 13,
+            fontWeight: 700,
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            letterSpacing: '0.01em',
+            border: 'none',
+            cursor: isSubmitting ? 'not-allowed' : 'pointer',
+            transition: 'all 0.2s',
+            ...(isSubmitting
+              ? { background: '#e2e8f0', color: '#94a3b8' }
+              : {
+                  background: 'linear-gradient(135deg, #1e293b, #0f172a)',
+                  color: '#fff',
+                  boxShadow: '0 2px 8px rgba(15,23,42,0.18)',
+                }
+            ),
+          }}
+          onMouseEnter={e => { if (!isSubmitting) e.currentTarget.style.opacity = '0.9'; }}
+          onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
         >
-          {isSubmitting ? 'กำลังส่ง...' : '✓ ยืนยันขนาด'}
+          {isSubmitting ? 'กำลังส่ง...' : 'ยืนยันขนาด'}
         </button>
       </div>
     </div>
@@ -198,18 +244,25 @@ export default function DimensionsForm({ onSubmit, showQuantity = true }) {
 }
 
 
-// =============================================
-// Sub-component: DimInput
-// =============================================
 const DimInput = React.forwardRef(function DimInput(
   { name, label, unit, value, error, onChange, onKeyDown, placeholder, fullWidth },
   ref
 ) {
+  const [focused, setFocused] = useState(false);
+
   return (
-    <div className={fullWidth ? 'w-full' : ''}>
-      <label htmlFor={`dim-${name}`} className="block text-xs text-teal-600 font-body mb-1.5 tracking-wide">
-        {label}
-        <span className="text-teal-400 ml-1">({unit})</span>
+    <div style={{ width: fullWidth ? '100%' : undefined }}>
+      <label
+        htmlFor={`dim-${name}`}
+        style={{
+          display: 'block',
+          fontSize: 12,
+          color: '#475569',
+          fontFamily: "'Sarabun', sans-serif",
+          marginBottom: 6,
+        }}
+      >
+        {label} <span style={{ color: '#94a3b8' }}>({unit})</span>
       </label>
       <input
         ref={ref}
@@ -220,21 +273,29 @@ const DimInput = React.forwardRef(function DimInput(
         value={value}
         onChange={onChange}
         onKeyDown={onKeyDown}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         placeholder={placeholder || '0'}
         autoComplete="off"
-        className={`
-          w-full px-3 py-2.5 rounded-xl text-sm font-body text-teal-900
-          bg-teal-50/50 border placeholder-teal-300
-          focus:outline-none focus:ring-2 focus:border-transparent
-          transition-colors duration-200
-          ${error
-            ? 'border-red-300 focus:ring-red-400'
-            : 'border-teal-200 focus:ring-teal-500'
-          }
-        `}
+        style={{
+          width: '100%',
+          padding: '10px 12px',
+          borderRadius: 10,
+          fontSize: 14,
+          fontFamily: "'Sarabun', sans-serif",
+          color: '#0f172a',
+          background: '#fff',
+          border: `1.5px solid ${error ? '#fca5a5' : focused ? '#475569' : '#e2e8f0'}`,
+          outline: 'none',
+          transition: 'border-color 0.2s',
+          boxSizing: 'border-box',
+        }}
       />
       {error && (
-        <p className="text-xs text-red-500 mt-1 font-body">{error}</p>
+        <p style={{
+          fontSize: 11, color: '#ef4444', marginTop: 4,
+          fontFamily: "'Sarabun', sans-serif",
+        }}>{error}</p>
       )}
     </div>
   );

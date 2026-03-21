@@ -65,7 +65,7 @@ class FinalizeStepHandlers:
             )
         except Exception as e:
             response_quote = (
-                f"⚠️ เกิดข้อผิดพลาดในการคำนวณราคาค่ะ ({str(e)})\n"
+                f"เกิดข้อผิดพลาดในการคำนวณราคาค่ะ ({str(e)})\n"
                 f"กรุณาแจ้งทีมงานเพื่อดำเนินการต่อค่ะ"
             )
 
@@ -102,10 +102,10 @@ class FinalizeStepHandlers:
                 return _make_result(response=response, update_sub_step=1)
 
             except Exception as e:
-                # ❌ ไม่ advance ถ้า error (fix จากเดิม)
+                # ไม่ advance ถ้า error (fix จากเดิม)
                 return _make_result(
                     response=(
-                        f"ขออภัยค่ะ เกิดข้อผิดพลาดในการคำนวณราคา 😔\n"
+                        f"ขออภัยค่ะ เกิดข้อผิดพลาดในการคำนวณราคา\n"
                         f"รายละเอียด: {str(e)}\n\n"
                         f"กรุณาลองใหม่อีกครั้ง หรือพิมพ์ 'ลองใหม่' ค่ะ"
                     )
@@ -113,7 +113,7 @@ class FinalizeStepHandlers:
 
         # sub_step 1: user ตอบแล้ว → advance ไป confirm
         return _make_result(
-            response="ขอบคุณค่ะ! คุณต้องการยืนยันคำสั่งซื้อหรือไม่คะ? ✅",
+            response="ขอบคุณค่ะ! คุณต้องการยืนยันคำสั่งซื้อหรือไม่คะ?",
             advance=True
         )
 
@@ -144,7 +144,7 @@ class FinalizeStepHandlers:
             # อยากแก้ mockup → กลับไป step 11
             if any(w in msg_lower for w in ["mockup", "ม็อคอัพ", "ภาพ", "รูป", "กล่อง"]):
                 return _make_result(
-                    response="ได้เลยค่ะ! เดี๋ยวปรับ Mockup ให้ใหม่นะคะ 🎨",
+                    response="ได้เลยค่ะ! เดี๋ยวปรับ Mockup ให้ใหม่นะคะ",
                     advance=True,
                     next_step_override=ChatbotStep.GENERATE_MOCKUP
                 )
@@ -152,7 +152,7 @@ class FinalizeStepHandlers:
             # อยากแก้ราคา/สเปค → กลับไป checkpoint 2
             if any(w in msg_lower for w in ["ราคา", "สเปค", "ลูกเล่น", "วัสดุ"]):
                 return _make_result(
-                    response="ได้เลยค่ะ! กลับไปตรวจสอบรายละเอียดใหม่นะคะ 📝",
+                    response="ได้เลยค่ะ! กลับไปตรวจสอบรายละเอียดใหม่นะคะ",
                     advance=True,
                     next_step_override=ChatbotStep.CHECKPOINT_2
                 )
@@ -169,7 +169,7 @@ class FinalizeStepHandlers:
 
         # ไม่เข้าใจ
         return _make_result(
-            response="ขอโทษค่ะ ไม่ค่อยเข้าใจ ช่วยตอบว่า 'ยืนยัน' หรือ 'ต้องการแก้ไข' ได้ไหมคะ? 🙏"
+            response="ขอโทษค่ะ ไม่ค่อยเข้าใจ ช่วยตอบว่า 'ยืนยัน' หรือ 'ต้องการแก้ไข' ได้ไหมคะ?"
         )
 
     # ===================================
@@ -183,7 +183,8 @@ class FinalizeStepHandlers:
             user_message=prompt,
             conversation_history=[]
         )
-        response += f"\n\n📌 หมายเลขอ้างอิง: {state.session_id}"
+        response += f"\n\nหมายเลขอ้างอิง: {state.session_id}"
+        response += f"\n\nดาวน์โหลดใบเสนอราคา PDF:\n/api/pricing/quote-pdf/{state.session_id}"
 
         # Auto-save order to Supabase (if configured)
         print(f"[handle_end] saving order, user_id={getattr(state, 'user_id', None)}")

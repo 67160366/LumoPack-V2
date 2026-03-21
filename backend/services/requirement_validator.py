@@ -413,7 +413,7 @@ class RequirementValidator:
         quantity = collected_data.get("quantity", 0)
         if 500 <= quantity < 1000:
             suggestions.append(
-                "💡 สั่งจำนวน 1000+ จะได้ราคาดีกว่า"
+                "-สั่งจำนวน 1000+ จะได้ราคาดีกว่า"
             )
         
         # ถ้าไม่มี inner แต่เป็นสินค้าที่ต้องการ
@@ -421,13 +421,13 @@ class RequirementValidator:
             product_type = collected_data.get("product_type")
             if product_type in ["cosmetic", "food_grade"]:
                 suggestions.append(
-                    "💡 แนะนำเพิ่ม inner เพื่อป้องกันสินค้า"
+                    "-แนะนำเพิ่ม inner เพื่อป้องกันสินค้า"
                 )
         
         # ถ้าไม่มีลูกเล่นพิเศษ
         if not collected_data.get("special_effects"):
             suggestions.append(
-                "💡 เพิ่มลูกเล่นพิเศษจะทำให้กล่องดูโดดเด่นขึ้น"
+                "-เพิ่มลูกเล่นพิเศษจะทำให้กล่องดูโดดเด่นขึ้น"
             )
         
         return suggestions
@@ -522,7 +522,7 @@ if __name__ == "__main__":
     
     suggestions = validator.suggest_improvements(data1)
     if suggestions:
-        print("💡 Suggestions:")
+        print("-Suggestions:")
         for s in suggestions:
             print(f"   {s}")
     else:

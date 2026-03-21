@@ -191,7 +191,7 @@ def get_checkpoint1_prompt(collected_data: Dict[str, Any]) -> str:
     # material + support display
     material_raw = collected_data.get("material", "")
     material_display = material_th.get(material_raw, material_raw) if material_raw else "ไม่ได้ระบุ"
-    support_display = "ต้องการ ✅" if collected_data.get("support_required") else "ไม่ต้องการ"
+    support_display = "ต้องการ" if collected_data.get("support_required") else "ไม่ต้องการ"
 
     # weight + flute display
     weight_kg  = collected_data.get("weight_kg", 0)
@@ -200,13 +200,13 @@ def get_checkpoint1_prompt(collected_data: Dict[str, Any]) -> str:
                    "E": "ลอน E (จิ๋ว)", "BC": "ลอน BC (2 ชั้น)"}
     weight_display = f"{weight_kg:.1f} kg" if weight_kg > 0 else "ไม่ได้ระบุ"
     flute_display  = flute_names.get(flute_type, flute_type)
-    danger_note    = "\n⚠️ **ความแข็งแรง: DANGER** — กรุณาตรวจสอบลอนกระดาษ" if collected_data.get("strength_warning") else ""
+    danger_note    = "\n**ความแข็งแรง: DANGER** -- กรุณาตรวจสอบลอนกระดาษ" if collected_data.get("strength_warning") else ""
 
     return f"""ถึงเวลาสรุป Requirement รอบที่ 1 แล้ว!
 
 สร้างข้อความสรุปดังนี้:
 
-📋 สรุป Requirement รอบที่ 1 (โครงสร้างกล่อง)
+สรุป Requirement รอบที่ 1 (โครงสร้างกล่อง)
 {'='*50}
 • ประเภทสินค้า: {product_type_th.get(collected_data.get('product_type'), 'ไม่ระบุ')}
 • ประเภทกล่อง: {box_type_th.get(collected_data.get('box_type'), 'ไม่ระบุ')}
@@ -287,7 +287,7 @@ def get_checkpoint2_prompt(collected_data: Dict[str, Any]) -> str:
 
 สร้างข้อความสรุปดังนี้:
 
-📋 สรุป Requirement รอบที่ 2 (การออกแบบและตกแต่ง)
+สรุป Requirement รอบที่ 2 (การออกแบบและตกแต่ง)
 {'='*50}
 • ขนาดกล่อง: {dims.get('width', '?')}×{dims.get('length', '?')}×{dims.get('height', '?')} cm
 • Mood & Tone: {mood}
@@ -367,13 +367,13 @@ def get_quote_generation_prompt(pricing_data: Dict[str, Any]) -> str:
 
     return f"""สร้างใบเสนอราคาจากข้อมูลที่เตรียมให้ด้านล่าง จัดรูปแบบให้สวยงามและครบถ้วน:
 
-💰 ใบเสนอราคา LumoPack
+ใบเสนอราคา LumoPack
 {'='*50}
-📦 รายละเอียดกล่อง
+รายละเอียดกล่อง
 • ขนาด: {dims_str}
 • จำนวน: {qty:,} ชิ้น
 
-💵 รายละเอียดราคา
+รายละเอียดราคา
 • กล่องเปล่า: {ppb_box:.2f} บาท/กล่อง (รวม {total_box:,.2f} บาท)
 • Inner: {inner_line}
 • Coating/ลูกเล่น:
@@ -410,7 +410,7 @@ def get_end_conversation_prompt() -> str:
     """ขั้นที่ 14: จบการสนทนา"""
     return """สร้างข้อความปิดการสนทนาที่อบอุ่น:
 
-🙏 ขอบคุณที่ใช้บริการ LumoPack
+ขอบคุณที่ใช้บริการ LumoPack
 
 ทีมงานของเราจะติดต่อกลับภายใน 24 ชั่วโมง เพื่อ:
 - ยืนยันรายละเอียดกล่อง
@@ -419,7 +419,7 @@ def get_end_conversation_prompt() -> str:
 
 หากมีคำถามเพิ่มเติม สามารถติดต่อเราได้ทุกเมื่อค่ะ
 
-มีความสุขมากนะคะ! 😊"""
+ยินดีให้บริการค่ะ"""
 
 
 # ===================================

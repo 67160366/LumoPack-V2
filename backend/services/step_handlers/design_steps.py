@@ -43,7 +43,7 @@ class DesignStepHandlers:
 
         # Transition ไปถามโลโก้
         logo_transition = (
-            "\n\nคุณมีโลโก้ที่อยากใส่บนกล่องไหมคะ? 🎨\n"
+            "\n\nคุณมีโลโก้ที่อยากใส่บนกล่องไหมคะ?\n"
             "ถ้ามี อัปโหลดไฟล์รูปโลโก้ได้เลย แล้วบอกตำแหน่งที่ต้องการวาง\n"
             "(หรือพิมพ์ 'ข้าม' ถ้ายังไม่มี)"
         )
@@ -102,7 +102,7 @@ class DesignStepHandlers:
             # ไม่มี → ข้ามไป step 9 พร้อม transition ถามลูกเล่นพิเศษ
             if not state.edit_mode:
                 response += (
-                    "\n\nสุดท้ายก่อนสรุป: คุณต้องการลูกเล่นพิเศษบนกล่องไหมคะ? ✨\n"
+                    "\n\nสุดท้ายก่อนสรุป: คุณต้องการลูกเล่นพิเศษบนกล่องไหมคะ?\n"
                     "เช่น: เคลือบเงา / เคลือบด้าน / ป๊ัมนูน / ป๊ัมฟอยล์\n"
                     "(หรือพิมพ์ 'ข้าม' ถ้าไม่ต้องการ)"
                 )
@@ -122,12 +122,12 @@ class DesignStepHandlers:
         positions = extract_logo_positions(user_message)
 
         if positions:
-            response = f"รับทราบค่ะ! จะใส่โลโก้ที่ตำแหน่ง: {', '.join(positions)} ✨"
+            response = f"รับทราบค่ะ! จะใส่โลโก้ที่ตำแหน่ง: {', '.join(positions)}"
 
             # เพิ่ม transition ไปถามลูกเล่นพิเศษ
             if not state.edit_mode:
                 response += (
-                    "\n\nคุณต้องการลูกเล่นพิเศษบนกล่องไหมคะ? ✨\n"
+                    "\n\nคุณต้องการลูกเล่นพิเศษบนกล่องไหมคะ?\n"
                     "เช่น: เคลือบเงา / เคลือบด้าน / ป๊ัมนูน / ป๊ัมฟอยล์\n"
                     "(หรือพิมพ์ 'ข้าม' ถ้าไม่ต้องการ)"
                 )
@@ -254,7 +254,7 @@ class DesignStepHandlers:
             state.commit_partial_data()
 
             block_text = "มีบล็อกเดิม" if has_block else "ต้องทำบล็อกใหม่"
-            response = f"รับทราบค่ะ ({block_text}) 📝"
+            response = f"รับทราบค่ะ ({block_text})"
 
             if state.edit_mode:
                 result = _make_result(
@@ -307,7 +307,7 @@ class DesignStepHandlers:
             state.is_design_confirmed = True
             state.is_waiting_for_confirmation = False
             return _make_result(
-                response="ขอบคุณค่ะ! ✅ กำลังสร้าง Mockup และใบเสนอราคาให้นะคะ รอสักครู่... ⏳",
+                response="ขอบคุณค่ะ! กำลังสร้าง Mockup และใบเสนอราคาให้นะคะ รอสักครู่...",
                 advance=True,
                 auto_execute=True,
             )
@@ -323,7 +323,7 @@ class DesignStepHandlers:
                     action=action
                 )
                 label = "เพิ่ม" if action == "append" else "แก้ไข"
-                return _make_result(response=f"ได้เลยค่ะ! {label}ข้อมูลได้เลยนะคะ 📝")
+                return _make_result(response=f"ได้เลยค่ะ! {label}ข้อมูลได้เลยนะคะ")
 
             state.is_waiting_for_confirmation = True
             return _make_result(
@@ -334,5 +334,5 @@ class DesignStepHandlers:
             )
 
         return _make_result(
-            response="ขอโทษค่ะ ไม่ค่อยเข้าใจ ช่วยตอบว่า 'ถูกต้อง' หรือ บอกส่วนที่ต้องการแก้ไขได้เลยค่ะ 🙏"
+            response="ขอโทษค่ะ ไม่ค่อยเข้าใจ ช่วยตอบว่า 'ถูกต้อง' หรือ บอกส่วนที่ต้องการแก้ไขได้เลยค่ะ"
         )
