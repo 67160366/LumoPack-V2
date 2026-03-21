@@ -90,34 +90,36 @@ def extract_box_type(message: str) -> Optional[str]:
 def extract_material(message: str, box_type: str) -> Optional[str]:
     """
     Extract วัสดุกล่อง
-    RSC: corrugated_2layer, kraft_200gsm
-    Die-cut: corrugated_2layer, cardboard, art_300gsm, whiteboard_350gsm
+    Simplified: kraft, white (all box types), red (heart only)
+    Legacy: corrugated_2layer, kraft_200gsm, cardboard, art_300gsm, whiteboard_350gsm
     """
     msg = message.lower().strip()
-    
+
+    # --- Simplified material names (from onboarding) ---
+    if any(w in msg for w in ["คราฟท์", "craft", "kraft"]):
+        return "kraft"
+    if any(w in msg for w in ["กล่องขาว", "กล่องแป้ง", "whiteboard", "white cardboard", "white", "ขาว"]):
+        return "white"
+    if box_type == "heart" and any(w in msg for w in ["red", "แดง"]):
+        return "red"
+
+    # --- Legacy material names (for edit mode / backward compat) ---
     if any(w in msg for w in ["ลูกฟูก", "corrugated"]):
         return "corrugated_2layer"
-    if any(w in msg for w in ["คราฟท์", "craft", "kraft"]):
-        return "kraft_200gsm"
     if any(w in msg for w in ["จั่วปัง", "กระดาษแข็ง", "cardboard"]):
         return "cardboard"
     if any(w in msg for w in ["อาร์ต", "art"]):
         return "art_300gsm"
-    if any(w in msg for w in ["กล่องขาว", "กล่องแป้ง", "whiteboard", "white cardboard", "white"]):
-        return "whiteboard_350gsm"
-    
-    # Match ตัวเลข
-    match = re.match(r'^\s*([1-5])\s*$', msg)
+
+    # Match ตัวเลข (1=Kraft, 2=White, 3=Red for heart)
+    match = re.match(r'^\s*([1-3])\s*$', msg)
     if match:
         num = match.group(1)
-        if box_type == "rsc":
-            return {"1": "corrugated_2layer", "2": "kraft_200gsm"}.get(num)
+        if box_type == "heart":
+            return {"1": "kraft", "2": "white", "3": "red"}.get(num)
         else:
-            return {
-                "1": "corrugated_2layer", "2": "cardboard",
-                "3": "art_300gsm", "4": "whiteboard_350gsm"
-            }.get(num)
-    
+            return {"1": "kraft", "2": "white"}.get(num)
+
     return None
 
 

@@ -64,8 +64,8 @@ class StructureStepHandlers:
         )
 
         if product_type:
-            # เพิ่ม transition ถามประเภทกล่อง (ถ้าไม่ได้อยู่ใน edit mode)
-            if not state.edit_mode:
+            # เพิ่ม transition ถามประเภทกล่อง (ถ้าไม่ได้อยู่ใน edit mode และยังไม่ได้เลือกกล่อง)
+            if not state.edit_mode and not state.collected_data.get("box_type"):
                 response += (
                     "\n\nคุณต้องการกล่องประเภทไหนคะ?\n"
                     "1. RSC (มาตรฐาน) — ประหยัด แข็งแรง เหมาะขนส่ง\n"
@@ -195,19 +195,13 @@ class StructureStepHandlers:
         )
 
     def _get_material_options(self, box_type: str) -> dict:
-        material_group = BOX_TYPES.get(box_type, {}).get("material_group", "die_cut")
-        if material_group == "rsc":
-            return {
-                "corrugated_2layer": "กระดาษลูกฟูก 2 ชั้น (แข็งแรง ราคาประหยัด)",
-                "kraft_200gsm": "กระดาษคราฟท์ 200 GSM (ลุค Eco-friendly)",
-                "whiteboard_350gsm": "กล่องขาว/White cardboard 350 GSM",
-            }
-        return {
-            "corrugated_2layer": "กระดาษลูกฟูก 2 ชั้น",
-            "cardboard": "กระดาษแข็ง/จั่วปัง (หนา ทนทาน)",
-            "art_300gsm": "กระดาษอาร์ต 300 GSM (พิมพ์สวย สีสด)",
-            "whiteboard_350gsm": "กล่องขาว/กล่องแป้ง 350 GSM (ราคาประหยัด)",
+        opts = {
+            "kraft": "Kraft (คราฟท์)",
+            "white": "White (ขาว)",
         }
+        if box_type == "heart":
+            opts["red"] = "Red (แดง)"
+        return opts
 
     def _format_material_question(self, box_type: str, options: dict) -> str:
         lines = ["🧱 เลือกวัสดุสำหรับกล่องค่ะ:"]
@@ -460,10 +454,11 @@ class StructureStepHandlers:
             return _make_result(
                 response=(
                     "เยี่ยมเลยค่ะ! ✅ ต่อไปเป็นส่วนออกแบบ\n\n"
-                    "ถ้ามีโลโก้ สามารถอัปโหลดไฟล์โลโก้ได้เลย แล้วบอกตำแหน่งที่ต้องการวางบนกล่องค่ะ"
+                    "คุณมี Mood & Tone ที่อยากได้สำหรับกล่องไหมคะ? 🎨\n"
+                    "เช่น: สดใส / เรียบหรู / มินิมอล / พรีเมียม\n"
+                    "(หรือพิมพ์ 'ข้าม' ถ้ายังไม่แน่ใจ)"
                 ),
                 advance=True,
-                next_step_override=ChatbotStep.COLLECT_LOGO
             )
 
         # แก้ไข / เพิ่ม
@@ -487,6 +482,12 @@ class StructureStepHandlers:
                     checkpoint=ChatbotStep.CHECKPOINT_1,
                     action=action
                 )
+                # If editing material (step 3), jump directly to material sub_step
+                if target == ChatbotStep.COLLECT_BOX_TYPE:
+                    msg_lower = user_message.lower()
+                    if any(w in msg_lower for w in ["วัสดุ", "material", "สี", "color"]):
+                        state.partial_data["box_type"] = state.collected_data.get("box_type", "rsc")
+                        state.sub_step = 1
                 label = "เพิ่ม" if action == "append" else "แก้ไข"
                 return _make_result(response=f"ได้เลยค่ะ! {label}ข้อมูลได้เลยนะคะ 📝")
 
@@ -498,6 +499,7 @@ class StructureStepHandlers:
                     "• แก้ไขขนาด\n"
                     "• แก้ไขจำนวน\n"
                     "• แก้ไขลอนกระดาษ\n"
+                    "• แก้ไขวัสดุ\n"
                     "• แก้ไขประเภทสินค้า\n"
                     "• เพิ่ม Inner"
                 )

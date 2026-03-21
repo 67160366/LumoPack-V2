@@ -12,6 +12,7 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { Link } from 'react-router-dom';
 import FloatingChat from '../components/Chatbot/FloatingChat';
+import { useChatbot } from '../contexts/ChatbotContext';
 import { parseDxf } from '../engine/dxfParser';
 import RSCFoldBox from '../components/Box3D/RSCFoldBox';
 import MaterialPresetPicker, { MATERIAL_PRESETS } from '../components/Box3D/MaterialPresetPicker';
@@ -296,6 +297,23 @@ function RSCTestPageInner() {
   const [fold, setFold] = useState(0);
   const [activeTab, setActiveTab] = useState(null);
   const [boxStyle, setBoxStyle] = useState('kraft');
+
+  // --- Chatbot sync: dimensions, material ---
+  const { collectedData } = useChatbot();
+  useEffect(() => {
+    const dims = collectedData?.dimensions;
+    if (!dims) return;
+    if (dims.width)  setW(dims.width * 10);   // cm → mm
+    if (dims.length) setH(dims.length * 10);
+    if (dims.height) setD(dims.height * 10);
+  }, [collectedData?.dimensions]);
+  useEffect(() => {
+    const mat = collectedData?.material;
+    if (!mat) return;
+    const v = mat.toLowerCase();
+    if (v === 'white' || v.includes('ขาว')) setBoxStyle('white');
+    else setBoxStyle('kraft');
+  }, [collectedData?.material]);
 
   // Strength
   const [weightKg, setWeightKg] = useState(10);

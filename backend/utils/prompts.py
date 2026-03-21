@@ -166,15 +166,33 @@ def get_checkpoint1_prompt(collected_data: Dict[str, Any]) -> str:
         "rsc": "กล่องมาตรฐาน RSC",
         "die_cut": "กล่องไดคัท (Die-cut)",
         "heart": "กล่องหัวใจ (Heart Box)",
+        "tube_lock": "กล่อง Tube Lock",
+        "self_lock": "กล่อง Self-Lock",
         "star": "กล่องดาว (Star Box)",
         "bear": "กล่องหมี (Bear Box)",
         "circle": "กล่องทรงกลม (Circle Box)",
         "bow": "กล่อง Bow (พร้อมซัพพอร์ท)",
     }
-    
+
+    material_th = {
+        "kraft": "Kraft (คราฟท์)",
+        "white": "White (ขาว)",
+        "red": "Red (แดง)",
+        "corrugated_2layer": "กระดาษลูกฟูก 2 ชั้น",
+        "kraft_200gsm": "กระดาษคราฟท์ 200 GSM",
+        "whiteboard_350gsm": "กล่องขาว 350 GSM",
+        "cardboard": "กระดาษแข็ง/จั่วปัง",
+        "art_300gsm": "กระดาษอาร์ต 300 GSM",
+    }
+
     dims = collected_data.get("dimensions", {})
     inner_display = _format_inner_display(collected_data.get("inner"))
-    
+
+    # material + support display
+    material_raw = collected_data.get("material", "")
+    material_display = material_th.get(material_raw, material_raw) if material_raw else "ไม่ได้ระบุ"
+    support_display = "ต้องการ ✅" if collected_data.get("support_required") else "ไม่ต้องการ"
+
     # weight + flute display
     weight_kg  = collected_data.get("weight_kg", 0)
     flute_type = collected_data.get("flute_type", "C")
@@ -192,6 +210,8 @@ def get_checkpoint1_prompt(collected_data: Dict[str, Any]) -> str:
 {'='*50}
 • ประเภทสินค้า: {product_type_th.get(collected_data.get('product_type'), 'ไม่ระบุ')}
 • ประเภทกล่อง: {box_type_th.get(collected_data.get('box_type'), 'ไม่ระบุ')}
+• วัสดุ: {material_display}
+• ซัพพอร์ตภายใน: {support_display}
 • Inner: {inner_display}
 • ขนาดกล่อง: {dims.get('width', '?')}×{dims.get('length', '?')}×{dims.get('height', '?')} cm
 • จำนวนผลิต: {collected_data.get('quantity', '?'):,} ชิ้น

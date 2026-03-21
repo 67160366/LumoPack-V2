@@ -80,6 +80,14 @@ RSC_MATERIALS = {
         "paper_cost_per_kg": 30,
         "labor_cost": 1.2,
         "base_size": "10*10*10"
+    },
+    "whiteboard_350gsm": {
+        "name": "กระดาษกล่องขาว 350 GSM",
+        "gsm": 350,
+        "density": 0.85,
+        "paper_cost_per_kg": 40,
+        "labor_cost": 1.2,
+        "base_size": "10*10*10"
     }
 }
 
@@ -93,6 +101,14 @@ DIE_CUT_MATERIALS = {
         "density": 0.6,
         "paper_cost_per_kg": 22,
         "labor_cost": 0.6,  # บาท/ใบ (ไม่มีเทป)
+        "base_size": "10*10*10"
+    },
+    "kraft_200gsm": {
+        "name": "กระดาษคราฟท์หนา 200 GSM",
+        "gsm": 200,
+        "density": 0.8,
+        "paper_cost_per_kg": 30,
+        "labor_cost": 0.6,
         "base_size": "10*10*10"
     },
     "cardboard": {

@@ -10,6 +10,7 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { Link } from 'react-router-dom';
 import FloatingChat from '../components/Chatbot/FloatingChat';
+import { useChatbot } from '../contexts/ChatbotContext';
 import { parseDxf } from '../engine/dxfParser';
 import HeartFoldBox from '../components/Box3D/HeartFoldBox';
 import { getScheme } from '../components/Box3D/cardboardColors';
@@ -247,6 +248,30 @@ function HeartBoxInner() {
     wallHeight: 0.78,
     holes: [{ id: 1, type: 'circle', x: 0, y: 0, r: 2.5 }],
   });
+
+  // --- Chatbot sync: dimensions, material, support ---
+  const { collectedData } = useChatbot();
+  useEffect(() => {
+    const dims = collectedData?.dimensions;
+    if (!dims) return;
+    // Heart box: length = width*10, height = height*10 (mm)
+    if (dims.width)  setLength(dims.width * 10);
+    if (dims.height) setHeight(dims.height * 10);
+  }, [collectedData?.dimensions]);
+  useEffect(() => {
+    const mat = collectedData?.material;
+    if (!mat) return;
+    const v = mat.toLowerCase();
+    if (v === 'red' || v.includes('แดง')) setBoxStyle('heart_red');
+    else if (v === 'white' || v.includes('ขาว')) setBoxStyle('white');
+    else setBoxStyle('kraft');
+  }, [collectedData?.material]);
+  useEffect(() => {
+    if (collectedData?.support_required != null) {
+      setShowSupport(!!collectedData.support_required);
+    }
+  }, [collectedData?.support_required]);
+
   const [view, setView] = useState('3d');
   const [activeTab, setActiveTab] = useState(null);
 

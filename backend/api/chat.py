@@ -130,6 +130,7 @@ async def send_message(request: ChatMessageRequest):
         # Apply prefill data from frontend onboarding flow.
         # This prevents asking product/box type/material again when the user has already selected them.
         prefill = request.prefill_data or {}
+        skipped_to_step = None  # Track which step we jumped to
         if prefill:
             merged = {}
             if prefill.get("product_type") and not state.collected_data.get("product_type"):
@@ -160,8 +161,10 @@ async def send_message(request: ChatMessageRequest):
                 box_info = BOX_TYPES.get(state.collected_data["box_type"], {})
                 if box_info.get("has_inner", False):
                     state.current_step = ChatbotStep.COLLECT_INNER
+                    skipped_to_step = ChatbotStep.COLLECT_INNER
                 else:
                     state.current_step = ChatbotStep.COLLECT_DIMENSIONS
+                    skipped_to_step = ChatbotStep.COLLECT_DIMENSIONS
                 state.sub_step = 0
             elif (
                 state.current_step == ChatbotStep.COLLECT_BOX_TYPE
@@ -171,11 +174,20 @@ async def send_message(request: ChatMessageRequest):
                 # Only box_type prefilled, jump to material question sub-step.
                 state.partial_data["box_type"] = state.collected_data["box_type"]
                 state.sub_step = 1
-        
+
+        # When prefill skips to inner/dimensions, replace the kickoff message with
+        # a clean intro so the LLM generates a proper question instead of trying
+        # to parse metadata text as user input.
+        effective_message = request.message
+        if skipped_to_step == ChatbotStep.COLLECT_INNER:
+            effective_message = "เริ่มต้นเลยค่ะ ต้องการถาม Inner"
+        elif skipped_to_step == ChatbotStep.COLLECT_DIMENSIONS:
+            effective_message = "เริ่มต้นเลยค่ะ ต้องการถามขนาดกล่อง"
+
         # ประมวลผลข้อความ
         # chatbot_flow.process_message(user_message, state) → Tuple[str, ConversationState]
         response_text, state = await chatbot_manager.process_message(
-            user_message=request.message,
+            user_message=effective_message,
             state=state
         )
         

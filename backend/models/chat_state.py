@@ -67,7 +67,7 @@ STEP_TO_FIELD = {
 # Mapping keywords → target step (สำหรับ detect ว่า user อยากแก้อะไร)
 EDIT_KEYWORDS_TO_STEP = {
     2: ["ประเภทสินค้า", "product type", "สินค้า"],
-    3: ["ประเภทกล่อง", "box type", "กล่อง", "วัสดุ", "material", "สี", "color", "ซัพพอร์ต", "support"],
+    3: ["ประเภทกล่อง", "box type", "กล่อง", "วัสดุ", "material", "สี", "color"],
     4: ["inner", "กันกระแทก", "เคลือบกันชื้น"],
     5: ["ขนาด", "dimension", "จำนวน", "quantity", "ชิ้น", "น้ำหนัก", "weight", "ลอน", "flute"],
     7: ["mood", "tone", "สไตล์", "โทนสี"],

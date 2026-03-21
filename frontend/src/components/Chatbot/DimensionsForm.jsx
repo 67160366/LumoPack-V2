@@ -103,18 +103,18 @@ export default function DimensionsForm({ onSubmit, showQuantity = true }) {
 
   return (
     <div className="ml-9 mb-3 animate-slide-up">
-      <div className="bg-white border border-teal-200 rounded-xl p-4 max-w-sm shadow-sm">
+      <div className="bg-white border border-teal-200 rounded-2xl p-5 max-w-sm shadow-sm">
 
         {/* Header */}
-        <div className="flex items-center gap-2 mb-3">
-          <span className="text-sm">📐</span>
-          <span className="text-xs font-display font-semibold text-teal-800">
+        <div className="flex items-center gap-2.5 mb-4">
+          <span className="text-base leading-none">📐</span>
+          <span className="text-sm font-display font-semibold text-teal-800 tracking-tight">
             กรอกขนาดกล่อง
           </span>
         </div>
 
         {/* บังคับ: กว้าง / ยาว / สูง */}
-        <div className="grid grid-cols-3 gap-2 mb-2">
+        <div className="grid grid-cols-3 gap-3 mb-3">
           <DimInput ref={firstInputRef} name="width"  label="กว้าง" unit="mm"
             value={width}  error={errors.width}
             onChange={handleNumberChange(setWidth, 'width')}   onKeyDown={handleKeyDown} />
@@ -128,7 +128,7 @@ export default function DimensionsForm({ onSubmit, showQuantity = true }) {
 
         {/* บังคับ: จำนวน */}
         {showQuantity && (
-          <div className="mb-3">
+          <div className="mb-4">
             <DimInput name="quantity" label="จำนวน" unit="ชิ้น"
               value={quantity} error={errors.quantity}
               onChange={handleQuantityChange} onKeyDown={handleKeyDown}
@@ -137,32 +137,32 @@ export default function DimensionsForm({ onSubmit, showQuantity = true }) {
         )}
 
         {/* Divider: optional section */}
-        <div className="flex items-center gap-2 mb-3">
+        <div className="flex items-center gap-3 mb-4">
           <div className="h-px flex-1 bg-teal-100" />
-          <span className="text-xs text-teal-400 font-body whitespace-nowrap">
+          <span className="text-[11px] text-teal-400 font-body whitespace-nowrap tracking-wide">
             ไม่บังคับ — ใช้วิเคราะห์ความแข็งแรง
           </span>
           <div className="h-px flex-1 bg-teal-100" />
         </div>
 
         {/* Optional: น้ำหนัก + ลอนกระดาษ */}
-        <div className="grid grid-cols-2 gap-2 mb-3">
+        <div className="grid grid-cols-2 gap-3 mb-4">
           <DimInput name="weight" label="น้ำหนักสินค้า" unit="kg"
             value={weight} error={errors.weight}
             onChange={handleNumberChange(setWeight, 'weight')} onKeyDown={handleKeyDown}
             placeholder="เว้นว่างได้" />
 
           <div>
-            <label htmlFor="dim-flute" className="block text-xs text-teal-600 font-body mb-1">
+            <label htmlFor="dim-flute" className="block text-xs text-teal-600 font-body mb-1.5 tracking-wide">
               ลอนกระดาษ
-              <span className="text-teal-400 ml-0.5">(ชั้น)</span>
+              <span className="text-teal-400 ml-1">(ชั้น)</span>
             </label>
             <select
               id="dim-flute"
               value={flute}
               onChange={(e) => setFlute(e.target.value)}
               className="
-                w-full px-2 py-2 rounded-xl text-xs font-body text-teal-900
+                w-full px-3 py-2.5 rounded-xl text-xs font-body text-teal-900
                 bg-teal-50/50 border border-teal-200
                 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent
                 transition-colors duration-200 appearance-none cursor-pointer
@@ -182,7 +182,7 @@ export default function DimensionsForm({ onSubmit, showQuantity = true }) {
           onClick={handleSubmit}
           disabled={isSubmitting}
           className={`
-            w-full py-2.5 rounded-xl text-xs font-display font-semibold
+            w-full py-3 rounded-xl text-sm font-display font-semibold tracking-wide
             transition-all duration-200 shadow-sm
             ${isSubmitting
               ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
@@ -207,9 +207,9 @@ const DimInput = React.forwardRef(function DimInput(
 ) {
   return (
     <div className={fullWidth ? 'w-full' : ''}>
-      <label htmlFor={`dim-${name}`} className="block text-xs text-teal-600 font-body mb-1">
+      <label htmlFor={`dim-${name}`} className="block text-xs text-teal-600 font-body mb-1.5 tracking-wide">
         {label}
-        <span className="text-teal-400 ml-0.5">({unit})</span>
+        <span className="text-teal-400 ml-1">({unit})</span>
       </label>
       <input
         ref={ref}
@@ -223,7 +223,7 @@ const DimInput = React.forwardRef(function DimInput(
         placeholder={placeholder || '0'}
         autoComplete="off"
         className={`
-          w-full px-2.5 py-2 rounded-xl text-sm font-body text-teal-900
+          w-full px-3 py-2.5 rounded-xl text-sm font-body text-teal-900
           bg-teal-50/50 border placeholder-teal-300
           focus:outline-none focus:ring-2 focus:border-transparent
           transition-colors duration-200
@@ -234,7 +234,7 @@ const DimInput = React.forwardRef(function DimInput(
         `}
       />
       {error && (
-        <p className="text-xs text-red-500 mt-0.5 font-body">{error}</p>
+        <p className="text-xs text-red-500 mt-1 font-body">{error}</p>
       )}
     </div>
   );

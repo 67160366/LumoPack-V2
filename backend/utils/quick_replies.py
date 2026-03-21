@@ -91,21 +91,18 @@ def get_quick_replies(
                 "Self-Lock",
             ]
         if sub_step == 1:
-            # ถามวัสดุ — ตัวเลือกขึ้นอยู่กับ box_type
+            # ถามวัสดุ — simplified: Kraft/White (+ Red for heart)
             box_type = partial.get("box_type", data.get("box_type", ""))
-            if box_type == "rsc":
+            if box_type == "heart":
                 return [
-                    "กระดาษลูกฟูก 2 ชั้น",
-                    "กระดาษคราฟท์ 200 GSM",
-                    "กล่องขาว 350 GSM",
+                    "Kraft (คราฟท์)",
+                    "White (ขาว)",
+                    "Red (แดง)",
                 ]
             else:
-                # die_cut / heart / star / bear / circle / bow ใช้วัสดุกลุ่มเดียวกัน
                 return [
-                    "กระดาษลูกฟูก 2 ชั้น",
-                    "กระดาษแข็ง/จั่วปัง",
-                    "กระดาษอาร์ต 300 GSM",
-                    "กล่องขาว 350 GSM",
+                    "Kraft (คราฟท์)",
+                    "White (ขาว)",
                 ]
 
     # ===================================

@@ -1,18 +1,20 @@
 /**
- * DxfFoldBox — Procedural 13-Panel Dieline with proper Shape geometry
+ * DxfFoldBox — Procedural 13-Panel Die-Cut Box with animated fold
  *
- * Based on the working DieCutBox from commit 65fe3a9.
- * All shapes are procedural — tongue dome, back flap taper, slot strip notches.
- *
- * Fold hierarchy:
- *   FRONT (root, center)
- *     ├─ DEPTH_L → SLOT_STRIP_L
- *     ├─ DEPTH_R → SLOT_STRIP_R
- *     ├─ DEPTH_STRIP → BACK
- *     │    ├─ BACK_FLAP_L / _R
- *     │    ├─ TONGUE
- *     │    └─ DEPTH_EXT_L / _R
- *     └─ BOTTOM_FLAP
+ * Fold hierarchy (nested pivot groups):
+ *   FRONT (root, center, XZ plane)
+ *     ├─ BOTTOM_FLAP  — hinged at bottom edge (+Z)
+ *     ├─ LEFT SIDE    — hinged at left edge (−X)
+ *     │    └─ SLOT_STRIP_L — hinged at outer edge
+ *     ├─ RIGHT SIDE   — hinged at right edge (+X)
+ *     │    └─ SLOT_STRIP_R — hinged at outer edge
+ *     └─ TOP CHAIN    — hinged at top edge (−Z)
+ *          ├─ DEPTH_STRIP  (top of box)
+ *          ├─ DEPTH_EXT_L / _R
+ *          └─ BACK CHAIN — hinged at far edge of strip
+ *               ├─ BACK panel
+ *               ├─ BACK_FLAP_L / _R
+ *               └─ TONGUE — hinged at far edge of back
  */
 
 import { useMemo } from 'react';
@@ -23,6 +25,13 @@ import { getScheme } from './cardboardColors';
 
 const HP = Math.PI / 2;
 const CUT_COLOR = '#cc2222';
+
+function ease(p, s, e) {
+  if (p <= s) return 0;
+  if (p >= e) return 1;
+  const t = (p - s) / (e - s);
+  return t * t * (3 - 2 * t);
+}
 
 // ─── SVG-derived proportional constants ──────────────────────
 const BACK_INSET = 9 / 500;
@@ -223,16 +232,25 @@ export default function DxfFoldBox({
   const surfaceColor = scheme.base;
   const cardNoiseTex = useMemo(() => getCardboardNoiseTexture(surfaceColor), [surfaceColor]);
 
-  // mm → scene units (÷100)
   const W = width / 100;
   const H = height / 100;
   const D = depth / 100;
-  const t = 0.005; // z-fighting offset per layer
+  const t = 0.005;
 
   const inset = BACK_INSET * W;
   const bw = W - 2 * inset;
 
   const flat = [-HP, 0, 0];
+
+  // Phased fold angles
+  const p = foldProgress;
+  const aBottom   = ease(p, 0.00, 0.22) * HP;
+  const aTop      = ease(p, 0.00, 0.22) * HP;
+  const aSide     = ease(p, 0.18, 0.38) * HP;
+  const aSlot     = ease(p, 0.35, 0.52) * HP;
+  const aBack     = ease(p, 0.48, 0.68) * HP;
+  const aBackFlap = ease(p, 0.58, 0.72) * HP;
+  const aTongue   = ease(p, 0.48, 0.68) * HP;
 
   const shapes = useMemo(() => ({
     depthPanel: createDepthPanelShape(D, H),
@@ -241,22 +259,18 @@ export default function DxfFoldBox({
     tongue: createTongueShape(W, D),
   }), [W, H, D]);
 
-  // Support insert shapes
-  // When folded: base = W × H (XZ plane), walls go up D in Y
   const suppShapes = useMemo(() => {
     if (!showSupport) return null;
-    const sw = W * 0.94;   // fits inside face width
-    const sd = H * 0.94;   // fits inside face height (base depth when folded)
-    const sh = D * (supportConfig?.wallHeight || 0.78); // wall height based on box depth
+    const sw = W * 0.94;
+    const sd = H * 0.94;
+    const sh = D * (supportConfig?.wallHeight || 0.78);
 
-    // Top plate with configurable holes
     const top = new THREE.Shape();
     top.moveTo(-sw / 2, -sd / 2); top.lineTo(sw / 2, -sd / 2);
     top.lineTo(sw / 2, sd / 2); top.lineTo(-sw / 2, sd / 2);
     const holes = buildSupportHoles(sw, sd, supportConfig);
     holes.forEach(h => top.holes.push(h));
 
-    // Walls
     const wallFront = new THREE.Shape();
     wallFront.moveTo(-sw / 2, 0); wallFront.lineTo(sw / 2, 0);
     wallFront.lineTo(sw / 2, -sh); wallFront.lineTo(-sw / 2, -sh);
@@ -279,102 +293,123 @@ export default function DxfFoldBox({
   return (
     <group position={[0, 0.01, 0]}>
 
-      {/* 1. FRONT PANEL */}
+      {/* ═══ FRONT FACE (root, fixed on XZ plane) ═══ */}
       <group rotation={flat}>
         <RectPanel w={W} h={H} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
       </group>
 
-      {/* LEFT SIDE: depth panel + slot strip */}
-      <group position={[-W / 2, 0, 0]}>
-        <group position={[-D / 2, t, 0]} rotation={flat}>
-          <ShapePanel shape={shapes.depthPanel} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
-        </group>
-        <group position={[-D, 0, 0]}>
-          <group position={[-D / 2, t * 2, 0]} rotation={flat}>
-            <ShapePanel shape={shapes.slotStrip} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
-          </group>
-        </group>
-      </group>
-
-      {/* RIGHT SIDE: depth panel + slot strip (mirror) */}
-      <group position={[W / 2, 0, 0]}>
-        <group position={[D / 2, t, 0]} rotation={flat}>
-          <ShapePanel shape={shapes.depthPanel} flipX noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
-        </group>
-        <group position={[D, 0, 0]}>
-          <group position={[D / 2, t * 2, 0]} rotation={flat}>
-            <ShapePanel shape={shapes.slotStrip} flipX noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
-          </group>
-        </group>
-      </group>
-
-      {/* TOP CHAIN: depth strip → back → flaps → tongue */}
-      <group position={[0, 0, -H / 2]}>
-        {/* Depth strip */}
-        <group position={[0, t * 0.5, -D / 2]} rotation={flat}>
-          <RectPanel w={W} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
-        </group>
-
-        {/* Depth extensions L/R */}
-        <group position={[-(W / 2 + D / 2), t, -D / 2]} rotation={flat}>
-          <RectPanel w={D} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
-        </group>
-        <group position={[W / 2 + D / 2, t, -D / 2]} rotation={flat}>
-          <RectPanel w={D} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
-        </group>
-
-        <group position={[0, 0, -D]}>
-          {/* Back panel */}
-          <group position={[0, t, -H / 2]} rotation={flat}>
-            <RectPanel w={bw} h={H} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
-          </group>
-
-          {/* Back flap L */}
-          <group position={[-bw / 2, 0, 0]}>
-            <group position={[-D / 2, t, -H / 2]} rotation={flat}>
-              <ShapePanel shape={shapes.backFlap} flipX noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
-            </group>
-          </group>
-
-          {/* Back flap R */}
-          <group position={[bw / 2, 0, 0]}>
-            <group position={[D / 2, t, -H / 2]} rotation={flat}>
-              <ShapePanel shape={shapes.backFlap} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
-            </group>
-          </group>
-
-          {/* Tongue */}
-          <group position={[0, t, -H]} rotation={flat}>
-            <ShapePanel shape={shapes.tongue} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
-          </group>
-        </group>
-      </group>
-
-      {/* BOTTOM FLAP */}
+      {/* ═══ BOTTOM FLAP ═══ hinged at bottom edge of front (folds UP, toward +Y) */}
       <group position={[0, 0, H / 2]}>
-        <group position={[0, t, D / 2]} rotation={flat}>
-          <RectPanel w={W + 2 * D} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
+        <group rotation={[-aBottom, 0, 0]}>
+          <group position={[0, t, D / 2]} rotation={flat}>
+            <RectPanel w={W + 2 * D} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
+          </group>
         </group>
       </group>
 
-      {/* SUPPORT INSERT */}
+      {/* ═══ LEFT SIDE ═══ hinged at left edge of front */}
+      <group position={[-W / 2, 0, 0]}>
+        <group rotation={[0, 0, -aSide]}>
+          <group position={[-D / 2, t, 0]} rotation={flat}>
+            <ShapePanel shape={shapes.depthPanel} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
+          </group>
+          {/* Slot strip — hinged at outer edge of depth panel (folds DOWN/inward) */}
+          <group position={[-D, 0, 0]}>
+            <group rotation={[0, 0, aSlot]}>
+              <group position={[-D / 2, t * 2, 0]} rotation={flat}>
+                <ShapePanel shape={shapes.slotStrip} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
+              </group>
+            </group>
+          </group>
+        </group>
+      </group>
+
+      {/* ═══ RIGHT SIDE ═══ hinged at right edge of front */}
+      <group position={[W / 2, 0, 0]}>
+        <group rotation={[0, 0, aSide]}>
+          <group position={[D / 2, t, 0]} rotation={flat}>
+            <ShapePanel shape={shapes.depthPanel} flipX noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
+          </group>
+          {/* Slot strip — hinged at outer edge of depth panel (folds DOWN/inward) */}
+          <group position={[D, 0, 0]}>
+            <group rotation={[0, 0, -aSlot]}>
+              <group position={[D / 2, t * 2, 0]} rotation={flat}>
+                <ShapePanel shape={shapes.slotStrip} flipX noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
+              </group>
+            </group>
+          </group>
+        </group>
+      </group>
+
+      {/* ═══ TOP CHAIN ═══ hinged at top edge of front */}
+      <group position={[0, 0, -H / 2]}>
+        <group rotation={[aTop, 0, 0]}>
+          {/* Depth strip (top of box) */}
+          <group position={[0, t, -D / 2]} rotation={flat}>
+            <RectPanel w={W} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
+          </group>
+
+          {/* Depth extension L */}
+          <group position={[-(W / 2 + D / 2), t, -D / 2]} rotation={flat}>
+            <RectPanel w={D} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
+          </group>
+          {/* Depth extension R */}
+          <group position={[W / 2 + D / 2, t, -D / 2]} rotation={flat}>
+            <RectPanel w={D} h={D} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
+          </group>
+
+          {/* ─── BACK CHAIN ─── hinged at far edge of depth strip */}
+          <group position={[0, 0, -D]}>
+            <group rotation={[aBack, 0, 0]}>
+              {/* Back panel */}
+              <group position={[0, t, -H / 2]} rotation={flat}>
+                <RectPanel w={bw} h={H} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
+              </group>
+
+              {/* Back flap L — hinged at left edge of back (tapered edge at fold line) */}
+              <group position={[-bw / 2, 0, 0]}>
+                <group rotation={[0, 0, -aBackFlap]}>
+                  <group position={[-D / 2, t, -H / 2]} rotation={flat}>
+                    <ShapePanel shape={shapes.backFlap} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
+                  </group>
+                </group>
+              </group>
+
+              {/* Back flap R — hinged at right edge of back (mirrored) */}
+              <group position={[bw / 2, 0, 0]}>
+                <group rotation={[0, 0, aBackFlap]}>
+                  <group position={[D / 2, t, -H / 2]} rotation={flat}>
+                    <ShapePanel shape={shapes.backFlap} flipX noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
+                  </group>
+                </group>
+              </group>
+
+              {/* Tongue — hinged at far edge of back */}
+              <group position={[0, 0, -H]}>
+                <group rotation={[aTongue, 0, 0]}>
+                  <group position={[0, t, 0]} rotation={flat}>
+                    <ShapePanel shape={shapes.tongue} noiseTex={cardNoiseTex} surfaceColor={surfaceColor} />
+                  </group>
+                </group>
+              </group>
+            </group>
+          </group>
+        </group>
+      </group>
+
+      {/* ═══ SUPPORT INSERT ═══ */}
       {showSupport && suppShapes && (
         <group position={[0, suppShapes.sh + 0.005, 0]}>
-          {/* Top plate with holes */}
           <SupportMesh shape={suppShapes.top} />
-          {/* Front wall */}
           <group position={[0, 0, suppShapes.sd / 2]} rotation={[HP, 0, 0]}>
             <SupportMesh shape={suppShapes.wallFront} />
           </group>
-          {/* Back wall */}
           <group position={[0, 0, -suppShapes.sd / 2]} rotation={[-HP, 0, 0]}>
             <SupportMesh shape={suppShapes.wallBack} />
           </group>
-          {/* Left wall */}
           <group position={[-suppShapes.sw / 2, 0, 0]} rotation={[0, 0, HP]}>
             <SupportMesh shape={suppShapes.wallLeft} />
           </group>
-          {/* Right wall */}
           <group position={[suppShapes.sw / 2, 0, 0]} rotation={[0, 0, -HP]}>
             <SupportMesh shape={suppShapes.wallRight} />
           </group>

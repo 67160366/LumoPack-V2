@@ -192,12 +192,29 @@ class CompleteRequirement(BaseModel):
             is_design_confirmed=has_design_data,
         )
     
+    @staticmethod
+    def _normalize_material_for_pricing(material: str, box_type: str) -> str:
+        """Map simplified material names to pricing-compatible material keys."""
+        _MATERIAL_MAP = {
+            "kraft": "kraft_200gsm",
+            "white": "whiteboard_350gsm",
+            "red": "whiteboard_350gsm",  # Red Heart uses whiteboard as base
+        }
+        from utils.constants import RSC_MATERIALS, DIE_CUT_MATERIALS, BOX_TYPES
+        # If already a valid pricing key, return as-is
+        material_group = BOX_TYPES.get(box_type, {}).get("material_group", "die_cut")
+        materials_db = RSC_MATERIALS if material_group == "rsc" else DIE_CUT_MATERIALS
+        if material in materials_db:
+            return material
+        return _MATERIAL_MAP.get(material, "corrugated_2layer")
+
     def to_pricing_request(self) -> dict:
         """แปลงเป็น format ที่ pricing_calculator ใช้ได้"""
+        raw_material = self.structure.material or self._select_default_material()
         result = {
             "dimensions": self.structure.dimensions,
             "box_type": self.structure.box_type,
-            "material": self.structure.material or self._select_default_material(),
+            "material": self._normalize_material_for_pricing(raw_material, self.structure.box_type),
             "quantity": self.structure.quantity,
         }
         
