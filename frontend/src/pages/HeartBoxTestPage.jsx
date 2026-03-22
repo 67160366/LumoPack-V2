@@ -23,6 +23,7 @@ import { generateHeartDieline } from '../engine/heartDieline';
 import useImagePlacement from '../hooks/useImagePlacement';
 import ImageUploadPanel from '../components/DesignOverlay/ImageUploadPanel';
 import DielineImageOverlay from '../components/DesignOverlay/DielineImageOverlay';
+import { generatePanelTextures } from '../utils/textureGenerator';
 
 /* ── Design tokens ── */
 const FONT = "'Plus Jakarta Sans', 'DM Sans', -apple-system, sans-serif";
@@ -504,29 +505,33 @@ function HeartBoxInner() {
   const placement = useImagePlacement({ svgRef, viewBox: svgVB || initialViewBox, defaultPlaceWidth: Math.min(300, dieline.bounds?.width || 300) });
 
   // Panel zones for heart dieline (in dieline coords: X right, Y up)
+  // Must match exactly how heartDieline.js positions the parts
   const panelZones = useMemo(() => {
     const b = dieline.bounds;
     if (!b) return [];
-    const cardboard = 1.5;
     const clearance = 1.03;
     const gap = 8;
     const teethH = 5;
     const baseH = height * 0.7;
     const lidH = height * 0.35;
 
-    const baseBounds = outlineBounds(generateHeart(length, shapePct, tiltDeg));
-    const lidBounds = outlineBounds(generateHeart(length * clearance, shapePct, tiltDeg));
-    const basePeri = (() => { const pts = generateHeart(length, shapePct, tiltDeg); let p = 0; for (let i = 0; i < pts.length; i++) { const j = (i + 1) % pts.length; p += Math.hypot(pts[j][0] - pts[i][0], pts[j][1] - pts[i][1]); } return p; })();
-    const lidPeri = (() => { const pts = generateHeart(length * clearance, shapePct, tiltDeg); let p = 0; for (let i = 0; i < pts.length; i++) { const j = (i + 1) % pts.length; p += Math.hypot(pts[j][0] - pts[i][0], pts[j][1] - pts[i][1]); } return p; })();
+    const bb = outlineBounds(generateHeart(length, shapePct, tiltDeg));
+    const lb = outlineBounds(generateHeart(length * clearance, shapePct, tiltDeg));
 
-    // Row 1: caps
-    const baseCapX = -baseBounds.w / 2;
-    const baseCapY = -baseBounds.h / 2;
-    const lidCapX = baseBounds.w / 2 + gap;
-    const lidCapY = -lidBounds.h / 2;
+    const peri = (pts) => { let p = 0; for (let i = 0; i < pts.length; i++) { const j = (i + 1) % pts.length; p += Math.hypot(pts[j][0] - pts[i][0], pts[j][1] - pts[i][1]); } return p; };
+    const basePeri = peri(generateHeart(length, shapePct, tiltDeg));
+    const lidPeri = peri(generateHeart(length * clearance, shapePct, tiltDeg));
+
+    // Row 1: base cap centered at origin, lid cap to the right
+    // heartDieline offsets: baseOffX = -bb.cx, baseOffY = -bb.cy
+    // So base cap bbox: x = bb.minX - bb.cx, y = bb.minY - bb.cy
+    const baseCX = bb.minX - bb.cx;
+    const baseCY = bb.minY - bb.cy;
+    const lidCX = bb.w / 2 + gap + lb.w / 2 - lb.cx + lb.minX;
+    const lidCY = lb.minY - lb.cy;
 
     // Row 2: base wall strip
-    const stripStartY = -baseBounds.h / 2 - gap;
+    const stripStartY = -bb.h / 2 - gap;
     const bsx = -basePeri / 2;
     const bsy = stripStartY - baseH;
 
@@ -536,20 +541,41 @@ function HeartBoxInner() {
     const lsy = lidStripY - lidH;
 
     return [
-      { id: 'baseCap',  label: 'ฐาน (หัวใจ)', x: baseCapX, y: baseCapY, w: baseBounds.w, h: baseBounds.h },
-      { id: 'lidCap',   label: 'ฝา (หัวใจ)',  x: lidCapX,  y: lidCapY,  w: lidBounds.w,  h: lidBounds.h },
-      { id: 'baseWall', label: 'ผนังฐาน',     x: bsx,      y: bsy,      w: basePeri,     h: baseH },
-      { id: 'lidWall',  label: 'ผนังฝา',      x: lsx,      y: lsy,      w: lidPeri,      h: lidH },
+      { id: 'baseCap',  label: 'ฐาน (หัวใจ)', x: baseCX,  y: baseCY,  w: bb.w, h: bb.h },
+      { id: 'lidCap',   label: 'ฝา (หัวใจ)',  x: lidCX,   y: lidCY,   w: lb.w, h: lb.h },
+      { id: 'baseWall', label: 'ผนังฐาน',     x: bsx,     y: bsy,     w: basePeri, h: baseH },
+      { id: 'lidWall',  label: 'ผนังฝา',      x: lsx,     y: lsy,     w: lidPeri,  h: lidH },
     ];
   }, [dieline, length, height, shapePct, tiltDeg]);
+
+  // Texture generation from placed images → 3D
+  const [panelTextureUrls, setPanelTextureUrls] = useState({});
+  const panelZonesRef = useRef(panelZones);
+  panelZonesRef.current = panelZones;
+
+  const regenerateTextures = useCallback(async () => {
+    if (placement.placedImages.length === 0) { setPanelTextureUrls({}); return; }
+    const b = dieline.bounds;
+    const pad = 10;
+    const bounds = { minX: b.minX - pad, maxX: b.maxX + pad, minY: b.minY - pad, maxY: b.maxY + pad };
+    const textures = await generatePanelTextures(placement.placedImages, panelZonesRef.current, bounds);
+    setPanelTextureUrls(textures);
+  }, [placement.placedImages, dieline]);
+
+  useEffect(() => { regenerateTextures(); }, [regenerateTextures]);
+
+  const handleViewIn3D = useCallback(async () => {
+    await regenerateTextures();
+    setView('3d');
+  }, [regenerateTextures]);
 
   const cutStroke = Math.max(0.8, vb.w * 0.002);
   const creaseStroke = Math.max(0.5, vb.w * 0.0012);
   const dashPattern = `${vb.w * 0.006} ${vb.w * 0.004}`;
   const toggle = (id) => setActiveTab(prev => prev === id ? null : id);
 
-  // Hide Support in 2D mode, hide Image in 3D mode
-  const visibleTabs = view === '3d' ? TABS.filter(t => t.id !== 'image') : TABS.filter(t => t.id !== 'support');
+  // Hide Support in 2D mode
+  const visibleTabs = view === '3d' ? TABS : TABS.filter(t => t.id !== 'support');
 
   // Download handlers
   const fname = `heart-box-${length}x${height}mm`;
@@ -1061,7 +1087,7 @@ function HeartBoxInner() {
             {/* ── Image tab (2D) ── */}
             {activeTab === 'image' && (
               <div style={{ padding: '14px 18px' }}>
-                <ImageUploadPanel placement={placement} accentColor={PINK} currentView={view} />
+                <ImageUploadPanel placement={placement} accentColor={PINK} currentView={view} onViewIn3D={handleViewIn3D} />
               </div>
             )}
           </div>
@@ -1138,6 +1164,7 @@ function HeartBoxInner() {
               boxStyle={boxStyle}
               showSupport={showSupport}
               supportConfig={supportConfig}
+              panelTextureUrls={panelTextureUrls}
             />
             <OrbitControls makeDefault />
             <gridHelper args={[10, 10, '#d4c8c0', '#e0d6d0']} />

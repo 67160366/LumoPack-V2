@@ -9,7 +9,7 @@
  *   Lid:  outer cap (top) + walls + inner cap (3% larger)
  */
 
-import { useMemo } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import * as THREE from 'three';
 import { buildSupportHoles } from '../../engine/supportHoles';
 import { getCardboardNoiseTexture } from './useCardboardNoise';
@@ -90,8 +90,17 @@ function outlineToShape(pts) {
 function buildWalls(pts, wallH) {
   const positions = [];
   const normals = [];
+  const uvs = [];
   const h = wallH * SC;
 
+  // Compute total perimeter for UV mapping
+  let totalPeri = 0;
+  for (let i = 0; i < pts.length; i++) {
+    const j = (i + 1) % pts.length;
+    totalPeri += Math.hypot(pts[j][0] - pts[i][0], pts[j][1] - pts[i][1]);
+  }
+
+  let cumLen = 0;
   for (let i = 0; i < pts.length; i++) {
     const j = (i + 1) % pts.length;
     const [x1, y1] = [pts[i][0] * SC, pts[i][1] * SC];
@@ -99,19 +108,29 @@ function buildWalls(pts, wallH) {
 
     const dx = x2 - x1;
     const dy = y2 - y1;
+    const segLen = Math.hypot(pts[j][0] - pts[i][0], pts[j][1] - pts[i][1]);
     const len = Math.sqrt(dx * dx + dy * dy) || 1;
     const nx = dy / len;
     const ny = -dx / len;
 
+    const u0 = cumLen / totalPeri;
+    const u1 = (cumLen + segLen) / totalPeri;
+    cumLen += segLen;
+
+    // Triangle 1: bottom-left, bottom-right, top-right
     positions.push(x1, y1, 0, x2, y2, 0, x2, y2, h);
     normals.push(nx, ny, 0, nx, ny, 0, nx, ny, 0);
+    uvs.push(u0, 0, u1, 0, u1, 1);
+    // Triangle 2: bottom-left, top-right, top-left
     positions.push(x1, y1, 0, x2, y2, h, x1, y1, h);
     normals.push(nx, ny, 0, nx, ny, 0, nx, ny, 0);
+    uvs.push(u0, 0, u1, 1, u0, 1);
   }
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
   return geo;
 }
 
@@ -122,6 +141,15 @@ function buildCap(pts, thickness) {
     depth: thickness * SC,
     bevelEnabled: false,
   });
+  // Remap UVs to 0-1 based on bounding box so textures map correctly
+  const b = outlineBounds(pts);
+  const uv = geo.attributes.uv;
+  for (let i = 0; i < uv.count; i++) {
+    const u = (uv.getX(i) / SC - b.minX) / b.w;
+    const v = (uv.getY(i) / SC - b.minY) / b.h;
+    uv.setXY(i, u, v);
+  }
+  uv.needsUpdate = true;
   return geo;
 }
 
@@ -180,6 +208,7 @@ export default function HeartFoldBox({
   boxStyle = 'kraft',
   showSupport = false,
   supportConfig,
+  panelTextureUrls = {},
 }) {
   const cardboard = 1.5; // mm thickness
   const clearance = 1.03; // lid is 3% larger
@@ -188,7 +217,7 @@ export default function HeartFoldBox({
 
   const scheme = useMemo(() => getScheme(boxStyle), [boxStyle]);
 
-  const textures = useMemo(
+  const noiseTextures = useMemo(
     () => ({
       noiseBase: getCardboardNoiseTexture(scheme.base),
       noiseWall: getCardboardNoiseTexture(scheme.wall),
@@ -197,6 +226,33 @@ export default function HeartFoldBox({
     }),
     [scheme]
   );
+
+  // Load custom textures from placed images (panelTextureUrls)
+  const [customTextures, setCustomTextures] = useState({});
+  useEffect(() => {
+    const loader = new THREE.TextureLoader();
+    const loaded = {};
+    const entries = Object.entries(panelTextureUrls);
+    if (entries.length === 0) { setCustomTextures({}); return; }
+    let count = 0;
+    for (const [panelId, sides] of entries) {
+      const url = sides.outer || sides.inner;
+      if (!url) { count++; continue; }
+      loader.load(url, (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        loaded[panelId] = tex;
+        count++;
+        if (count >= entries.length) setCustomTextures({ ...loaded });
+      }, undefined, () => { count++; if (count >= entries.length) setCustomTextures({ ...loaded }); });
+    }
+  }, [panelTextureUrls]);
+
+  const textures = {
+    noiseBase: customTextures.baseCap || noiseTextures.noiseBase,
+    noiseWall: customTextures.baseWall || noiseTextures.noiseWall,
+    noiseLidCap: customTextures.lidCap || noiseTextures.noiseLidCap,
+    noiseLidWall: customTextures.lidWall || noiseTextures.noiseLidWall,
+  };
 
   // Generate outlines
   const baseOutline = useMemo(
