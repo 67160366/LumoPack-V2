@@ -1,32 +1,56 @@
 """
-LLM Service — Groq (Llama 3.3 70B)
+LLM Service — OpenAI-compatible (supports Groq, Cerebras, Together, OpenRouter, etc.)
+Configure via .env: LLM_API_KEY, LLM_BASE_URL, MODEL_NAME
 """
 
 import os
 from typing import List, Dict, Optional
-from groq import Groq
+from openai import OpenAI
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
+# Provider presets: name -> (base_url, default_model)
+PROVIDERS = {
+    "groq": ("https://api.groq.com/openai/v1", "llama-3.3-70b-versatile"),
+    "cerebras": ("https://api.cerebras.ai/v1", "llama-3.3-70b"),
+    "together": ("https://api.together.xyz/v1", "meta-llama/Llama-3.3-70B-Instruct-Turbo"),
+    "openrouter": ("https://openrouter.ai/api/v1", "meta-llama/llama-3.3-70b-instruct:free"),
+    "sambanova": ("https://api.sambanova.ai/v1", "Meta-Llama-3.3-70B-Instruct"),
+}
+
 
 class GroqService:
-    """Service สำหรับเชื่อมต่อ Groq LLM"""
+    """Service สำหรับเชื่อมต่อ LLM (OpenAI-compatible)"""
 
     def __init__(self):
-        """Initialize Groq client"""
-        api_key = os.getenv("GROQ_API_KEY")
-        if not api_key:
-            raise ValueError("GROQ_API_KEY not found in environment variables")
+        """Initialize LLM client"""
+        provider = os.getenv("LLM_PROVIDER", "groq").lower()
+        api_key = os.getenv("LLM_API_KEY") or os.getenv("GROQ_API_KEY")
 
-        self.client = Groq(api_key=api_key)
-        self.model = os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
+        if not api_key:
+            raise ValueError("LLM_API_KEY (or GROQ_API_KEY) not found in environment variables")
+
+        # Resolve base_url and default model from provider preset or env
+        if provider in PROVIDERS:
+            default_base_url, default_model = PROVIDERS[provider]
+        else:
+            default_base_url = "https://api.groq.com/openai/v1"
+            default_model = "llama-3.3-70b-versatile"
+
+        base_url = os.getenv("LLM_BASE_URL", default_base_url)
+        self.model = os.getenv("MODEL_NAME", default_model)
+        self.provider = provider
+
+        self.client = OpenAI(api_key=api_key, base_url=base_url)
 
         # Default parameters
         self.temperature = 0.7
         self.max_tokens = 1024
         self.top_p = 0.9
+
+        print(f"[LLM] Provider: {provider} | Model: {self.model} | Base: {base_url}")
 
     async def generate_response(
         self,
@@ -57,7 +81,7 @@ class GroqService:
             return response.choices[0].message.content
 
         except Exception as e:
-            print(f"[ERR] Groq API Error: {e}")
+            print(f"[ERR] LLM API Error ({self.provider}): {e}")
             return self._get_fallback_response(user_message)
 
     async def generate_response_with_extraction(
@@ -128,6 +152,7 @@ Tel: 02-xxx-xxxx"""
 
     def get_model_info(self) -> Dict:
         return {
+            "provider": self.provider,
             "model": self.model,
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
