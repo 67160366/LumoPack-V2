@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import time
 
+import os
 from api.chat import router as chat_router
 from api.pricing import router as pricing_router
 from api.analyze import router as analyze_router
@@ -30,7 +31,7 @@ async def lifespan(app: FastAPI):
     """
     # Startup
     print("[START] LumoPack API Server Starting...")
-    print("[LLM]   Groq: llama-3.3-70b-versatile")
+    print(f"[LLM]   {os.getenv('LLM_PROVIDER', 'groq')}: {os.getenv('MODEL_NAME', 'unknown')}")
     print("[OK]    Ready to serve!")
     
     yield
@@ -158,7 +159,7 @@ async def api_info():
     """API information"""
     return {
         "api_version": "1.0.0",
-        "llm_model": "llama-3.3-70b-versatile",
+        "llm_model": os.getenv("MODEL_NAME", "unknown"),
         "supported_languages": ["th", "en"],
         "features": [
             "AI Chatbot (14 steps)",
