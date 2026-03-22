@@ -469,7 +469,7 @@ class ChatbotFlowManagerV2:
         # Waiting for confirmation
         if is_confirmation(msg):
             response = await self._ask_llm(6, msg, state,
-                extra_context="ลูกค้ายืนยันแล้ว → ไปต่อถาม mood/tone")
+                extra_context="ลูกค้ายืนยันแล้ว → ถามว่ามีโลโก้หรือรูปที่ต้องการพิมพ์บนกล่องไหม")
             return StepResult(response=response, advance=True)
 
         # Edit request
@@ -656,10 +656,9 @@ class ChatbotFlowManagerV2:
     # Steps 11-14: Finalize (reuse finalize_steps logic)
     # ===================================
     async def _step_mockup(self, msg: str, state: ConversationState) -> StepResult:
-        if state.sub_step == 0:
-            response = await self._ask_llm(11, msg, state,
-                extra_context="กำลังเตรียม mockup + คำนวณราคาให้ลูกค้า")
-            return StepResult(response=response, advance=True)
+        response = await self._ask_llm(11, msg, state,
+            extra_context="กำลังเตรียม mockup + คำนวณราคาให้ลูกค้า")
+        return StepResult(response=response, advance=True, auto_execute=True)
 
     async def _step_quote(self, msg: str, state: ConversationState) -> StepResult:
         # Calculate pricing
@@ -674,10 +673,11 @@ class ChatbotFlowManagerV2:
             user_message=prompt,
             conversation_history=state.get_conversation_history(limit=4),
         )
+        response += "\n\nต้องการสั่งผลิตเลยไหมคะ?"
         return StepResult(
             response=response,
             advance=True,
-            extra={"auto_download_pdf": True},
+            extra={"auto_download_pdf": f"/api/pricing/quote-pdf/{state.session_id}"},
         )
 
     async def _step_confirm(self, msg: str, state: ConversationState) -> StepResult:
@@ -695,23 +695,35 @@ class ChatbotFlowManagerV2:
         return StepResult(response=response)
 
     async def _step_end(self, msg: str, state: ConversationState) -> StepResult:
-        # Save project + order
-        from services.step_handlers.finalize_steps import FinalizeStepHandlers
-        finalizer = FinalizeStepHandlers(self.groq)
-
-        # Ask for project name if not set
+        # Auto-generate project name if not set
         c = state.collected_data or {}
         if not c.get("project_name"):
             box_type = c.get("box_type", "project")
             from datetime import datetime
             c["project_name"] = f"{box_type.upper()} {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}"
 
-        finalizer._save_project_to_db(state)
-        finalizer._save_order_to_db(state)
-
-        response = await self._ask_llm(14, msg, state)
+        # Mark complete BEFORE saving so DB gets correct status
         state.is_complete = True
-        return StepResult(response=response)
+
+        # Save project + order (best-effort)
+        try:
+            from services.step_handlers.finalize_steps import FinalizeStepHandlers
+            finalizer = FinalizeStepHandlers(self.groq)
+            finalizer._save_project_to_db(state)
+            finalizer._save_order_to_db(state)
+        except Exception as e:
+            print(f"[step_end] save error (non-blocking): {e}")
+
+        project_name = c.get("project_name", "โปรเจกต์")
+        response = (
+            f"บันทึกโปรเจกต์ \"{project_name}\" เรียบร้อยแล้วค่ะ\n\n"
+            f"หมายเลขอ้างอิง: {state.session_id}\n\n"
+            f"ขอบคุณที่ใช้บริการ LumoPack ค่ะ ทีมงานจะติดต่อกลับภายใน 1-2 วันทำการค่ะ"
+        )
+        return StepResult(
+            response=response,
+            extra={"auto_download_pdf": f"/api/pricing/quote-pdf/{state.session_id}"},
+        )
 
     # ===================================
     # Edit mode
@@ -821,6 +833,10 @@ class ChatbotFlowManagerV2:
             box_info = BOX_TYPES.get(box_type, {})
             if not box_info.get("has_inner", False):
                 next_step = 5
+
+        # Skip mood/tone (step 7) → go straight to logo (step 8)
+        if next_step == 7:
+            next_step = 8
 
         return min(next_step, 14)
 

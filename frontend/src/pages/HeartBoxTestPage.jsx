@@ -20,6 +20,9 @@ import MaterialPresetPicker, { MATERIAL_PRESETS } from '../components/Box3D/Mate
 import { generateDxf, downloadDxf } from '../engine/dxfWriter';
 import { generateSvg, downloadSvg } from '../engine/svgExporter';
 import { generateHeartDieline } from '../engine/heartDieline';
+import useImagePlacement from '../hooks/useImagePlacement';
+import ImageUploadPanel from '../components/DesignOverlay/ImageUploadPanel';
+import DielineImageOverlay from '../components/DesignOverlay/DielineImageOverlay';
 
 /* ── Design tokens ── */
 const FONT = "'Plus Jakarta Sans', 'DM Sans', -apple-system, sans-serif";
@@ -127,6 +130,16 @@ function ProjectsIcon({ size = 20 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+    </svg>
+  );
+}
+
+function ImageIcon({ size = 20 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+      <circle cx="8.5" cy="8.5" r="1.5" />
+      <polyline points="21 15 16 10 5 21" />
     </svg>
   );
 }
@@ -301,6 +314,7 @@ const TABS = [
   { id: 'material', label: 'Material', icon: MaterialIcon },
   { id: 'size',  label: 'Size',  icon: SizeIcon },
   { id: 'support', label: 'Support', icon: SupportIcon },
+  { id: 'image', label: 'Image', icon: ImageIcon },
 ];
 
 /* ── Error Boundary ── */
@@ -486,13 +500,56 @@ function HeartBoxInner() {
   const handleMouseUp = useCallback(() => { setIsPanning(false); setSvgVBStart(null); }, []);
   const resetView = useCallback(() => { setSvgVB(initialViewBox); }, [initialViewBox]);
 
+  // Image placement on dieline
+  const placement = useImagePlacement({ svgRef, viewBox: svgVB || initialViewBox, defaultPlaceWidth: Math.min(300, dieline.bounds?.width || 300) });
+
+  // Panel zones for heart dieline (in dieline coords: X right, Y up)
+  const panelZones = useMemo(() => {
+    const b = dieline.bounds;
+    if (!b) return [];
+    const cardboard = 1.5;
+    const clearance = 1.03;
+    const gap = 8;
+    const teethH = 5;
+    const baseH = height * 0.7;
+    const lidH = height * 0.35;
+
+    const baseBounds = outlineBounds(generateHeart(length, shapePct, tiltDeg));
+    const lidBounds = outlineBounds(generateHeart(length * clearance, shapePct, tiltDeg));
+    const basePeri = (() => { const pts = generateHeart(length, shapePct, tiltDeg); let p = 0; for (let i = 0; i < pts.length; i++) { const j = (i + 1) % pts.length; p += Math.hypot(pts[j][0] - pts[i][0], pts[j][1] - pts[i][1]); } return p; })();
+    const lidPeri = (() => { const pts = generateHeart(length * clearance, shapePct, tiltDeg); let p = 0; for (let i = 0; i < pts.length; i++) { const j = (i + 1) % pts.length; p += Math.hypot(pts[j][0] - pts[i][0], pts[j][1] - pts[i][1]); } return p; })();
+
+    // Row 1: caps
+    const baseCapX = -baseBounds.w / 2;
+    const baseCapY = -baseBounds.h / 2;
+    const lidCapX = baseBounds.w / 2 + gap;
+    const lidCapY = -lidBounds.h / 2;
+
+    // Row 2: base wall strip
+    const stripStartY = -baseBounds.h / 2 - gap;
+    const bsx = -basePeri / 2;
+    const bsy = stripStartY - baseH;
+
+    // Row 3: lid wall strip
+    const lidStripY = bsy - teethH - gap;
+    const lsx = -lidPeri / 2;
+    const lsy = lidStripY - lidH;
+
+    return [
+      { id: 'baseCap',  label: 'ฐาน (หัวใจ)', x: baseCapX, y: baseCapY, w: baseBounds.w, h: baseBounds.h },
+      { id: 'lidCap',   label: 'ฝา (หัวใจ)',  x: lidCapX,  y: lidCapY,  w: lidBounds.w,  h: lidBounds.h },
+      { id: 'baseWall', label: 'ผนังฐาน',     x: bsx,      y: bsy,      w: basePeri,     h: baseH },
+      { id: 'lidWall',  label: 'ผนังฝา',      x: lsx,      y: lsy,      w: lidPeri,      h: lidH },
+    ];
+  }, [dieline, length, height, shapePct, tiltDeg]);
+
   const cutStroke = Math.max(0.8, vb.w * 0.002);
   const creaseStroke = Math.max(0.5, vb.w * 0.0012);
   const dashPattern = `${vb.w * 0.006} ${vb.w * 0.004}`;
   const toggle = (id) => setActiveTab(prev => prev === id ? null : id);
 
-  // Hide Support in 2D mode
-  const visibleTabs = view === '3d' ? TABS : TABS.filter(t => t.id !== 'support');
+  // Hide Support in 2D mode, hide Image in 3D mode
+  const visibleTabs = view === '3d' ? TABS.filter(t => t.id !== 'image') : TABS.filter(t => t.id !== 'support');
 
   // Download handlers
   const fname = `heart-box-${length}x${height}mm`;
@@ -1000,6 +1057,13 @@ function HeartBoxInner() {
                 </div>
               </div>
             )}
+
+            {/* ── Image tab (2D) ── */}
+            {activeTab === 'image' && (
+              <div style={{ padding: '14px 18px' }}>
+                <ImageUploadPanel placement={placement} accentColor={PINK} currentView={view} />
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1010,10 +1074,13 @@ function HeartBoxInner() {
           <div style={{ width: '100%', height: '100%', background: '#1a1d23', borderRadius: 0 }}>
             <svg
               ref={svgRef}
-              style={{ width: '100%', height: '100%', cursor: isPanning ? 'grabbing' : 'grab' }}
+              style={{ width: '100%', height: '100%', cursor: placement.selectedImageId ? 'crosshair' : isPanning ? 'grabbing' : 'grab' }}
               viewBox={`${vb.x} ${vb.y} ${vb.w} ${vb.h}`}
               onWheel={handleWheel}
-              onMouseDown={handleMouseDown}
+              onMouseDown={(e) => {
+                if (placement.selectedImageId) { placement.handleDielinePlace(e); return; }
+                handleMouseDown(e);
+              }}
               onMouseMove={handleMouseMove}
               onMouseUp={handleMouseUp}
               onMouseLeave={handleMouseUp}
@@ -1027,12 +1094,18 @@ function HeartBoxInner() {
                   lines.push(<line key={`gy-${y}`} x1={vb.x} y1={y} x2={vb.x + vb.w} y2={y} stroke={GRID_COLOR} strokeWidth={vb.w * 0.0005} />);
                 return lines;
               })()}
+              {panelZones.map(z => (
+                <rect key={`z-${z.id}`} x={z.x} y={-(z.y + z.h)} width={z.w} height={z.h}
+                  fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth={vb.w * 0.0008}
+                  strokeDasharray={`${vb.w * 0.004} ${vb.w * 0.003}`} style={{ pointerEvents: 'none' }} />
+              ))}
               {dieline.crease.map((pl, i) => (
                 <path key={`cr-${i}`} d={polylineToPath(pl)} fill="none" stroke={CREASE_COLOR} strokeWidth={creaseStroke} strokeDasharray={dashPattern} strokeLinejoin="round" />
               ))}
               {dieline.cut.map((pl, i) => (
                 <path key={`ct-${i}`} d={polylineToPath(pl)} fill="none" stroke={CUT_COLOR} strokeWidth={cutStroke} strokeLinejoin="round" strokeLinecap="round" />
               ))}
+              <DielineImageOverlay placement={placement} viewBox={vb} />
             </svg>
 
             {/* 2D legend */}
