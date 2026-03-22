@@ -1,11 +1,10 @@
 """
-LLM Service — Google Gemini
-(Drop-in replacement for Groq — same interface, class name, and singleton)
+LLM Service — Groq (Llama 3.3 70B)
 """
 
 import os
 from typing import List, Dict, Optional
-from google import genai
+from groq import Groq
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -13,16 +12,16 @@ load_dotenv()
 
 
 class GroqService:
-    """Service สำหรับเชื่อมต่อ LLM (Gemini)"""
+    """Service สำหรับเชื่อมต่อ Groq LLM"""
 
     def __init__(self):
-        """Initialize Gemini client"""
-        api_key = os.getenv("GEMINI_API_KEY")
+        """Initialize Groq client"""
+        api_key = os.getenv("GROQ_API_KEY")
         if not api_key:
-            raise ValueError("GEMINI_API_KEY not found in environment variables")
+            raise ValueError("GROQ_API_KEY not found in environment variables")
 
-        self.client = genai.Client(api_key=api_key)
-        self.model = os.getenv("MODEL_NAME", "gemini-2.0-flash")
+        self.client = Groq(api_key=api_key)
+        self.model = os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
 
         # Default parameters
         self.temperature = 0.7
@@ -37,45 +36,28 @@ class GroqService:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None
     ) -> str:
-        """
-        สร้าง response จาก LLM
-        """
-        # Build contents: system instruction + history + user message
-        contents = []
+        """สร้าง response จาก LLM"""
+        messages = [{"role": "system", "content": system_prompt}]
 
         if conversation_history:
-            for msg in conversation_history:
-                role = msg.get("role", "user")
-                # Gemini uses "user" and "model" (not "assistant")
-                if role == "assistant":
-                    role = "model"
-                contents.append({
-                    "role": role,
-                    "parts": [{"text": msg["content"]}]
-                })
+            messages.extend(conversation_history)
 
-        # Add current user message
-        contents.append({
-            "role": "user",
-            "parts": [{"text": user_message}]
-        })
+        messages.append({"role": "user", "content": user_message})
 
         try:
-            response = self.client.models.generate_content(
+            response = self.client.chat.completions.create(
                 model=self.model,
-                contents=contents,
-                config={
-                    "system_instruction": system_prompt,
-                    "temperature": temperature or self.temperature,
-                    "max_output_tokens": max_tokens or self.max_tokens,
-                    "top_p": self.top_p,
-                },
+                messages=messages,
+                temperature=temperature or self.temperature,
+                max_tokens=max_tokens or self.max_tokens,
+                top_p=self.top_p,
+                stream=False
             )
 
-            return response.text
+            return response.choices[0].message.content
 
         except Exception as e:
-            print(f"[ERR] Gemini API Error: {e}")
+            print(f"[ERR] Groq API Error: {e}")
             return self._get_fallback_response(user_message)
 
     async def generate_response_with_extraction(
@@ -85,9 +67,7 @@ class GroqService:
         conversation_history: Optional[List[Dict[str, str]]] = None,
         extraction_schema: Optional[Dict] = None
     ) -> Dict:
-        """
-        สร้าง response และ extract structured data
-        """
+        """สร้าง response และ extract structured data"""
         if extraction_schema:
             extraction_instruction = f"""
 

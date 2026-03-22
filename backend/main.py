@@ -30,7 +30,7 @@ async def lifespan(app: FastAPI):
     """
     # Startup
     print("[START] LumoPack API Server Starting...")
-    print("[LLM]   Google Gemini: gemini-2.0-flash")
+    print("[LLM]   Groq: llama-3.3-70b-versatile")
     print("[OK]    Ready to serve!")
     
     yield
@@ -158,7 +158,7 @@ async def api_info():
     """API information"""
     return {
         "api_version": "1.0.0",
-        "llm_model": "gemini-2.0-flash",
+        "llm_model": "llama-3.3-70b-versatile",
         "supported_languages": ["th", "en"],
         "features": [
             "AI Chatbot (14 steps)",
