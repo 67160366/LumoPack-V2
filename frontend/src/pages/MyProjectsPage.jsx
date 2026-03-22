@@ -346,6 +346,7 @@ export default function MyProjectsPage() {
                 onDelete={handleDelete}
                 deletingId={deletingId}
                 onSlipUploaded={fetchProjects}
+                onStatusChanged={fetchProjects}
               />
             ))}
           </div>
@@ -356,15 +357,40 @@ export default function MyProjectsPage() {
 }
 
 
-function ProjectCard({ project, onLoad, onDelete, deletingId, onSlipUploaded }) {
+function ProjectCard({ project, onLoad, onDelete, deletingId, onSlipUploaded, onStatusChanged }) {
   const [hovered, setHovered] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [ordering, setOrdering] = useState(false);
   const slipInputRef = useRef(null);
   const status = STATUS_CFG[project.status] || STATUS_CFG.draft;
   const jk = "'Plus Jakarta Sans', sans-serif";
   const sb = "'Sarabun', sans-serif";
 
   const [pdfLoading, setPdfLoading] = useState(false);
+
+  const handleOrderProduction = async (e) => {
+    e.stopPropagation();
+    if (!confirm('ยืนยันสั่งผลิต? สถานะจะเปลี่ยนเป็น "สั่งผลิตแล้ว"')) return;
+    setOrdering(true);
+    try {
+      const token = await getFreshAccessToken();
+      if (!token) { alert('กรุณาเข้าสู่ระบบก่อน'); return; }
+      const res = await fetch(apiUrl(`/api/projects/${project.id}`), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: 'ordered' }),
+      });
+      if (!res.ok) {
+        const msg = await readApiErrorMessage(res, 'เปลี่ยนสถานะไม่สำเร็จ');
+        throw new Error(msg);
+      }
+      if (onStatusChanged) onStatusChanged();
+    } catch (err) {
+      alert(err.message || 'เปลี่ยนสถานะไม่สำเร็จ');
+    } finally {
+      setOrdering(false);
+    }
+  };
 
   const handleDownloadPdf = async (e) => {
     e.stopPropagation();
@@ -455,8 +481,6 @@ function ProjectCard({ project, onLoad, onDelete, deletingId, onSlipUploaded }) 
     }
   };
 
-  const hasPricing = project.grand_total != null || project.pricing;
-
   return (
     <div
       onMouseEnter={() => setHovered(true)}
@@ -537,24 +561,27 @@ function ProjectCard({ project, onLoad, onDelete, deletingId, onSlipUploaded }) 
           <ActionButton onClick={() => onLoad(project)} primary>
             เปิดใน Studio
           </ActionButton>
-          {hasPricing && (
-            <ActionButton onClick={handleDownloadPdf} disabled={pdfLoading}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                {pdfLoading ? (
-                  <span style={{
-                    width: 14, height: 14, borderRadius: '50%',
-                    border: '2px solid #d1d5db', borderTopColor: '#7c3aed',
-                    animation: 'spin 0.8s linear infinite', display: 'inline-block',
-                  }} />
-                ) : (
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                    <polyline points="7 10 12 15 17 10" />
-                    <line x1="12" y1="15" x2="12" y2="3" />
-                  </svg>
-                )}
-                {pdfLoading ? 'กำลังโหลด...' : 'ใบเสนอราคา'}
-              </span>
+          <ActionButton onClick={handleDownloadPdf} disabled={pdfLoading}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              {pdfLoading ? (
+                <span style={{
+                  width: 14, height: 14, borderRadius: '50%',
+                  border: '2px solid #d1d5db', borderTopColor: '#7c3aed',
+                  animation: 'spin 0.8s linear infinite', display: 'inline-block',
+                }} />
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+              )}
+              {pdfLoading ? 'กำลังโหลด...' : 'ใบเสนอราคา'}
+            </span>
+          </ActionButton>
+          {(project.status === 'draft' || project.status === 'quoted') && (
+            <ActionButton onClick={handleOrderProduction} disabled={ordering} success>
+              {ordering ? '...' : 'สั่งผลิต'}
             </ActionButton>
           )}
           <ActionButton
@@ -599,7 +626,7 @@ function MetaChip({ children, style: overrides }) {
 }
 
 
-function ActionButton({ children, onClick, primary, danger, disabled }) {
+function ActionButton({ children, onClick, primary, danger, success, disabled }) {
   const [hovered, setHovered] = useState(false);
   const jk = "'Plus Jakarta Sans', sans-serif";
 
@@ -612,6 +639,10 @@ function ActionButton({ children, onClick, primary, danger, disabled }) {
     bg = hovered ? '#fef2f2' : 'transparent';
     color = hovered ? '#ef4444' : '#9ca3af';
     borderColor = hovered ? '#fecaca' : 'transparent';
+  } else if (success) {
+    bg = hovered ? '#047857' : '#ecfdf5';
+    color = hovered ? '#fff' : '#047857';
+    borderColor = hovered ? '#047857' : '#a7f3d0';
   } else {
     bg = '#f3f4f6';
     color = '#374151';
